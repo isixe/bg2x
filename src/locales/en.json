@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "home": "Home",
+    "upload": "Upload",
+    "history": "History",
+    "models": "Models",
+    "settings": "Settings",
+    "general": "General",
+    "tools": "Tools"
+  },
+  "home": {
+    "title": "Image Super Resolution",
+    "desc": "Upscale your images with AI. Choose a model below to get started.",
+    "getStarted": "Get Started",
+    "downloadModel": "Download Model",
+    "useModel": "Use",
+    "removeModel": "Remove",
+    "cancel": "Cancel",
+    "default": "Default",
+    "ready": "Ready",
+    "downloading": "Downloading",
+    "downloadFailed": "Download failed",
+    "noModels": "No models available"
+  },
+  "upload": {
+    "title": "Upload",
+    "selectedImages": "Selected {count} images",
+    "dragDrop": "Drag & drop images here",
+    "orClick": "or click to browse",
+    "clearAll": "Clear All",
+    "selectedItems": "Selected items",
+    "images": "{count} images",
+    "upscale": "Upscale",
+    "processing": "Processing...",
+    "model": "Model"
+  },
+  "processing": {
+    "title": "Processing",
+    "ready": "Ready",
+    "loadingModel": "Loading model...",
+    "loadingImage": "Loading image...",
+    "complete": "Complete",
+    "error": "Error",
+    "modelNotLoaded": "Model not loaded",
+    "uploadToStart": "Upload an image to start",
+    "download": "Download",
+    "copy": "Copy",
+    "copied": "Copied to clipboard!"
+  },
+  "history": {
+    "title": "History",
+    "clearAll": "Clear All",
+    "noHistory": "No history yet",
+    "download": "Download result",
+    "delete": "Delete"
+  },
+  "models": {
+    "title": "Models",
+    "downloadBeforeUse": "Download models before use",
+    "upscale": "{scale}x upscale",
+    "maxSize": "Max {size}px"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Configure app preferences",
+    "layout": "Layout",
+    "autoExpandSidebar": "Auto-expand sidebar on hover",
+    "autoExpandSidebarDesc": "When sidebar is collapsed, hovering over it will temporarily expand it",
+    "language": "Language",
+    "languageDesc": "Select your preferred language"
+  }
+}

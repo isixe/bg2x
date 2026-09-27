@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "home": "ホーム",
+    "upload": "アップロード",
+    "history": "履歴",
+    "models": "モデル",
+    "settings": "設定",
+    "general": "一般",
+    "tools": "ツール"
+  },
+  "home": {
+    "title": "画像スーパーリゾリューション",
+    "desc": "AI で画像を拡大します。以下のモデルを選択して開始してください。",
+    "getStarted": "開始する",
+    "downloadModel": "モデルをダウンロード",
+    "useModel": "使用",
+    "removeModel": "削除",
+    "cancel": "キャンセル",
+    "default": "デフォルト",
+    "ready": "準備完了",
+    "downloading": "ダウンロード中",
+    "downloadFailed": "ダウンロード失敗",
+    "noModels": "利用可能なモデルがありません"
+  },
+  "upload": {
+    "title": "アップロード",
+    "selectedImages": "{count} 枚の画像を選択中",
+    "dragDrop": "画像をここにドラッグ＆ドロップ",
+    "orClick": "またはクリックして参照",
+    "clearAll": "すべてクリア",
+    "selectedItems": "選択アイテム",
+    "images": "{count} 枚の画像",
+    "upscale": "拡大",
+    "processing": "処理中...",
+    "model": "モデル"
+  },
+  "processing": {
+    "title": "処理",
+    "ready": "準備完了",
+    "loadingModel": "モデルを読み込み中...",
+    "loadingImage": "画像を読み込み中...",
+    "complete": "完了",
+    "error": "エラー",
+    "modelNotLoaded": "モデルが未ロード",
+    "uploadToStart": "画像をアップロードして開始",
+    "download": "ダウンロード",
+    "copy": "コピー",
+    "copied": "クリップボードにコピーしました！"
+  },
+  "history": {
+    "title": "履歴",
+    "clearAll": "すべてクリア",
+    "noHistory": "履歴がありません",
+    "download": "結果をダウンロード",
+    "delete": "削除"
+  },
+  "models": {
+    "title": "モデル管理",
+    "downloadBeforeUse": "使用前にモデルをダウンロードしてください",
+    "upscale": "{scale}x 拡大",
+    "maxSize": "最大 {size}px"
+  },
+  "settings": {
+    "title": "設定",
+    "subtitle": "アプリの設定",
+    "layout": "レイアウト",
+    "autoExpandSidebar": "ホバー時にサイドバーを自動展開",
+    "autoExpandSidebarDesc": "サイドバーを折りたたんだ状態でホバーすると一時的に展開します",
+    "language": "言語",
+    "languageDesc": "希望の言語を選択してください"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "nav": {
+    "home": "首页",
+    "upload": "上传",
+    "history": "历史",
+    "models": "模型",
+    "settings": "设置",
+    "general": "通用",
+    "tools": "工具"
+  },
+  "home": {
+    "title": "图片超分辨率",
+    "desc": "使用 AI 放大图片。选择一个模型开始使用。",
+    "getStarted": "开始使用",
+    "downloadModel": "下载模型",
+    "useModel": "使用",
+    "removeModel": "移除",
+    "cancel": "取消",
+    "default": "默认",
+    "ready": "就绪",
+    "downloading": "下载中",
+    "downloadFailed": "下载失败",
+    "noModels": "暂无可用模型"
+  },
+  "upload": {
+    "title": "上传",
+    "selectedImages": "已选择 {count} 张图片",
+    "dragDrop": "拖拽图片到此处",
+    "orClick": "或点击浏览",
+    "clearAll": "全部清除",
+    "selectedItems": "已选项目",
+    "images": "{count} 张图片",
+    "upscale": "放大",
+    "processing": "处理中...",
+    "model": "模型"
+  },
+  "processing": {
+    "title": "处理",
+    "ready": "就绪",
+    "loadingModel": "加载模型中...",
+    "loadingImage": "加载图片中...",
+    "complete": "完成",
+    "error": "错误",
+    "modelNotLoaded": "模型未加载",
+    "uploadToStart": "上传图片以开始",
+    "download": "下载",
+    "copy": "复制",
+    "copied": "已复制到剪贴板！"
+  },
+  "history": {
+    "title": "历史记录",
+    "clearAll": "全部清除",
+    "noHistory": "暂无历史记录",
+    "download": "下载结果",
+    "delete": "删除"
+  },
+  "models": {
+    "title": "模型管理",
+    "downloadBeforeUse": "使用前请先下载模型",
+    "upscale": "{scale}x 放大",
+    "maxSize": "最大 {size}px"
+  },
+  "settings": {
+    "title": "设置",
+    "subtitle": "配置应用偏好",
+    "layout": "布局",
+    "autoExpandSidebar": "悬停时自动展开侧边栏",
+    "autoExpandSidebarDesc": "侧边栏收起后，鼠标悬停时临时展开",
+    "language": "语言",
+    "languageDesc": "选择您偏好的语言"
+  }
+}

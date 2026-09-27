@@ -1,0 +1,250 @@
+---
+export interface Props {
+  current: string;
+}
+const { current } = Astro.props;
+---
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <a href="/" class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <polyline points="21,15 16,10 5,21" />
+      </svg>
+    </a>
+    <button class="sidebar-collapse-btn" id="sidebarToggle" title="Toggle sidebar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="15,18 9,12 15,6" />
+      </svg>
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section">
+      <span class="nav-label">General</span>
+      <a href="/models" class:list={["nav-item", { active: current === "models" }]}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" />
+          <path d="M2 17l10 5 10-5" />
+          <path d="M2 12l10 5 10-5" />
+        </svg>
+        <span>Models</span>
+      </a>
+      <a href="/upload" class:list={["nav-item", { active: current === "upload" }]}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="17,8 12,3 7,8" />
+          <line x1="12" y1="3" x2="12" y2="15" />
+        </svg>
+        <span>Upload</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-label">Tools</span>
+      <a href="/history" class:list={["nav-item", { active: current === "history" }]}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12,6 12,12 16,14" />
+        </svg>
+        <span>History</span>
+      </a>
+    </div>
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="#" class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+      </svg>
+      <span>Settings</span>
+    </a>
+  </div>
+</aside>
+
+<style>
+  .sidebar {
+    width: 240px;
+    background: var(--color-sidebar);
+    border-right: var(--border-thin);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: width 0.2s ease;
+    overflow: hidden;
+  }
+
+  .sidebar :global(.sidebar-collapsed) {
+    width: 60px;
+  }
+
+  .sidebar :global(.sidebar-collapsed) .sidebar-header {
+    padding: 1rem 0.75rem;
+    justify-content: center;
+  }
+
+  .sidebar :global(.sidebar-collapsed) .logo {
+    display: none;
+  }
+
+  .sidebar :global(.sidebar-collapsed) .sidebar-collapse-btn svg {
+    transform: rotate(180deg);
+  }
+
+  .sidebar-header {
+    padding: 1.25rem;
+    border-bottom: var(--border-thin);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+  }
+
+  .logo svg {
+    width: 28px;
+    height: 28px;
+    color: var(--color-primary);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 1rem 0.75rem;
+    overflow-y: auto;
+  }
+
+  .nav-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .nav-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-gray-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-md);
+    color: var(--color-dark);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+
+  .nav-item:hover {
+    background: var(--color-gray);
+  }
+
+  .nav-item.active {
+    background: var(--color-primary);
+    color: white;
+  }
+
+  .nav-item svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--color-gray-dark);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .sidebar-collapse-btn:hover {
+    background: var(--color-gray);
+    color: var(--color-dark);
+  }
+
+  .sidebar-collapse-btn svg {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar-footer {
+    padding: 0.75rem;
+    border-top: var(--border-thin);
+  }
+
+  @media (max-width: 768px) {
+    .sidebar {
+      width: 60px;
+    }
+
+    .sidebar-header {
+      padding: 1rem 0.75rem;
+      justify-content: center;
+    }
+
+    .sidebar-header .logo {
+      display: none;
+    }
+
+    .sidebar-collapse-btn {
+      width: 100%;
+    }
+
+    .nav-label {
+      display: none;
+    }
+
+    .nav-item span {
+      display: none;
+    }
+
+    .nav-item {
+      justify-content: center;
+      padding: 0.75rem;
+    }
+
+    .sidebar-footer .nav-item span {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const sidebar = document.querySelector('.sidebar');
+  const toggle = document.getElementById('sidebarToggle');
+
+  if (localStorage.getItem('sidebar-collapsed') === 'true') {
+    sidebar?.classList.add('sidebar-collapsed');
+  }
+
+  toggle?.addEventListener('click', () => {
+    sidebar?.classList.toggle('sidebar-collapsed');
+    const collapsed = sidebar?.classList.contains('sidebar-collapsed') ?? false;
+    localStorage.setItem('sidebar-collapsed', String(collapsed));
+  });
+</script>

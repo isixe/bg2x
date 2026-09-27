@@ -1,0 +1,533 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Settings">
+  <div class="app-layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="/" class="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21,15 16,10 5,21" />
+          </svg>
+        </a>
+        <button class="sidebar-collapse-btn" id="sidebarToggle" title="Toggle sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15,18 9,12 15,6" />
+          </svg>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <span class="nav-label" data-i18n="nav.general">General</span>
+          <a href="/#/" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9,22 9,12 15,12 15,22" />
+            </svg>
+            <span data-i18n="nav.home">Home</span>
+          </a>
+          <a href="/#/upload" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17,8 12,3 7,8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            <span data-i18n="nav.upload">Upload</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <span class="nav-label" data-i18n="nav.tools">Tools</span>
+          <a href="/#/history" class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12,6 12,12 16,14" />
+            </svg>
+            <span data-i18n="nav.history">History</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="/settings" class="nav-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+          <span data-i18n="nav.settings">Settings</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="settings-page">
+        <div class="settings-header">
+          <h1>Settings</h1>
+          <p class="settings-subtitle">Configure app preferences</p>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="section-title">Layout</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Auto-expand sidebar on hover</span>
+              <span class="setting-desc">When sidebar is collapsed, hovering over it will temporarily expand it</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="autoExpandToggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="section-title">Language</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Language</span>
+              <span class="setting-desc">Select your preferred language</span>
+            </div>
+            <select class="lang-select" id="langSelect">
+              <option value="zh">中文</option>
+              <option value="en">English</option>
+              <option value="ja">日本語</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .app-layout {
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar styles (same as index.astro) */
+  .sidebar {
+    width: 240px;
+    background: var(--color-sidebar);
+    border-right: var(--border-thin);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    transition: width 0.2s ease;
+    overflow: hidden;
+  }
+
+  .sidebar.sidebar-collapsed {
+    width: 60px;
+  }
+
+  .sidebar.sidebar-collapsed .sidebar-header {
+    padding: 1.25rem 0;
+    justify-content: center;
+  }
+
+  .sidebar.sidebar-collapsed .logo {
+    display: none;
+  }
+
+  .sidebar.sidebar-collapsed .sidebar-collapse-btn svg {
+    transform: rotate(180deg);
+  }
+
+  .sidebar.sidebar-collapsed .nav-label {
+    display: none;
+  }
+
+  .sidebar.sidebar-collapsed .nav-item span {
+    display: none;
+  }
+
+  .sidebar.sidebar-collapsed .nav-item {
+    justify-content: center;
+    padding: 0.75rem;
+    gap: 0;
+  }
+
+  .sidebar.sidebar-collapsed .sidebar-footer .nav-item span {
+    display: none;
+  }
+
+  .sidebar.sidebar-collapsed .sidebar-footer .nav-item {
+    justify-content: center;
+    padding: 0.75rem;
+    gap: 0;
+  }
+
+  .sidebar-header {
+    padding: 1.25rem;
+    border-bottom: var(--border-thin);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none;
+  }
+
+  .logo svg {
+    width: 28px;
+    height: 28px;
+    color: var(--color-primary);
+  }
+
+  .sidebar-nav {
+    flex: 1;
+    padding: 1rem 0.75rem;
+    overflow-y: auto;
+  }
+
+  .nav-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .nav-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-gray-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-md);
+    color: var(--color-dark);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+
+  .nav-item:hover {
+    background: var(--color-gray);
+  }
+
+  .nav-item.active {
+    background: var(--color-primary);
+    color: white;
+  }
+
+  .nav-item svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    color: var(--color-gray-dark);
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .sidebar-collapse-btn:hover {
+    background: var(--color-gray);
+    color: var(--color-dark);
+  }
+
+  .sidebar-collapse-btn svg {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.2s ease;
+  }
+
+  .sidebar-footer {
+    padding: 0.75rem;
+    border-top: var(--border-thin);
+  }
+
+  .main-content {
+    flex: 1;
+    margin-left: 240px;
+    min-height: 100vh;
+    transition: margin-left 0.2s ease;
+  }
+
+  .sidebar.sidebar-collapsed ~ .main-content {
+    margin-left: 60px;
+  }
+
+  /* Settings page */
+  .settings-page {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 2.5rem 2rem;
+  }
+
+  .settings-header {
+    margin-bottom: 2.5rem;
+  }
+
+  .settings-header h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-dark);
+    margin: 0 0 0.375rem;
+  }
+
+  .settings-subtitle {
+    font-size: 0.875rem;
+    color: var(--color-gray-dark);
+    margin: 0;
+  }
+
+  .settings-section {
+    margin-bottom: 2rem;
+  }
+
+  .section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-gray-dark);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 1rem;
+  }
+
+  .setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    background: var(--color-card);
+    border: var(--border-thin);
+    border-radius: var(--radius-md);
+  }
+
+  .setting-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    margin-right: 1rem;
+  }
+
+  .setting-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-dark);
+  }
+
+  .setting-desc {
+    font-size: 0.75rem;
+    color: var(--color-gray-dark);
+  }
+
+  /* Toggle switch */
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--color-gray);
+    border-radius: 12px;
+    transition: background 0.2s ease;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  }
+
+  .toggle-switch input:checked + .toggle-slider {
+    background: var(--color-primary);
+  }
+
+  .toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(20px);
+  }
+
+  .lang-select {
+    padding: 0.5rem 0.75rem;
+    border: var(--border-thin);
+    border-radius: var(--radius-md);
+    background: var(--color-card);
+    color: var(--color-dark);
+    font-size: 0.875rem;
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 100px;
+  }
+
+  .lang-select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+
+  @media (max-width: 768px) {
+    .sidebar {
+      width: 60px;
+    }
+
+    .sidebar-header {
+      padding: 1rem 0.75rem;
+      justify-content: center;
+    }
+
+    .sidebar-header .logo {
+      display: none;
+    }
+
+    .sidebar-collapse-btn {
+      width: 100%;
+    }
+
+    .nav-label {
+      display: none;
+    }
+
+    .nav-item span {
+      display: none;
+    }
+
+    .nav-item {
+      justify-content: center;
+      padding: 0.75rem;
+    }
+
+    .sidebar-footer .nav-item span {
+      display: none;
+    }
+
+    .main-content {
+      margin-left: 60px;
+    }
+  }
+</style>
+
+<script>
+  // Sidebar i18n translations
+  const sidebarI18n: Record<string, Record<string, string>> = {
+    en: { 'nav.general': 'General', 'nav.tools': 'Tools', 'nav.home': 'Home', 'nav.upload': 'Upload', 'nav.history': 'History', 'nav.settings': 'Settings' },
+    zh: { 'nav.general': '通用', 'nav.tools': '工具', 'nav.home': '首页', 'nav.upload': '上传', 'nav.history': '历史记录', 'nav.settings': '设置' },
+    ja: { 'nav.general': '一般', 'nav.tools': 'ツール', 'nav.home': 'ホーム', 'nav.upload': 'アップロード', 'nav.history': '履歴', 'nav.settings': '設定' },
+  };
+
+  function applySidebarI18n() {
+    let locale = 'en';
+    try { locale = localStorage.getItem('super-resolution-locale') || 'en'; } catch {}
+    const map = sidebarI18n[locale] || sidebarI18n.en;
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const key = el.getAttribute('data-i18n');
+      if (key && map[key]) el.textContent = map[key];
+    });
+  }
+  applySidebarI18n();
+
+  const sidebar = document.querySelector('.sidebar');
+  const toggle = document.getElementById('sidebarToggle');
+  const autoExpandToggle = document.getElementById('autoExpandToggle') as HTMLInputElement;
+  const langSelect = document.getElementById('langSelect') as HTMLSelectElement;
+
+  // Restore collapsed state
+  if (localStorage.getItem('sidebar-collapsed') === 'true') {
+    sidebar?.classList.add('sidebar-collapsed');
+  }
+
+  // Restore auto-expand setting
+  const autoExpand = localStorage.getItem('sidebar-auto-expand') === 'true';
+  if (autoExpandToggle) autoExpandToggle.checked = autoExpand;
+
+  // Restore language setting
+  if (langSelect) {
+    const saved = localStorage.getItem('super-resolution-locale') || 'en';
+    langSelect.value = saved;
+  }
+
+  // Toggle collapse
+  toggle?.addEventListener('click', () => {
+    sidebar?.classList.toggle('sidebar-collapsed');
+    const collapsed = sidebar?.classList.contains('sidebar-collapsed') ?? false;
+    localStorage.setItem('sidebar-collapsed', String(collapsed));
+  });
+
+  // Auto-expand toggle
+  autoExpandToggle?.addEventListener('change', () => {
+    localStorage.setItem('sidebar-auto-expand', String(autoExpandToggle.checked));
+  });
+
+  // Language switcher
+  langSelect?.addEventListener('change', () => {
+    const locale = langSelect.value;
+    localStorage.setItem('super-resolution-locale', locale);
+    applySidebarI18n();
+  });
+
+  // Hover to expand when collapsed
+  let hoverExpandTimeout: ReturnType<typeof setTimeout>;
+  let leaveTimeout: ReturnType<typeof setTimeout>;
+
+  sidebar?.addEventListener('mouseenter', () => {
+    if (!autoExpandToggle?.checked) return;
+    if (!sidebar?.classList.contains('sidebar-collapsed')) return;
+
+    clearTimeout(leaveTimeout);
+    hoverExpandTimeout = setTimeout(() => {
+      sidebar?.classList.add('sidebar-hover-expanded');
+      sidebar?.classList.remove('sidebar-collapsed');
+    }, 300);
+  });
+
+  sidebar?.addEventListener('mouseleave', () => {
+    if (!autoExpandToggle?.checked) return;
+    if (!sidebar?.classList.contains('sidebar-hover-expanded')) return;
+
+    clearTimeout(hoverExpandTimeout);
+    leaveTimeout = setTimeout(() => {
+      sidebar?.classList.remove('sidebar-hover-expanded');
+      sidebar?.classList.add('sidebar-collapsed');
+    }, 300);
+  });
+</script>

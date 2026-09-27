@@ -1,0 +1,43 @@
+{
+  "name": "image-super-resolution",
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "astro dev --host 0.0.0.0",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "typecheck": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/vue": "^5.1.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^5.13.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^1.0.0",
+    "onnxruntime-web": "file:./onnxruntime-web-1.30.0.tgz",
+    "pinia": "^4.0.3",
+    "pinia-plugin-persistedstate": "^4.7.1",
+    "shadcn-vue": "^2.8.2",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
+    "tailwindcss-animate": "^1.0.7",
+    "vue": "^3.5.0",
+    "vue-i18n": "^11.4.12"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.11.0",
+    "prettier": "^3.9.8",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.70.0"
+  }
+}
