@@ -20,7 +20,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-vue-next": "^1.0.0",
-    "onnxruntime-web": "file:./onnxruntime-web-1.30.0.tgz",
+    "onnxruntime-web": "1.30.0",
     "pinia": "^4.0.3",
     "pinia-plugin-persistedstate": "^4.7.1",
     "shadcn-vue": "^2.8.2",
