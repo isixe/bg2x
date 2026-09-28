@@ -32,7 +32,8 @@
     "images": "{count} 张图片",
     "upscale": "放大",
     "processing": "处理中...",
-    "model": "模型"
+    "model": "模型",
+    "remove": "移除"
   },
   "processing": {
     "title": "处理",
@@ -45,7 +46,15 @@
     "uploadToStart": "上传图片以开始",
     "download": "下载",
     "copy": "复制",
-    "copied": "已复制到剪贴板！"
+    "copied": "已复制到剪贴板！",
+    "original": "原图",
+    "result": "结果",
+    "compareHandle": "对比滑块",
+    "pending": "等待中",
+    "itemProcessing": "处理中...",
+    "failed": "失败",
+    "clickToCompare": "点击对比",
+    "close": "关闭"
   },
   "history": {
     "title": "历史记录",

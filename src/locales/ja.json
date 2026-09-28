@@ -32,7 +32,8 @@
     "images": "{count} 枚の画像",
     "upscale": "拡大",
     "processing": "処理中...",
-    "model": "モデル"
+    "model": "モデル",
+    "remove": "削除"
   },
   "processing": {
     "title": "処理",
@@ -45,7 +46,15 @@
     "uploadToStart": "画像をアップロードして開始",
     "download": "ダウンロード",
     "copy": "コピー",
-    "copied": "クリップボードにコピーしました！"
+    "copied": "クリップボードにコピーしました！",
+    "original": "元画像",
+    "result": "結果",
+    "compareHandle": "比較スライダー",
+    "pending": "待機中",
+    "itemProcessing": "処理中...",
+    "failed": "失敗",
+    "clickToCompare": "クリックで比較",
+    "close": "閉じる"
   },
   "history": {
     "title": "履歴",

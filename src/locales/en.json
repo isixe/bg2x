@@ -32,7 +32,8 @@
     "images": "{count} images",
     "upscale": "Upscale",
     "processing": "Processing...",
-    "model": "Model"
+    "model": "Model",
+    "remove": "Remove"
   },
   "processing": {
     "title": "Processing",
@@ -45,7 +46,15 @@
     "uploadToStart": "Upload an image to start",
     "download": "Download",
     "copy": "Copy",
-    "copied": "Copied to clipboard!"
+    "copied": "Copied to clipboard!",
+    "original": "Original",
+    "result": "Result",
+    "compareHandle": "Comparison slider",
+    "pending": "Waiting",
+    "itemProcessing": "Processing...",
+    "failed": "Failed",
+    "clickToCompare": "Click to compare",
+    "close": "Close"
   },
   "history": {
     "title": "History",
