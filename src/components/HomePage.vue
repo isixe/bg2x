@@ -500,6 +500,9 @@ function goToUpload() {
   justify-content: center;
   width: 32px;
   height: 32px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
   background: none;
   color: var(--color-gray-dark);
   border-radius: var(--radius-md);
@@ -516,6 +519,9 @@ function goToUpload() {
   justify-content: center;
   width: 32px;
   height: 32px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
   background: none;
   color: var(--color-gray-dark);
   border-radius: var(--radius-md);
