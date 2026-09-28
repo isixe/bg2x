@@ -15,7 +15,6 @@ const processingPanel = ref<InstanceType<typeof ProcessingPanel> | null>(null);
 const selectedCount = ref(0);
 const isProcessing = ref(false);
 const selectedModelId = ref(MODEL_REGISTRY[0].id);
-const currentFile = ref<File | null>(null);
 
 type ViewName = 'home' | 'upload' | 'history';
 
@@ -61,47 +60,38 @@ onUnmounted(() => {
   window.removeEventListener('hashchange', handleHashChange);
 });
 
-function handleImageSelected(file: File) {
-  selectedCount.value = 1;
-  currentFile.value = file;
-  processCurrentFile();
+function handleFilesSelected(files: File[]) {
+  selectedCount.value += files.length;
+  isProcessing.value = true;
+  processingPanel.value?.processBatch(files);
 }
 
-function handleImagesSelected(files: File[]) {
-  selectedCount.value = files.length;
-  if (files.length > 0) {
-    currentFile.value = files[0];
-    processCurrentFile();
-  }
-}
-
-function processCurrentFile() {
-  if (processingPanel.value && currentFile.value) {
-    processingPanel.value.processImage(currentFile.value);
-    isProcessing.value = true;
-  }
+function handleProcessingStart() {
+  isProcessing.value = true;
 }
 
 function handleProcessingComplete() {
   isProcessing.value = false;
 }
 
+function handleProcessingError() {
+  isProcessing.value = false;
+}
+
 async function handleResultReady(payload: {
+  file: File;
   originalSize: { width: number; height: number };
   resultSize: { width: number; height: number };
   resultUrl: string;
 }) {
-  isProcessing.value = false;
-  if (currentFile.value) {
-    await addRecord({
-      file: currentFile.value,
-      originalSize: payload.originalSize,
-      resultSize: payload.resultSize,
-      modelId: selectedModel.value.id,
-      modelName: selectedModel.value.name,
-      resultUrl: payload.resultUrl,
-    });
-  }
+  await addRecord({
+    file: payload.file,
+    originalSize: payload.originalSize,
+    resultSize: payload.resultSize,
+    modelId: selectedModel.value.id,
+    modelName: selectedModel.value.name,
+    resultUrl: payload.resultUrl,
+  });
 }
 
 watch(selectedModelId, () => {
@@ -233,10 +223,7 @@ watch(selectedModelId, () => {
 
       <div class="content-area">
         <div class="panel upload-panel">
-          <ImageUploader
-            @image-selected="handleImageSelected"
-            @images-selected="handleImagesSelected"
-          />
+          <ImageUploader @files-selected="handleFilesSelected" />
         </div>
 
         <div class="panel processing-panel">
@@ -245,7 +232,9 @@ watch(selectedModelId, () => {
             :model-id="selectedModel.id"
             :model-url="selectedModel.url"
             :model-scale="selectedModel.scale"
+            @processing-start="handleProcessingStart"
             @processing-complete="handleProcessingComplete"
+            @processing-error="handleProcessingError"
             @result-ready="handleResultReady"
           />
         </div>
@@ -534,7 +523,11 @@ watch(selectedModelId, () => {
   justify-content: center;
   width: 32px;
   height: 32px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
   border-radius: var(--radius-md);
+  background: transparent;
   color: var(--color-gray-dark);
   flex-shrink: 0;
   opacity: 0;

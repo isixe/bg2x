@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import CompareSlider from './CompareSlider.vue';
 
 const { t } = useI18n();
 
@@ -14,15 +15,31 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'processing-complete'): void;
   (e: 'processing-start'): void;
+  (e: 'processing-error'): void;
   (
     e: 'result-ready',
     payload: {
+      file: File;
       originalSize: { width: number; height: number };
       resultSize: { width: number; height: number };
       resultUrl: string;
     },
   ): void;
 }>();
+
+type ItemStatus = 'pending' | 'processing' | 'done' | 'error';
+
+interface BatchItem {
+  id: number;
+  name: string;
+  file: File;
+  status: ItemStatus;
+  originalUrl: string;
+  resultUrl: string | null;
+  originalSize: { width: number; height: number } | null;
+  resultSize: { width: number; height: number } | null;
+  error: string | null;
+}
 
 interface ProcessingState {
   isProcessing: boolean;
@@ -31,9 +48,7 @@ interface ProcessingState {
   progress: number;
   status: string;
   error: string | null;
-  resultUrl: string | null;
-  originalSize: { width: number; height: number } | null;
-  upscaledSize: { width: number; height: number } | null;
+  items: BatchItem[];
 }
 
 const state: Ref<ProcessingState> = ref({
@@ -43,13 +58,73 @@ const state: Ref<ProcessingState> = ref({
   progress: 0,
   status: 'Ready',
   error: null,
-  resultUrl: null,
-  originalSize: null,
-  upscaledSize: null,
+  items: [],
 });
 
+const activeId = ref<number | null>(null);
+
+const previewId = ref<number | null>(null);
+const previewItem = computed<BatchItem | null>(
+  () => state.value.items.find((item) => item.id === previewId.value) ?? null,
+);
+
+/** copy button feedback: show a check icon for a short while after a successful copy */
+const copiedId = ref<number | null>(null);
+const COPIED_DURATION = 1800;
+let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flashCopied(id: number) {
+  if (copiedTimer) clearTimeout(copiedTimer);
+  copiedId.value = id;
+  copiedTimer = setTimeout(() => {
+    copiedId.value = null;
+    copiedTimer = null;
+  }, COPIED_DURATION);
+}
+
+function resetCopied() {
+  if (copiedTimer) {
+    clearTimeout(copiedTimer);
+    copiedTimer = null;
+  }
+  copiedId.value = null;
+}
+
+const previewCopied = computed(
+  () => copiedId.value !== null && copiedId.value === previewItem.value?.id,
+);
+
+const resultSectionRef = ref<HTMLElement | null>(null);
+
+function scrollToResult() {
+  if (state.value.items.length === 0) return;
+  resultSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function selectItem(item: BatchItem) {
+  if (item.status !== 'done') return;
+  activeId.value = item.id;
+  previewId.value = item.id;
+}
+
+function closePreview() {
+  previewId.value = null;
+  resetCopied();
+}
+
+function onGlobalKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && previewId.value !== null) {
+    closePreview();
+  }
+}
+
+let itemIdSeq = 0;
 let worker: Worker | null = null;
 let currentModelUrl: string | null = null;
+let currentItem: BatchItem | null = null;
+let resolveCurrent: (() => void) | null = null;
+let queueRunning = false;
+let batchAborted = false;
 
 onMounted(() => {
   if (typeof Worker !== 'undefined') {
@@ -66,26 +141,46 @@ onMounted(() => {
           state.value.status = payload.status;
           break;
 
-        case 'complete':
-          state.value.isProcessing = false;
+        case 'complete': {
           state.value.progress = 100;
           state.value.status = 'Complete';
-          state.value.resultUrl = payload.resultUrl;
-          state.value.upscaledSize = payload.size;
-          emit('processing-complete');
-          emit('result-ready', {
-            originalSize: state.value.originalSize!,
-            resultSize: payload.size,
-            resultUrl: payload.resultUrl,
-          });
+          const item = currentItem;
+          if (item && item.status === 'processing') {
+            item.status = 'done';
+            item.resultUrl = payload.resultUrl;
+            item.originalSize = item.originalSize ?? null;
+            item.resultSize = payload.size;
+            activeId.value = item.id;
+            emit('result-ready', {
+              file: item.file,
+              originalSize: item.originalSize!,
+              resultSize: payload.size,
+              resultUrl: payload.resultUrl,
+            });
+          }
+          currentItem = null;
+          resolveCurrent?.();
+          resolveCurrent = null;
           break;
+        }
 
-        case 'error':
-          state.value.isProcessing = false;
+        case 'error': {
           state.value.isLoadingModel = false;
           state.value.error = payload.message;
           state.value.status = 'Error';
+          const item = currentItem;
+          if (item) {
+            item.status = 'error';
+            item.error = payload.message;
+            currentItem = null;
+          } else {
+            batchAborted = true;
+            markRemainingFailed(payload.message);
+          }
+          resolveCurrent?.();
+          resolveCurrent = null;
           break;
+        }
 
         case 'model-loaded':
           state.value.isModelLoaded = true;
@@ -101,15 +196,52 @@ onMounted(() => {
       state.value.isLoadingModel = false;
       state.value.error = e.message;
       state.value.status = 'Worker error';
+      const item = currentItem;
+      if (item) {
+        item.status = 'error';
+        item.error = e.message;
+        currentItem = null;
+      } else {
+        batchAborted = true;
+        markRemainingFailed(e.message);
+      }
+      resolveCurrent?.();
+      resolveCurrent = null;
     };
   }
+
+  window.addEventListener('keydown', onGlobalKeydown);
+});
+
+watch(previewId, (value) => {
+  document.body.style.overflow = value !== null ? 'hidden' : '';
 });
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeydown);
+  document.body.style.overflow = '';
+  resetCopied();
   if (worker) {
     worker.terminate();
   }
+  revokeAllOriginalUrls();
 });
+
+function markRemainingFailed(message: string) {
+  state.value.items.forEach((item) => {
+    if (item.status === 'pending' || item.status === 'processing') {
+      item.status = 'error';
+      item.error = message;
+    }
+  });
+}
+
+function revokeAllOriginalUrls() {
+  state.value.items.forEach((item) => URL.revokeObjectURL(item.originalUrl));
+  state.value.items = [];
+  activeId.value = null;
+  previewId.value = null;
+}
 
 async function loadModel(modelUrl: string, modelData?: ArrayBuffer) {
   if (!worker) return;
@@ -144,13 +276,10 @@ function waitForModelLoaded(): Promise<void> {
   });
 }
 
-async function processImage(file: File) {
-  if (!worker) {
-    state.value.error = 'Web Worker not supported';
-    return;
-  }
+async function ensureModel(): Promise<boolean> {
+  if (state.value.isModelLoaded && currentModelUrl === props.modelUrl) return true;
 
-  if (!state.value.isModelLoaded || currentModelUrl !== props.modelUrl) {
+  try {
     const { getCachedModel } = await import('../composables/useModelCache');
     const { getModelById } = await import('../composables/useModelRegistry');
     const { fetchModelBytes } = await import('../composables/useModelDownload');
@@ -159,62 +288,80 @@ async function processImage(file: File) {
     if (!modelData) {
       const model = getModelById(props.modelId);
       if (!model) {
-        state.value.error = `Unknown model: ${props.modelId}`;
-        state.value.status = 'Error';
-        return;
+        throw new Error(`Unknown model: ${props.modelId}`);
       }
       state.value.status = 'Downloading model...';
       modelData = await fetchModelBytes(model);
     }
 
     await loadModel(props.modelUrl, modelData);
-    try {
-      await waitForModelLoaded();
-    } catch (err) {
-      state.value.isLoadingModel = false;
-      state.value.error = err instanceof Error ? err.message : 'Failed to load model';
-      state.value.status = 'Error';
-      return;
-    }
+    await waitForModelLoaded();
+    return true;
+  } catch (err) {
+    state.value.isLoadingModel = false;
+    state.value.error = err instanceof Error ? err.message : 'Failed to load model';
+    state.value.status = 'Error';
+    return false;
+  }
+}
+
+async function processItem(item: BatchItem): Promise<'done' | 'error' | 'abort'> {
+  if (!worker) return 'abort';
+
+  const modelOk = await ensureModel();
+  if (!modelOk) {
+    item.status = 'error';
+    item.error = state.value.error;
+    emit('processing-error');
+    return 'abort';
   }
 
   state.value.isProcessing = true;
   state.value.progress = 0;
   state.value.status = 'Loading image...';
   state.value.error = null;
-  state.value.resultUrl = null;
-  state.value.upscaledSize = null;
+  item.status = 'processing';
+  currentItem = item;
 
-  emit('processing-start');
-
+  let img: HTMLImageElement;
   try {
-    const img = await loadImage(file);
-    state.value.originalSize = { width: img.width, height: img.height };
-
-    const imageData = getImageData(img);
-
-    worker.postMessage({
-      type: 'process',
-      payload: {
-        imageData,
-        width: img.width,
-        height: img.height,
-        scale: props.modelScale,
-      },
-    });
+    img = await loadImage(item.originalUrl);
+    item.originalSize = { width: img.width, height: img.height };
   } catch (err) {
-    state.value.isProcessing = false;
-    state.value.error = err instanceof Error ? err.message : 'Failed to load image';
+    item.status = 'error';
+    item.error = err instanceof Error ? err.message : 'Failed to load image';
     state.value.status = 'Error';
+    state.value.error = item.error;
+    currentItem = null;
+    return 'error';
   }
+
+  const imageData = getImageData(img);
+
+  worker.postMessage({
+    type: 'process',
+    payload: {
+      imageData,
+      width: img.width,
+      height: img.height,
+      scale: props.modelScale,
+    },
+  });
+
+  await new Promise<void>((resolve) => {
+    resolveCurrent = resolve;
+  });
+  resolveCurrent = null;
+
+  return item.status === 'done' ? 'done' : 'error';
 }
 
-function loadImage(file: File): Promise<HTMLImageElement> {
+function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = URL.createObjectURL(file);
+    img.src = url;
   });
 }
 
@@ -227,18 +374,69 @@ function getImageData(img: HTMLImageElement): ImageData {
   return ctx.getImageData(0, 0, img.width, img.height);
 }
 
-function downloadResult() {
-  if (!state.value.resultUrl) return;
+async function runQueue() {
+  if (queueRunning) return;
+  queueRunning = true;
+  batchAborted = false;
+  emit('processing-start');
 
+  while (!batchAborted) {
+    const item = state.value.items.find((i) => i.status === 'pending');
+    if (!item) break;
+
+    const result = await processItem(item);
+    if (result === 'abort') {
+      batchAborted = true;
+    }
+  }
+
+  if (batchAborted) {
+    markRemainingFailed(state.value.error ?? 'Processing aborted');
+  }
+
+  state.value.isProcessing = false;
+  queueRunning = false;
+  emit('processing-complete');
+  scrollToResult();
+}
+
+function processBatch(files: File[]) {
+  if (files.length === 0) return;
+
+  if (!worker) {
+    state.value.error = 'Web Worker not supported';
+    state.value.status = 'Error';
+    emit('processing-error');
+    emit('processing-complete');
+    return;
+  }
+
+  const newItems: BatchItem[] = files.map((file) => ({
+    id: ++itemIdSeq,
+    name: file.name,
+    file,
+    status: 'pending' as const,
+    originalUrl: URL.createObjectURL(file),
+    resultUrl: null,
+    originalSize: null,
+    resultSize: null,
+    error: null,
+  }));
+  state.value.items.push(...newItems);
+
+  runQueue();
+}
+
+function downloadResult(item: BatchItem) {
+  if (!item.resultUrl) return;
   const link = document.createElement('a');
-  link.href = state.value.resultUrl;
-  link.download = 'upscaled-image.png';
+  link.href = item.resultUrl;
+  link.download = item.name ? item.name.replace(/(\.\w+)$/, '-upscaled$1') : 'upscaled-image.png';
   link.click();
 }
 
-function copyToClipboard() {
-  if (!state.value.resultUrl) return;
-
+function copyToClipboard(item: BatchItem) {
+  if (!item.resultUrl) return;
   const img = new Image();
   img.onload = async () => {
     const canvas = document.createElement('canvas');
@@ -251,29 +449,32 @@ function copyToClipboard() {
       if (blob) {
         try {
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-          state.value.status = 'Copied to clipboard!';
+          state.value.status = t('processing.copied');
+          flashCopied(item.id);
         } catch {
           state.value.error = 'Failed to copy to clipboard';
         }
       }
     }, 'image/png');
   };
-  img.src = state.value.resultUrl;
+  img.src = item.resultUrl;
 }
 
 function resetState() {
+  resolveCurrent?.();
+  resolveCurrent = null;
+  currentItem = null;
+  batchAborted = true;
   state.value.isProcessing = false;
   state.value.progress = 0;
   state.value.status = 'Ready';
   state.value.error = null;
-  state.value.resultUrl = null;
-  state.value.originalSize = null;
-  state.value.upscaledSize = null;
+  revokeAllOriginalUrls();
   state.value.isModelLoaded = false;
   currentModelUrl = null;
 }
 
-defineExpose({ processImage, loadModel, resetState });
+defineExpose({ processBatch, loadModel, resetState, scrollToResult });
 </script>
 
 <template>
@@ -311,24 +512,99 @@ defineExpose({ processImage, loadModel, resetState });
       <p>{{ state.error }}</p>
     </div>
 
-    <div v-if="state.resultUrl" class="result-section">
-      <div class="result-info">
-        <div v-if="state.originalSize && state.upscaledSize" class="size-info">
-          <span>{{ state.originalSize.width }}×{{ state.originalSize.height }}</span>
-          <span class="arrow">→</span>
-          <span>{{ state.upscaledSize.width }}×{{ state.upscaledSize.height }}</span>
+    <div v-if="state.items.length > 0" ref="resultSectionRef" class="result-section">
+      <div class="result-list">
+        <div
+          v-for="item in state.items"
+          :key="item.id"
+          class="list-item"
+          :class="[item.status, { active: item.id === activeId }]"
+          :role="item.status === 'done' ? 'button' : undefined"
+          :tabindex="item.status === 'done' ? 0 : undefined"
+          :title="item.status === 'done' ? t('processing.clickToCompare') : item.name"
+          @click="selectItem(item)"
+          @keydown.enter="selectItem(item)"
+          @keydown.space.prevent="selectItem(item)"
+        >
+          <img :src="item.originalUrl" class="list-item-thumb" :alt="item.name" draggable="false" />
+          <div class="list-item-info">
+            <span class="list-item-name">{{ item.name }}</span>
+            <span v-if="item.status === 'done'" class="list-item-meta">
+              {{ item.originalSize?.width }}×{{ item.originalSize?.height }} →
+              {{ item.resultSize?.width }}×{{ item.resultSize?.height }}
+            </span>
+            <span v-else-if="item.status === 'pending'" class="list-item-meta">
+              {{ t('processing.pending') }}
+            </span>
+            <span v-else-if="item.status === 'processing'" class="list-item-meta processing-meta">
+              <span class="mini-spinner"></span>
+              {{ t('processing.itemProcessing') }}
+            </span>
+            <span v-else class="list-item-meta error">
+              {{ item.error || t('processing.failed') }}
+            </span>
+          </div>
+          <div v-if="item.status === 'done'" class="list-item-side">
+            <button
+              type="button"
+              class="list-item-action"
+              :title="t('processing.download')"
+              :aria-label="t('processing.download')"
+              @click.stop="downloadResult(item)"
+              @keydown.stop
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7,10 12,15 17,10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="list-item-action"
+              :class="{ copied: copiedId === item.id }"
+              :title="copiedId === item.id ? t('processing.copied') : t('processing.copy')"
+              :aria-label="copiedId === item.id ? t('processing.copied') : t('processing.copy')"
+              @click.stop="copyToClipboard(item)"
+              @keydown.stop
+            >
+              <svg
+                v-if="copiedId !== item.id"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+              <svg
+                v-else
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+            <span class="list-item-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="20,6 9,17 4,12" />
+              </svg>
+            </span>
+          </div>
         </div>
-      </div>
-
-      <img :src="state.resultUrl" alt="Upscaled result" class="result-image" />
-
-      <div class="result-actions">
-        <button class="download-btn" @click="downloadResult">
-          {{ t('processing.download') }}
-        </button>
-        <button class="copy-btn" @click="copyToClipboard">
-          {{ t('processing.copy') }}
-        </button>
       </div>
     </div>
 
@@ -355,6 +631,94 @@ defineExpose({ processImage, loadModel, resetState });
       </svg>
       <p>{{ t('processing.modelNotLoaded') }}</p>
     </div>
+
+    <Teleport to="body">
+      <div
+        v-if="previewItem && previewItem.status === 'done'"
+        class="preview-overlay"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="previewItem.name"
+        @click.self="closePreview"
+      >
+        <div class="preview-dialog">
+          <div class="preview-header">
+            <div class="preview-info">
+              <span class="preview-name" :title="previewItem.name">{{ previewItem.name }}</span>
+              <span class="preview-size">
+                {{ previewItem.originalSize?.width }}×{{ previewItem.originalSize?.height }} →
+                {{ previewItem.resultSize?.width }}×{{ previewItem.resultSize?.height }}
+              </span>
+            </div>
+            <div class="preview-actions">
+              <button
+                class="preview-icon-btn"
+                :title="t('processing.download')"
+                :aria-label="t('processing.download')"
+                @click="downloadResult(previewItem)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7,10 12,15 17,10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </button>
+              <button
+                class="preview-icon-btn"
+                :class="{ copied: previewCopied }"
+                :title="previewCopied ? t('processing.copied') : t('processing.copy')"
+                :aria-label="previewCopied ? t('processing.copied') : t('processing.copy')"
+                @click="copyToClipboard(previewItem)"
+              >
+                <svg
+                  v-if="!previewCopied"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <svg
+                  v-else
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </button>
+              <button
+                class="preview-icon-btn"
+                :title="t('processing.close')"
+                :aria-label="t('processing.close')"
+                @click="closePreview"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="preview-body">
+            <CompareSlider
+              :key="previewItem.id"
+              :original-url="previewItem.originalUrl"
+              :result-url="previewItem.resultUrl ?? ''"
+              height="100%"
+            />
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -468,62 +832,303 @@ defineExpose({ processImage, loadModel, resetState });
   flex: 1;
 }
 
-.result-info {
+.result-list {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
-.size-info {
+.list-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 0.8125rem;
-  color: var(--color-gray-dark);
+  padding: 0.5rem 0.75rem;
+  background: var(--color-gray);
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 
-.size-info span:first-child,
-.size-info span:last-child {
+.list-item.pending {
+  opacity: 0.7;
+}
+
+.list-item.processing {
+  border-color: var(--color-primary);
+}
+
+.list-item.error {
+  border-color: rgba(255, 107, 107, 0.5);
+}
+
+.list-item.done {
+  cursor: pointer;
+}
+
+.list-item.done:hover {
+  border-color: var(--color-primary);
+}
+
+.list-item.active {
+  border-color: var(--color-primary);
+  background: rgba(212, 132, 62, 0.08);
+}
+
+.list-item.done:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.list-item-thumb {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--color-card);
+}
+
+.list-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.list-item-name {
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.arrow {
+.list-item-meta {
+  font-size: 0.6875rem;
+  color: var(--color-gray-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.list-item-meta.processing-meta {
   color: var(--color-primary);
 }
 
-.result-image {
-  width: 100%;
-  max-height: 320px;
-  object-fit: contain;
+.list-item-meta.error {
+  color: #d44;
+}
+
+.mini-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(212, 132, 62, 0.3);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.list-item-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.list-item-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* download / copy actions, left of the completion check */
+.list-item-side {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.list-item-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-gray-dark);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.list-item-action:hover {
+  background: var(--color-card);
+  color: var(--color-primary);
+}
+
+.list-item-action:active {
+  transform: scale(0.9);
+}
+
+.list-item-action:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.list-item-action.copied,
+.list-item-action.copied:hover {
+  background: var(--color-secondary);
+  color: var(--color-light);
+}
+
+.list-item-action.copied svg {
+  animation: preview-copy-pop 0.28s ease;
+}
+
+.list-item-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.65);
+}
+
+.preview-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(96vw, 1600px);
+  height: min(92vh, 1100px);
+  padding: 1rem;
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.preview-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.preview-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-size {
+  font-size: 0.6875rem;
+  color: var(--color-gray-dark);
+}
+
+.preview-actions {
+  display: flex;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+.preview-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
   border-radius: var(--radius-md);
   background: var(--color-gray);
+  color: var(--color-gray-dark);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.15s ease;
 }
 
-.result-actions {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.result-actions button {
-  flex: 1;
-}
-
-.download-btn {
-  background: var(--color-primary);
-  color: white;
-}
-
-.download-btn:hover {
-  background: var(--color-primary-hover);
-}
-
-.copy-btn {
-  background: var(--color-gray);
-  color: var(--color-dark);
-}
-
-.copy-btn:hover {
+.preview-icon-btn:hover {
   background: var(--color-border);
+  color: var(--color-primary);
+}
+
+.preview-icon-btn:active {
+  transform: scale(0.9);
+}
+
+/* copy succeeded: swap to the check icon and highlight the button */
+.preview-icon-btn.copied,
+.preview-icon-btn.copied:hover {
+  background: var(--color-secondary);
+  color: var(--color-light);
+}
+
+.preview-icon-btn.copied svg {
+  animation: preview-copy-pop 0.28s ease;
+}
+
+@keyframes preview-copy-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.preview-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.preview-body {
+  flex: 1;
+  min-height: 0;
 }
 
 .empty-state {
