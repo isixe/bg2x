@@ -1,5 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { Image as ImageIcon, ChevronLeft, Home, Upload, Clock, Layers, Settings } from 'lucide-vue-next';
 ---
 
 <Layout title="Settings">
@@ -8,16 +9,10 @@ import Layout from '../layouts/Layout.astro';
     <aside class="sidebar">
       <div class="sidebar-header">
         <a href="/" class="logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21,15 16,10 5,21" />
-          </svg>
+          <ImageIcon />
         </a>
         <button class="sidebar-collapse-btn" id="sidebarToggle" title="Toggle sidebar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15,18 9,12 15,6" />
-          </svg>
+          <ChevronLeft />
         </button>
       </div>
 
@@ -25,29 +20,23 @@ import Layout from '../layouts/Layout.astro';
         <div class="nav-section">
           <span class="nav-label" data-i18n="nav.general">General</span>
           <a href="/#/" class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9,22 9,12 15,12 15,22" />
-            </svg>
+            <Home />
             <span data-i18n="nav.home">Home</span>
           </a>
           <a href="/#/upload" class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17,8 12,3 7,8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
+            <Upload />
             <span data-i18n="nav.upload">Upload</span>
+          </a>
+          <a href="/#/models" class="nav-item">
+            <Layers />
+            <span data-i18n="nav.models">Models</span>
           </a>
         </div>
 
         <div class="nav-section">
           <span class="nav-label" data-i18n="nav.tools">Tools</span>
           <a href="/#/history" class="nav-item">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12,6 12,12 16,14" />
-            </svg>
+            <Clock />
             <span data-i18n="nav.history">History</span>
           </a>
         </div>
@@ -55,10 +44,7 @@ import Layout from '../layouts/Layout.astro';
 
       <div class="sidebar-footer">
         <a href="/settings" class="nav-item active">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
+          <Settings />
           <span data-i18n="nav.settings">Settings</span>
         </a>
       </div>
@@ -81,6 +67,22 @@ import Layout from '../layouts/Layout.astro';
             </div>
             <label class="toggle-switch">
               <input type="checkbox" id="autoExpandToggle" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="section-title">History</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">Persist history records</span>
+              <span class="setting-desc"
+                >Save history records across browser sessions. When off, history is only kept for the current session</span
+              >
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="historyPersistToggle" />
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -454,9 +456,9 @@ import Layout from '../layouts/Layout.astro';
 <script>
   // Sidebar i18n translations
   const sidebarI18n: Record<string, Record<string, string>> = {
-    en: { 'nav.general': 'General', 'nav.tools': 'Tools', 'nav.home': 'Home', 'nav.upload': 'Upload', 'nav.history': 'History', 'nav.settings': 'Settings' },
-    zh: { 'nav.general': '通用', 'nav.tools': '工具', 'nav.home': '首页', 'nav.upload': '上传', 'nav.history': '历史记录', 'nav.settings': '设置' },
-    ja: { 'nav.general': '一般', 'nav.tools': 'ツール', 'nav.home': 'ホーム', 'nav.upload': 'アップロード', 'nav.history': '履歴', 'nav.settings': '設定' },
+    en: { 'nav.general': 'General', 'nav.tools': 'Tools', 'nav.home': 'Home', 'nav.upload': 'Upload', 'nav.models': 'Models', 'nav.history': 'History', 'nav.settings': 'Settings' },
+    zh: { 'nav.general': '通用', 'nav.tools': '工具', 'nav.home': '首页', 'nav.upload': '上传', 'nav.models': '模型管理', 'nav.history': '历史记录', 'nav.settings': '设置' },
+    ja: { 'nav.general': '一般', 'nav.tools': 'ツール', 'nav.home': 'ホーム', 'nav.upload': 'アップロード', 'nav.models': 'モデル管理', 'nav.history': '履歴', 'nav.settings': '設定' },
   };
 
   function applySidebarI18n() {
@@ -473,6 +475,7 @@ import Layout from '../layouts/Layout.astro';
   const sidebar = document.querySelector('.sidebar');
   const toggle = document.getElementById('sidebarToggle');
   const autoExpandToggle = document.getElementById('autoExpandToggle') as HTMLInputElement;
+  const historyPersistToggle = document.getElementById('historyPersistToggle') as HTMLInputElement;
   const langSelect = document.getElementById('langSelect') as HTMLSelectElement;
 
   // Restore collapsed state
@@ -483,6 +486,11 @@ import Layout from '../layouts/Layout.astro';
   // Restore auto-expand setting
   const autoExpand = localStorage.getItem('sidebar-auto-expand') === 'true';
   if (autoExpandToggle) autoExpandToggle.checked = autoExpand;
+
+  // Restore history persistence setting (default: session-only)
+  if (historyPersistToggle) {
+    historyPersistToggle.checked = localStorage.getItem('history-persist') === 'true';
+  }
 
   // Restore language setting
   if (langSelect) {
@@ -500,6 +508,11 @@ import Layout from '../layouts/Layout.astro';
   // Auto-expand toggle
   autoExpandToggle?.addEventListener('change', () => {
     localStorage.setItem('sidebar-auto-expand', String(autoExpandToggle.checked));
+  });
+
+  // History persistence toggle
+  historyPersistToggle?.addEventListener('change', () => {
+    localStorage.setItem('history-persist', String(historyPersistToggle.checked));
   });
 
   // Language switcher

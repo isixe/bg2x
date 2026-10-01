@@ -37,6 +37,35 @@ export interface HistoryRecord {
 
 const MAX_RECORDS = 50;
 
+const HISTORY_PERSIST_FLAG = 'history-persist';
+
+function isHistoryPersistEnabled(): boolean {
+  try {
+    return localStorage.getItem(HISTORY_PERSIST_FLAG) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+const conditionalHistoryStorage = {
+  getItem(key: string): string | null {
+    if (!isHistoryPersistEnabled()) return null;
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  setItem(key: string, value: string): void {
+    if (!isHistoryPersistEnabled()) return;
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // storage unavailable or quota exceeded - keep state in memory only
+    }
+  },
+};
+
 async function createThumbnail(dataUrl: string, maxSize = 120): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -124,7 +153,12 @@ export const useHistoryStore = defineStore(
 
     return { records, addRecord, removeRecord, clearHistory, formatTimestamp };
   },
-  { persist: { key: 'image-super-resolution-history' } },
+  {
+    persist: {
+      key: 'image-super-resolution-history',
+      storage: conditionalHistoryStorage,
+    },
+  },
 );
 
 export const useModelStore = defineStore(
