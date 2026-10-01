@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Check, Copy, Download, Image as ImageIcon, Layers, X } from 'lucide-vue-next';
 import CompareSlider from './CompareSlider.vue';
 
 const { t } = useI18n();
@@ -553,17 +554,7 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
               @click.stop="downloadResult(item)"
               @keydown.stop
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7,10 12,15 17,10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+              <Download aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -574,34 +565,11 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
               @click.stop="copyToClipboard(item)"
               @keydown.stop
             >
-              <svg
-                v-if="copiedId !== item.id"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <svg
-                v-else
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
+              <Copy v-if="copiedId !== item.id" aria-hidden="true" />
+              <Check v-else aria-hidden="true" />
             </button>
             <span class="list-item-check" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="20,6 9,17 4,12" />
-              </svg>
+              <Check :stroke-width="2.5" />
             </span>
           </div>
         </div>
@@ -612,11 +580,7 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
       v-else-if="!state.isProcessing && !state.isLoadingModel && state.isModelLoaded"
       class="empty-state"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-        <circle cx="8.5" cy="8.5" r="1.5" />
-        <polyline points="21,15 16,10 5,21" />
-      </svg>
+      <ImageIcon :stroke-width="1.5" />
       <p>{{ t('processing.uploadToStart') }}</p>
     </div>
 
@@ -624,11 +588,7 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
       v-else-if="!state.isProcessing && !state.isLoadingModel && !state.isModelLoaded"
       class="empty-state"
     >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M12 2L2 7l10 5 10-5-10-5z" />
-        <path d="M2 17l10 5 10-5" />
-        <path d="M2 12l10 5 10-5" />
-      </svg>
+      <Layers :stroke-width="1.5" />
       <p>{{ t('processing.modelNotLoaded') }}</p>
     </div>
 
@@ -657,11 +617,7 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
                 :aria-label="t('processing.download')"
                 @click="downloadResult(previewItem)"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7,10 12,15 17,10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
+                <Download />
               </button>
               <button
                 class="preview-icon-btn"
@@ -670,29 +626,8 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
                 :aria-label="previewCopied ? t('processing.copied') : t('processing.copy')"
                 @click="copyToClipboard(previewItem)"
               >
-                <svg
-                  v-if="!previewCopied"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  aria-hidden="true"
-                >
-                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-                <svg
-                  v-else
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Copy v-if="!previewCopied" aria-hidden="true" />
+                <Check v-else aria-hidden="true" />
               </button>
               <button
                 class="preview-icon-btn"
@@ -700,10 +635,7 @@ defineExpose({ processBatch, loadModel, resetState, scrollToResult });
                 :aria-label="t('processing.close')"
                 @click="closePreview"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <X />
               </button>
             </div>
           </div>

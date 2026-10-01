@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Upload } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -54,17 +55,7 @@ function handleFileInput(e: Event) {
       @drop="handleDrop"
     >
       <div class="drop-zone-content">
-        <svg
-          class="upload-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17,8 12,3 7,8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
+        <Upload class="upload-icon" />
         <p class="drop-text">{{ t('upload.dragDrop') }}</p>
         <p class="drop-subtext">{{ t('upload.orClick') }}</p>
         <input type="file" class="file-input" accept="image/*" multiple @change="handleFileInput" />
