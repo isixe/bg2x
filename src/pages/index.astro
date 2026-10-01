@@ -1,6 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import App from '../components/App.vue';
+import { Image as ImageIcon, ChevronLeft, Home, Upload, Clock, Layers, Settings } from 'lucide-vue-next';
 ---
 
 <Layout title="Image Super Resolution">
@@ -8,16 +9,10 @@ import App from '../components/App.vue';
     <aside class="sidebar">
       <div class="sidebar-header">
         <a href="/" class="logo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="8.5" cy="8.5" r="1.5" />
-            <polyline points="21,15 16,10 5,21" />
-          </svg>
+          <ImageIcon />
         </a>
         <button class="sidebar-collapse-btn" id="sidebarToggle" title="Toggle sidebar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="15,18 9,12 15,6" />
-          </svg>
+          <ChevronLeft />
         </button>
       </div>
 
@@ -25,29 +20,23 @@ import App from '../components/App.vue';
         <div class="nav-section">
           <span class="nav-label" data-i18n="nav.general">General</span>
           <a href="/#/" class="nav-item active" data-nav="home">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9,22 9,12 15,12 15,22" />
-            </svg>
+            <Home />
             <span data-i18n="nav.home">Home</span>
           </a>
           <a href="/#/upload" class="nav-item" data-nav="upload">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="17,8 12,3 7,8" />
-              <line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
+            <Upload />
             <span data-i18n="nav.upload">Upload</span>
+          </a>
+          <a href="/#/models" class="nav-item" data-nav="models">
+            <Layers />
+            <span data-i18n="nav.models">Models</span>
           </a>
         </div>
 
         <div class="nav-section">
           <span class="nav-label" data-i18n="nav.tools">Tools</span>
           <a href="/#/history" class="nav-item" data-nav="history">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12,6 12,12 16,14" />
-            </svg>
+            <Clock />
             <span data-i18n="nav.history">History</span>
           </a>
         </div>
@@ -55,10 +44,7 @@ import App from '../components/App.vue';
 
       <div class="sidebar-footer">
         <a href="/settings" class="nav-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
+          <Settings />
           <span data-i18n="nav.settings">Settings</span>
         </a>
       </div>
@@ -329,9 +315,9 @@ import App from '../components/App.vue';
 <script>
   // Sidebar i18n translations
   const sidebarI18n: Record<string, Record<string, string>> = {
-    en: { 'nav.general': 'General', 'nav.tools': 'Tools', 'nav.home': 'Home', 'nav.upload': 'Upload', 'nav.history': 'History', 'nav.settings': 'Settings' },
-    zh: { 'nav.general': '通用', 'nav.tools': '工具', 'nav.home': '首页', 'nav.upload': '上传', 'nav.history': '历史记录', 'nav.settings': '设置' },
-    ja: { 'nav.general': '一般', 'nav.tools': 'ツール', 'nav.home': 'ホーム', 'nav.upload': 'アップロード', 'nav.history': '履歴', 'nav.settings': '設定' },
+    en: { 'nav.general': 'General', 'nav.tools': 'Tools', 'nav.home': 'Home', 'nav.upload': 'Upload', 'nav.models': 'Models', 'nav.history': 'History', 'nav.settings': 'Settings' },
+    zh: { 'nav.general': '通用', 'nav.tools': '工具', 'nav.home': '首页', 'nav.upload': '上传', 'nav.models': '模型管理', 'nav.history': '历史记录', 'nav.settings': '设置' },
+    ja: { 'nav.general': '一般', 'nav.tools': 'ツール', 'nav.home': 'ホーム', 'nav.upload': 'アップロード', 'nav.models': 'モデル管理', 'nav.history': '履歴', 'nav.settings': '設定' },
   };
 
   function applySidebarI18n() {
@@ -394,6 +380,7 @@ import App from '../components/App.vue';
     const hash = location.hash.replace(/^#\/?/, '');
     if (hash === 'upload') return 'upload';
     if (hash === 'history') return 'history';
+    if (hash === 'models') return 'models';
     return 'home';
   }
 
