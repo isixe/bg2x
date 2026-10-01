@@ -3,10 +3,22 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import HomePage from './HomePage.vue';
 import ImageUploader from './ImageUploader.vue';
+import ModelsSection from './ModelsSection.vue';
 import ProcessingPanel from './ProcessingPanel.vue';
+import PreviewDialog from './PreviewDialog.vue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
-import { useHistoryStore } from '../stores';
+import { useHistoryStore, type HistoryRecord } from '../stores';
 import { useI18n } from 'vue-i18n';
+import { Clock, Download, Trash2, X } from 'lucide-vue-next';
+
+type PreviewItem = {
+  id: string;
+  name: string;
+  originalUrl: string;
+  resultUrl: string | null;
+  originalSize?: { width: number; height: number } | null;
+  resultSize?: { width: number; height: number } | null;
+};
 
 const { t } = useI18n();
 const historyStore = useHistoryStore();
@@ -16,13 +28,14 @@ const selectedCount = ref(0);
 const isProcessing = ref(false);
 const selectedModelId = ref(MODEL_REGISTRY[0].id);
 
-type ViewName = 'home' | 'upload' | 'history';
+type ViewName = 'home' | 'upload' | 'history' | 'models';
 
 function getViewFromHash(): ViewName {
   if (typeof window === 'undefined') return 'home';
   const hash = location.hash.replace(/^#\/?/, '');
   if (hash === 'upload') return 'upload';
   if (hash === 'history') return 'history';
+  if (hash === 'models') return 'models';
   return 'home';
 }
 
@@ -31,6 +44,19 @@ const currentView = ref<ViewName>(getViewFromHash());
 const selectedModel = computed(() => getModelById(selectedModelId.value) ?? MODEL_REGISTRY[0]);
 const { records: historyRecords } = storeToRefs(historyStore);
 const { addRecord, removeRecord, clearHistory } = historyStore;
+
+const historyPreview = ref<PreviewItem | null>(null);
+
+function openHistoryPreview(record: HistoryRecord) {
+  historyPreview.value = {
+    id: record.id,
+    name: record.originalFileName,
+    originalUrl: record.originalDataUrl,
+    resultUrl: record.resultBlobUrl ?? record.resultDataUrl,
+    originalSize: record.originalSize,
+    resultSize: record.resultSize,
+  };
+}
 
 function handleHashChange() {
   currentView.value = getViewFromHash();
@@ -41,12 +67,13 @@ function handleNavChange(e: Event) {
   if (detail === 'home') location.hash = '#/';
   else if (detail === 'upload') location.hash = '#/upload';
   else if (detail === 'history') location.hash = '#/history';
-  else if (detail === 'models') location.hash = '#/';
+  else if (detail === 'models') location.hash = '#/models';
 }
 
 function handleNavigate(view: string) {
   if (view === 'upload') location.hash = '#/upload';
   else if (view === 'history') location.hash = '#/history';
+  else if (view === 'models') location.hash = '#/models';
   else location.hash = '#/';
 }
 
@@ -112,40 +139,27 @@ watch(selectedModelId, () => {
         <div class="history-header">
           <h1 class="history-title">{{ t('history.title') }}</h1>
           <button v-if="historyRecords.length > 0" class="history-clear-btn" @click="clearHistory">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              width="14"
-              height="14"
-            >
-              <polyline points="3,6 5,6 21,6" />
-              <path
-                d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
-              />
-            </svg>
+            <Trash2 :size="14" />
             {{ t('history.clearAll') }}
           </button>
         </div>
 
         <div v-if="historyRecords.length === 0" class="history-empty">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            width="48"
-            height="48"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12,6 12,12 16,14" />
-          </svg>
+          <Clock :size="48" :stroke-width="1.5" />
           <p>{{ t('history.noHistory') }}</p>
         </div>
 
         <div v-else class="history-list">
-          <div v-for="record in historyRecords" :key="record.id" class="history-item">
+          <div
+            v-for="record in historyRecords"
+            :key="record.id"
+            class="history-item"
+            role="button"
+            tabindex="0"
+            @click="openHistoryPreview(record)"
+            @keydown.enter.prevent="openHistoryPreview(record)"
+            @keydown.space.prevent="openHistoryPreview(record)"
+          >
             <img
               :src="record.originalDataUrl"
               :alt="record.originalFileName"
@@ -165,48 +179,32 @@ watch(selectedModelId, () => {
               :download="record.originalFileName.replace(/(\.\w+)$/, '-upscaled$1')"
               class="history-download"
               :title="t('history.download')"
+              @click.stop
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                width="16"
-                height="16"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7,10 12,15 17,10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+              <Download :size="16" />
             </a>
             <button
               class="history-delete"
               :title="t('history.delete')"
-              @click="removeRecord(record.id)"
+              @click.stop="removeRecord(record.id)"
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                width="14"
-                height="14"
-              >
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <X :size="14" />
             </button>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- Models View -->
+    <div v-else-if="currentView === 'models'" class="models-view">
+      <div class="models-panel">
+        <ModelsSection @navigate="handleNavigate" />
+      </div>
+    </div>
+
     <!-- Upload View -->
     <template v-else>
       <div class="summary-bar">
-        <span class="summary-text">
-          {{ t('upload.selectedImages', { count: selectedCount }) }}
-        </span>
         <div class="model-select-wrapper">
           <label class="model-select-label">{{ t('upload.model') }}</label>
           <select
@@ -254,6 +252,8 @@ watch(selectedModelId, () => {
         </div>
       </div>
     </template>
+
+    <PreviewDialog v-if="historyPreview" :item="historyPreview" @close="historyPreview = null" />
   </div>
 </template>
 
@@ -270,18 +270,7 @@ watch(selectedModelId, () => {
   align-items: center;
   gap: 1rem;
   padding: 1rem 2rem;
-  background: var(--color-card);
   border-bottom: var(--border-thin);
-}
-
-.summary-text {
-  font-size: 0.875rem;
-  color: var(--color-gray-dark);
-}
-
-.summary-text strong {
-  color: var(--color-primary);
-  font-weight: 600;
 }
 
 .model-select-wrapper {
@@ -382,6 +371,22 @@ watch(selectedModelId, () => {
   cursor: not-allowed;
 }
 
+.models-view {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.models-panel {
+  width: 100%;
+  max-width: 640px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
 .history-view {
   flex: 1;
   display: flex;
@@ -463,10 +468,16 @@ watch(selectedModelId, () => {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s ease;
+  cursor: pointer;
 }
 
 .history-item:hover {
   box-shadow: var(--shadow-md);
+}
+
+.history-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .history-thumb {

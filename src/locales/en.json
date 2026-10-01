@@ -24,7 +24,6 @@
   },
   "upload": {
     "title": "Upload",
-    "selectedImages": "Selected {count} images",
     "dragDrop": "Drag & drop images here",
     "orClick": "or click to browse",
     "clearAll": "Clear All",
@@ -67,7 +66,8 @@
     "title": "Models",
     "downloadBeforeUse": "Download models before use",
     "upscale": "{scale}x upscale",
-    "maxSize": "Max {size}px"
+    "maxSize": "Max {size}px",
+    "more": "More"
   },
   "settings": {
     "title": "Settings",

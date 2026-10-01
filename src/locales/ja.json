@@ -24,7 +24,6 @@
   },
   "upload": {
     "title": "アップロード",
-    "selectedImages": "{count} 枚の画像を選択中",
     "dragDrop": "画像をここにドラッグ＆ドロップ",
     "orClick": "またはクリックして参照",
     "clearAll": "すべてクリア",
@@ -67,7 +66,8 @@
     "title": "モデル管理",
     "downloadBeforeUse": "使用前にモデルをダウンロードしてください",
     "upscale": "{scale}x 拡大",
-    "maxSize": "最大 {size}px"
+    "maxSize": "最大 {size}px",
+    "more": "もっと見る"
   },
   "settings": {
     "title": "設定",

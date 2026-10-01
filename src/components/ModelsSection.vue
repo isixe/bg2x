@@ -1,0 +1,455 @@
+<script setup lang="ts">
+import { computed, reactive, onMounted, onUnmounted } from 'vue';
+import { MODEL_REGISTRY, type ModelEntry } from '../composables/useModelRegistry';
+import { isModelCached, cacheModel, deleteCachedModel } from '../composables/useModelCache';
+import { fetchModelBytes } from '../composables/useModelDownload';
+import { useModelStore } from '../stores';
+import { useI18n } from 'vue-i18n';
+import { ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
+
+defineProps<{
+  showMore?: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: 'navigate', view: string): void;
+}>();
+
+const { t } = useI18n();
+const modelStore = useModelStore();
+
+interface ModelState {
+  cached: boolean;
+  downloading: boolean;
+  progress: number;
+  error: string | null;
+  abortController: AbortController | null;
+}
+
+const modelStates = reactive<Record<string, ModelState>>({});
+const defaultModelId = computed(() => modelStore.defaultModelId);
+
+onMounted(async () => {
+  for (const model of MODEL_REGISTRY) {
+    modelStates[model.id] = {
+      cached: false,
+      downloading: false,
+      progress: 0,
+      error: null,
+      abortController: null,
+    };
+    modelStates[model.id].cached = await isModelCached(model.url);
+  }
+});
+
+onUnmounted(() => {
+  for (const model of MODEL_REGISTRY) {
+    modelStates[model.id].abortController?.abort();
+  }
+});
+
+async function downloadModel(model: ModelEntry) {
+  const state = modelStates[model.id];
+  if (state.downloading || state.cached) return;
+
+  state.downloading = true;
+  state.progress = 0;
+  state.error = null;
+  const controller = new AbortController();
+  state.abortController = controller;
+
+  try {
+    const buffer = await fetchModelBytes(model, {
+      signal: controller.signal,
+      onProgress: (p) => (state.progress = p),
+    });
+
+    await cacheModel(model.url, buffer);
+    state.cached = true;
+    state.progress = 100;
+  } catch (err: unknown) {
+    if (err instanceof Error && err.name !== 'AbortError') {
+      state.error = err.message || 'Download failed';
+    }
+  } finally {
+    state.downloading = false;
+    state.abortController = null;
+  }
+}
+
+async function removeModel(model: ModelEntry) {
+  const state = modelStates[model.id];
+  if (state.downloading) return;
+  await deleteCachedModel(model.url);
+  state.cached = false;
+  state.progress = 0;
+}
+
+function handleSetDefault(model: ModelEntry) {
+  modelStore.setDefaultModel(model.id);
+}
+
+function goToUpload() {
+  emit('navigate', 'upload');
+}
+
+function goToModels() {
+  emit('navigate', 'models');
+}
+</script>
+
+<template>
+  <div class="models-section">
+    <div class="section-header">
+      <h2 class="section-title">{{ t('models.title') }}</h2>
+      <span class="section-hint">{{ t('models.downloadBeforeUse') }}</span>
+      <button v-if="showMore" class="section-more" @click="goToModels">
+        {{ t('models.more') }}
+        <ChevronRight :size="14" />
+      </button>
+    </div>
+
+    <div class="model-list">
+      <div v-for="model in MODEL_REGISTRY" :key="model.id" class="model-card">
+        <div class="model-card-main">
+          <div class="model-info">
+            <div class="model-name-row">
+              <span class="model-name">{{ model.name }}</span>
+              <span v-if="defaultModelId === model.id" class="badge-default">{{
+                t('home.default')
+              }}</span>
+              <span v-else-if="modelStates[model.id]?.cached" class="badge-cached">{{
+                t('home.ready')
+              }}</span>
+              <span v-else-if="modelStates[model.id]?.downloading" class="badge-downloading">{{
+                t('home.downloading')
+              }}</span>
+            </div>
+            <p class="model-desc">{{ model.description }}</p>
+            <div class="model-meta">
+              <span class="meta-item">{{ t('models.upscale', { scale: model.scale }) }}</span>
+              <span v-if="model.maxSize" class="meta-item">{{
+                t('models.maxSize', { size: model.maxSize })
+              }}</span>
+            </div>
+          </div>
+
+          <div class="model-actions">
+            <button
+              v-if="!modelStates[model.id]?.cached && !modelStates[model.id]?.downloading"
+              class="btn-download"
+              @click="downloadModel(model)"
+            >
+              <Download :size="16" />
+              {{ t('home.downloadModel') }}
+            </button>
+            <button
+              v-else-if="modelStates[model.id]?.downloading"
+              class="btn-cancel"
+              @click="modelStates[model.id].abortController?.abort()"
+            >
+              {{ t('home.cancel') }}
+            </button>
+            <template v-else>
+              <button
+                v-if="defaultModelId !== model.id"
+                class="btn-set-default"
+                :title="t('home.default')"
+                @click="handleSetDefault(model)"
+              >
+                <Star :size="14" />
+              </button>
+              <button class="btn-select" @click="goToUpload">
+                {{ t('home.useModel') }}
+              </button>
+              <button class="btn-remove" :title="t('home.removeModel')" @click="removeModel(model)">
+                <Trash2 :size="14" />
+              </button>
+            </template>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div
+          v-if="
+            modelStates[model.id]?.downloading ||
+            (modelStates[model.id]?.progress > 0 && modelStates[model.id]?.progress < 100)
+          "
+          class="model-progress"
+        >
+          <div class="progress-track">
+            <div
+              class="progress-fill"
+              :style="{ width: (modelStates[model.id]?.progress ?? 0) + '%' }"
+            ></div>
+          </div>
+          <span class="progress-text">{{ modelStates[model.id]?.progress ?? 0 }}%</span>
+        </div>
+
+        <!-- Error message -->
+        <div v-if="modelStates[model.id]?.error" class="model-error">
+          {{ modelStates[model.id].error }}
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.models-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-dark);
+  margin: 0;
+}
+
+.section-hint {
+  font-size: 0.8125rem;
+  color: var(--color-gray-dark);
+}
+
+.section-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  margin-left: auto;
+  align-self: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: none;
+  border-radius: var(--radius-md);
+  transition: background 0.15s ease;
+}
+
+.section-more:hover {
+  background: rgba(212, 132, 62, 0.1);
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.model-card {
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 2px solid transparent;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.model-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.model-card-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem;
+  gap: 1.5rem;
+}
+
+.model-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+
+.model-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+
+.badge-cached {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.badge-downloading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: rgba(212, 132, 62, 0.1);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.badge-default {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: rgba(212, 132, 62, 0.12);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+.model-desc {
+  font-size: 0.8125rem;
+  color: var(--color-gray-dark);
+  margin: 0 0 0.375rem;
+}
+
+.model-meta {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.meta-item {
+  font-size: 0.75rem;
+  color: var(--color-gray-dark);
+}
+
+.model-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-download {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+.btn-download:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn-cancel {
+  padding: 0.5rem 1rem;
+  background: var(--color-gray);
+  color: var(--color-gray-dark);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+}
+
+.btn-cancel:hover {
+  background: #e5e0da;
+}
+
+.btn-select {
+  padding: 0.5rem 1.25rem;
+  background: var(--color-primary);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+}
+
+.btn-select:hover {
+  background: var(--color-primary-hover);
+}
+
+.btn-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
+  background: none;
+  color: var(--color-gray-dark);
+  border-radius: var(--radius-md);
+}
+
+.btn-remove:hover {
+  background: rgba(220, 38, 38, 0.08);
+  color: #dc2626;
+}
+
+.btn-set-default {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
+  background: none;
+  color: var(--color-gray-dark);
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+}
+
+.btn-set-default:hover {
+  background: rgba(212, 132, 62, 0.1);
+  color: var(--color-primary);
+}
+
+.model-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0 1.25rem 1rem;
+}
+
+.progress-track {
+  flex: 1;
+  height: 6px;
+  background: var(--color-gray);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 9999px;
+  transition: width 0.15s ease;
+}
+
+.progress-text {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  min-width: 3ch;
+  text-align: right;
+}
+
+.model-error {
+  padding: 0.5rem 1.25rem 0.75rem;
+  font-size: 0.8125rem;
+  color: #dc2626;
+}
+</style>
