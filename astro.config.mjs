@@ -17,6 +17,11 @@ export default defineConfig({
     optimizeDeps: {
       exclude: ['onnxruntime-web']
     },
+    ssr: {
+      // Bundle vue-i18n during SSR so vite `define` values (e.g. __VUE_PROD_DEVTOOLS__)
+      // are applied; the raw ESM dist references them as bare identifiers.
+      noExternal: ['vue-i18n'],
+    },
     define: {
       __VUE_PROD_DEVTOOLS__: false,
     },
