@@ -25,3 +25,5 @@ npm-debug.log*
 
 # Astro
 .astro/
+
+.history
