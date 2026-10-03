@@ -9,7 +9,7 @@
     "tools": "ツール"
   },
   "home": {
-    "title": "画像スーパーリゾリューション",
+    "title": "bg2x",
     "desc": "AI で画像を拡大します。以下のモデルを選択して開始してください。",
     "getStarted": "開始する",
     "downloadModel": "モデルをダウンロード",
@@ -96,6 +96,16 @@
     "autoExpandSidebar": "ホバー時にサイドバーを自動展開",
     "autoExpandSidebarDesc": "サイドバーを折りたたんだ状態でホバーすると一時的に展開します",
     "language": "言語",
-    "languageDesc": "希望の言語を選択してください"
+    "languageDesc": "希望の言語を選択してください",
+    "historySection": "履歴",
+    "persistHistory": "履歴を保存",
+    "persistHistoryDesc": "生成した結果をブラウザに保存して次回も利用します"
+  },
+  "action": {
+    "language": "言語を切り替え",
+    "theme": {
+      "dark": "ダークモードに切り替え",
+      "light": "ライトモードに切り替え"
+    }
   }
 }

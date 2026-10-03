@@ -9,7 +9,7 @@
     "tools": "Tools"
   },
   "home": {
-    "title": "Image Super Resolution",
+    "title": "bg2x",
     "desc": "Upscale your images with AI. Choose a model below to get started.",
     "getStarted": "Get Started",
     "downloadModel": "Download Model",
@@ -96,6 +96,16 @@
     "autoExpandSidebar": "Auto-expand sidebar on hover",
     "autoExpandSidebarDesc": "When sidebar is collapsed, hovering over it will temporarily expand it",
     "language": "Language",
-    "languageDesc": "Select your preferred language"
+    "languageDesc": "Select your preferred language",
+    "historySection": "History",
+    "persistHistory": "Persist history records",
+    "persistHistoryDesc": "Keep generated results in your browser between sessions"
+  },
+  "action": {
+    "language": "Switch language",
+    "theme": {
+      "dark": "Switch to dark mode",
+      "light": "Switch to light mode"
+    }
   }
 }

@@ -1,9 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref } from 'vue';
 import { ChevronDown, Download, ImagePlus, RotateCcw } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
+import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue';
+import DropdownMenuContent from './ui/dropdown-menu/DropdownMenuContent.vue';
+import DropdownMenuItem from './ui/dropdown-menu/DropdownMenuItem.vue';
+import DropdownMenuTrigger from './ui/dropdown-menu/DropdownMenuTrigger.vue';
+import Select from './ui/select/Select.vue';
+import SelectContent from './ui/select/SelectContent.vue';
+import SelectItem from './ui/select/SelectItem.vue';
+import SelectTrigger from './ui/select/SelectTrigger.vue';
+import SelectValue from './ui/select/SelectValue.vue';
 
 const { t } = useI18n();
 
@@ -27,21 +36,13 @@ const emit = defineEmits<{
 }>();
 
 const SCALE_OPTIONS = [1, 2, 4];
+const FORMATS: DownloadFormat[] = ['png', 'jpeg', 'webp'];
 
 const format = ref<DownloadFormat>('png');
-const showFormatMenu = ref(false);
 
 function pickFormat(value: DownloadFormat) {
   format.value = value;
-  showFormatMenu.value = false;
 }
-
-function onDocumentClick() {
-  showFormatMenu.value = false;
-}
-
-onMounted(() => document.addEventListener('click', onDocumentClick));
-onUnmounted(() => document.removeEventListener('click', onDocumentClick));
 </script>
 
 <template>
@@ -49,18 +50,21 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
     <h2 class="ops-title">{{ t('ops.title') }}</h2>
 
     <div class="ops-field">
-      <label class="ops-label" for="ops-scale">{{ t('ops.scale') }}</label>
-      <select
-        id="ops-scale"
-        class="ops-select"
-        :value="targetScale"
+      <label class="ops-label">{{ t('ops.scale') }}</label>
+      <Select
+        :model-value="String(targetScale)"
         :disabled="isProcessing"
-        @change="emit('update:targetScale', Number(($event.target as HTMLSelectElement).value))"
+        @update:model-value="emit('update:targetScale', Number($event))"
       >
-        <option v-for="s in SCALE_OPTIONS" :key="s" :value="s">
-          {{ t('models.upscale', { scale: s }) }}
-        </option>
-      </select>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="s in SCALE_OPTIONS" :key="s" :value="String(s)">
+            {{ t('models.upscale', { scale: s }) }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
     </div>
 
     <button
@@ -77,7 +81,7 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
       <span>{{ t('ops.processNew') }}</span>
     </button>
 
-    <div class="split-btn" @click.stop>
+    <div class="split-btn">
       <button
         class="ops-btn primary split-main"
         :disabled="isProcessing || !hasDownloadable"
@@ -86,42 +90,45 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
         <Download :size="15" />
         <span>{{ t('ops.downloadAll') }}</span>
       </button>
-      <button
-        class="ops-btn primary split-toggle"
-        :disabled="isProcessing || !hasDownloadable"
-        :aria-expanded="showFormatMenu"
-        :title="t('ops.format')"
-        @click="showFormatMenu = !showFormatMenu"
-      >
-        <ChevronDown :size="14" />
-      </button>
-      <div v-if="showFormatMenu" class="format-menu" role="menu">
-        <button
-          v-for="f in ['png', 'jpeg', 'webp']"
-          :key="f"
-          class="format-option"
-          :class="{ active: format === f }"
-          role="menuitem"
-          @click="pickFormat(f as DownloadFormat)"
-        >
-          {{ f.toUpperCase() }}
-        </button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger as-child>
+          <button
+            class="ops-btn primary split-toggle"
+            :disabled="isProcessing || !hasDownloadable"
+            :title="t('ops.format')"
+          >
+            <ChevronDown :size="14" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent class="min-w-[7rem]">
+          <DropdownMenuItem
+            v-for="f in FORMATS"
+            :key="f"
+            :class="{ 'font-semibold text-primary': format === f }"
+            @select="pickFormat(f)"
+          >
+            {{ f.toUpperCase() }}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
 
     <div class="ops-field">
-      <label class="ops-label" for="ops-model">{{ t('ops.model') }}</label>
-      <select
-        id="ops-model"
-        class="ops-select"
-        :value="modelId"
+      <label class="ops-label">{{ t('ops.model') }}</label>
+      <Select
+        :model-value="modelId"
         :disabled="isProcessing"
-        @change="emit('update:modelId', ($event.target as HTMLSelectElement).value)"
+        @update:model-value="emit('update:modelId', $event)"
       >
-        <option v-for="model in MODEL_REGISTRY" :key="model.id" :value="model.id">
-          {{ model.name }}
-        </option>
-      </select>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem v-for="model in MODEL_REGISTRY" :key="model.id" :value="model.id">
+            {{ model.name }}
+          </SelectItem>
+        </SelectContent>
+      </Select>
     </div>
 
     <div class="ops-gpu">
@@ -177,37 +184,6 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
   opacity: 0.6;
 }
 
-.ops-select {
-  width: 100%;
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: var(--border-thin);
-  border-radius: var(--radius-md);
-  background: var(--color-card);
-  color: var(--color-dark);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpolyline points='6,9 12,15 18,9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.5rem center;
-}
-
-.ops-select:hover:not(:disabled) {
-  border-color: var(--color-primary);
-}
-
-.ops-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(212, 132, 62, 0.15);
-}
-
-.ops-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .ops-btn {
   display: flex;
   align-items: center;
@@ -260,39 +236,6 @@ onUnmounted(() => document.removeEventListener('click', onDocumentClick));
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   border-left: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.format-menu {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  right: 0;
-  z-index: 30;
-  display: flex;
-  flex-direction: column;
-  min-width: 100%;
-  background: var(--color-card);
-  border: var(--border-thin);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-}
-
-.format-option {
-  padding: 0.45rem 0.75rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-align: left;
-  background: transparent;
-  color: var(--color-dark);
-}
-
-.format-option:hover {
-  background: var(--color-gray);
-}
-
-.format-option.active {
-  background: rgba(212, 132, 62, 0.1);
-  color: var(--color-primary);
 }
 
 .ops-gpu {

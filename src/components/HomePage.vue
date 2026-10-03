@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import ModelsSection from './ModelsSection.vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { Image as ImageIcon, Upload } from 'lucide-vue-next';
 
-const emit = defineEmits<{
-  (e: 'navigate', view: string): void;
-}>();
-
+const router = useRouter();
 const { t } = useI18n();
 
 function goToUpload() {
-  emit('navigate', 'upload');
+  router.push({ name: 'upload' });
 }
 </script>
 
@@ -31,7 +29,7 @@ function goToUpload() {
       </div>
 
       <!-- Models Section -->
-      <ModelsSection show-more @navigate="(view) => emit('navigate', view)" />
+      <ModelsSection show-more />
     </div>
   </div>
 </template>

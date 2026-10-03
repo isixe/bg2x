@@ -6,23 +6,20 @@ import QueueList from './QueueList.vue';
 import OpsPanel from './OpsPanel.vue';
 import PreviewDialog from './PreviewDialog.vue';
 import { useProcessingQueue } from '../composables/useProcessingQueue';
-import type { DownloadFormat, ResultReadyPayload } from '../composables/useProcessingQueue';
+import type { DownloadFormat } from '../composables/useProcessingQueue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
 import type { BatchItem } from '../type';
-
-const props = defineProps<{
-  selectedModelId: string;
-}>();
-
-const emit = defineEmits<{
-  (e: 'update:selectedModelId', value: string): void;
-  (e: 'result-ready', payload: ResultReadyPayload): void;
-}>();
+import { useHistoryStore, useModelStore } from '../store/stores';
 
 const { t } = useI18n();
+const modelStore = useModelStore();
+const historyStore = useHistoryStore();
 
-const model = computed(() => getModelById(props.selectedModelId) ?? MODEL_REGISTRY[0]);
-const targetScale = ref(MODEL_REGISTRY[0].scale);
+const initialModel = getModelById(modelStore.defaultModelId) ?? MODEL_REGISTRY[0];
+const selectedModelId = ref(initialModel.id);
+
+const model = computed(() => getModelById(selectedModelId.value) ?? MODEL_REGISTRY[0]);
+const targetScale = ref(2);
 const gpu = ref(false);
 
 const {
@@ -48,7 +45,16 @@ const {
   model,
   targetScale,
   gpu,
-  onResultReady: (payload) => emit('result-ready', payload),
+  onResultReady: async (payload) => {
+    await historyStore.addRecord({
+      file: payload.file,
+      originalSize: payload.originalSize,
+      resultSize: payload.resultSize,
+      modelId: model.value.id,
+      modelName: model.value.name,
+      resultUrl: payload.resultUrl,
+    });
+  },
 });
 
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -145,7 +151,7 @@ const statusClass = computed(() => {
       :has-downloadable="hasDownloadable"
       @update:target-scale="targetScale = $event"
       @update:gpu="gpu = $event"
-      @update:model-id="emit('update:selectedModelId', $event)"
+      @update:model-id="selectedModelId = $event"
       @reprocess="reprocess()"
       @process-new="openFilePicker"
       @download-all="(format: DownloadFormat) => downloadBatch(format)"

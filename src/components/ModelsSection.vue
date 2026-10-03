@@ -4,7 +4,8 @@ import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import type { ModelEntry, ModelState } from '../type';
 import { isModelCached, cacheModel, deleteCachedModel } from '../composables/useModelCache';
 import { fetchModelBytes } from '../composables/useModelDownload';
-import { useModelStore } from '../stores';
+import { useModelStore } from '../store/stores';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
 
@@ -12,10 +13,7 @@ defineProps<{
   showMore?: boolean;
 }>();
 
-const emit = defineEmits<{
-  (e: 'navigate', view: string): void;
-}>();
-
+const router = useRouter();
 const { t } = useI18n();
 const modelStore = useModelStore();
 
@@ -60,6 +58,7 @@ async function downloadModel(model: ModelEntry) {
     await cacheModel(model.url, buffer);
     state.cached = true;
     state.progress = 100;
+    modelStore.setDefaultModel(model.id);
   } catch (err: unknown) {
     if (err instanceof Error && err.name !== 'AbortError') {
       state.error = err.message || 'Download failed';
@@ -83,11 +82,11 @@ function handleSetDefault(model: ModelEntry) {
 }
 
 function goToUpload() {
-  emit('navigate', 'upload');
+  router.push({ name: 'upload' });
 }
 
 function goToModels() {
-  emit('navigate', 'models');
+  router.push({ name: 'models' });
 }
 </script>
 

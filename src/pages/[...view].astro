@@ -1,0 +1,22 @@
+---
+import Layout from '../layouts/Layout.astro';
+import App from '../components/App.vue';
+
+const VIEW_TITLES: Record<string, string> = {
+  upload: 'Upload',
+  history: 'History',
+  models: 'Models',
+  settings: 'Settings',
+};
+
+export function getStaticPaths() {
+  return ['upload', 'history', 'models', 'settings'].map((view) => ({ params: { view } }));
+}
+
+const { view } = Astro.params;
+const title = (view && VIEW_TITLES[view]) ?? 'bg2x';
+---
+
+<Layout title={title}>
+  <App client:only="vue" />
+</Layout>

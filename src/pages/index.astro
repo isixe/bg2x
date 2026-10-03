@@ -1,30 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import App from '../components/App.vue';
-import AppHeader from '../components/AppHeader.astro';
 ---
 
-<Layout title="Image Super Resolution">
-  <div class="app-layout">
-    <AppHeader />
-    <main class="main-content">
-      <App client:only="vue" />
-    </main>
-  </div>
+<Layout title="bg2x">
+  <App client:only="vue" />
 </Layout>
-
-<style>
-  .app-layout {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    background: var(--color-background);
-  }
-
-  .main-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-</style>

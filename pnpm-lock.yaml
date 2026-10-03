@@ -38,6 +38,9 @@ importers:
       pinia-plugin-persistedstate:
         specifier: ^4.7.1
         version: 4.7.1(pinia@4.0.3(@vue/devtools-api@6.6.4)(typescript@5.9.3)(vue@3.5.43(typescript@5.9.3)))
+      reka-ui:
+        specifier: ^2.10.5
+        version: 2.10.5(vue@3.5.43(typescript@5.9.3))
       shadcn-vue:
         specifier: ^2.8.2
         version: 2.8.2(eslint@10.11.0(jiti@2.7.0))(magicast@0.5.5)(vue@3.5.43(typescript@5.9.3))
@@ -56,6 +59,9 @@ importers:
       vue-i18n:
         specifier: ^11.4.12
         version: 11.4.12(vue@3.5.43(typescript@5.9.3))
+      vue-router:
+        specifier: ^4.6.4
+        version: 4.6.4(vue@3.5.43(typescript@5.9.3))
     devDependencies:
       '@astrojs/check':
         specifier: ^0.9.10
@@ -4078,6 +4084,11 @@ packages:
   vue-metamorph@3.3.4:
     resolution: {integrity: sha512-WZ1xzHrmYh9UiZ7OC9eG1ASzgSybEB10jhop+k5KzMY9I1JmRKdreqUYzbV3hOnOMvLhyDn7y6f62mLE2jHFSg==}
     hasBin: true
+
+  vue-router@4.6.4:
+    resolution: {integrity: sha512-Hz9q5sa33Yhduglwz6g9skT8OBPii+4bFn88w6J+J4MfEo4KRRpmiNG/hHHkdbRFlLBOqxN8y8gf2Fb0MTUgVg==}
+    peerDependencies:
+      vue: ^3.5.0
 
   vue@3.5.43:
     resolution: {integrity: sha512-o5qZoksdnjIKvW1srZ3ab7pcDNYAerBjRe54D0LBLfRdCYFrSgBHVXokMas35czQc0//lmx4/tuY4ZNQ+Rf2Ng==}
@@ -8588,6 +8599,11 @@ snapshots:
     transitivePeerDependencies:
       - eslint
       - supports-color
+
+  vue-router@4.6.4(vue@3.5.43(typescript@5.9.3)):
+    dependencies:
+      '@vue/devtools-api': 6.6.4
+      vue: 3.5.43(typescript@5.9.3)
 
   vue@3.5.43(typescript@5.9.3):
     dependencies:

@@ -1,5 +1,5 @@
 {
-  "name": "image-super-resolution",
+  "name": "bg2x",
   "type": "module",
   "version": "0.1.0",
   "scripts": {
@@ -24,12 +24,14 @@
     "onnxruntime-web": "1.30.0",
     "pinia": "^4.0.3",
     "pinia-plugin-persistedstate": "^4.7.1",
+    "reka-ui": "^2.10.5",
     "shadcn-vue": "^2.8.2",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
     "tailwindcss-animate": "^1.0.7",
     "vue": "^3.5.0",
-    "vue-i18n": "^11.4.12"
+    "vue-i18n": "^11.4.12",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",

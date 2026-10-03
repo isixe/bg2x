@@ -1,57 +1,120 @@
 @import 'tailwindcss';
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-  }
+@custom-variant dark (&:where(.dark, .dark *));
 
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-  }
+:root {
+  --background: #fff8f0;
+  --foreground: #333333;
+  --card: #ffffff;
+  --card-foreground: #333333;
+  --popover: #ffffff;
+  --popover-foreground: #333333;
+  --primary: #d4843e;
+  --primary-foreground: #ffffff;
+  --secondary: #4ecdc4;
+  --secondary-foreground: #1b1815;
+  --muted: #f5f0eb;
+  --muted-foreground: #8b8680;
+  --accent: #f5f0eb;
+  --accent-foreground: #333333;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e8e0d8;
+  --input: #e8e0d8;
+  --ring: #d4843e;
+}
+
+.dark {
+  --background: #1b1815;
+  --foreground: #f2ece4;
+  --card: #26221e;
+  --card-foreground: #f2ece4;
+  --popover: #26221e;
+  --popover-foreground: #f2ece4;
+  --primary: #e09a55;
+  --primary-foreground: #1b1815;
+  --secondary: #4ecdc4;
+  --secondary-foreground: #1b1815;
+  --muted: #2e2a26;
+  --muted-foreground: #a8a29e;
+  --accent: #2e2a26;
+  --accent-foreground: #f2ece4;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #3a352f;
+  --input: #3a352f;
+  --ring: #e09a55;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
 @layer base {
-  * {
-    @apply border-border;
+  *,
+  ::before,
+  ::after {
+    box-sizing: border-box;
+    border-color: var(--border);
   }
+
   body {
-    @apply bg-background text-foreground;
+    background-color: var(--background);
+    color: var(--foreground);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: var(--color-primary);
+    color: #fff;
+    padding: 0.625rem 1.25rem;
+    font-weight: 500;
+    font-size: 0.875rem;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+  }
+
+  button:hover {
+    background: var(--color-primary-hover);
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  button.secondary {
+    background: var(--color-gray);
+    color: var(--color-dark);
+  }
+
+  button.secondary:hover {
+    background: var(--color-border);
   }
 }

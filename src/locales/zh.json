@@ -9,7 +9,7 @@
     "tools": "工具"
   },
   "home": {
-    "title": "图片超分辨率",
+    "title": "bg2x",
     "desc": "使用 AI 放大图片。选择一个模型开始使用。",
     "getStarted": "开始使用",
     "downloadModel": "下载模型",
@@ -96,6 +96,16 @@
     "autoExpandSidebar": "悬停时自动展开侧边栏",
     "autoExpandSidebarDesc": "侧边栏收起后，鼠标悬停时临时展开",
     "language": "语言",
-    "languageDesc": "选择您偏好的语言"
+    "languageDesc": "选择您偏好的语言",
+    "historySection": "历史记录",
+    "persistHistory": "持久化历史记录",
+    "persistHistoryDesc": "在浏览器中保留生成的结果以便下次访问"
+  },
+  "action": {
+    "language": "切换语言",
+    "theme": {
+      "dark": "切换到夜间模式",
+      "light": "切换到日间模式"
+    }
   }
 }

@@ -186,6 +186,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         resolveCurrent?.();
         resolveCurrent = null;
       };
+      void preloadCachedModel();
     }
 
     window.addEventListener('keydown', onGlobalKeydown);
@@ -217,6 +218,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (!state.value.items.some((i) => i.status === 'processing')) {
       state.value.status = state.value.items.length > 0 ? 'Ready' : state.value.status;
     }
+    void preloadCachedModel();
   });
 
   function onGlobalKeydown(e: KeyboardEvent) {
@@ -277,15 +279,29 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
   }
 
-  async function ensureModel(): Promise<boolean> {
-    if (
+  function isModelReadyForCurrentSelection(): boolean {
+    return (
       state.value.isModelLoaded &&
       loadedUrl === options.model.value.url &&
       loadedGpuWanted === options.gpu.value
-    ) {
-      return true;
-    }
+    );
+  }
 
+  let inflightLoad: Promise<boolean> | null = null;
+
+  async function ensureModel(): Promise<boolean> {
+    if (isModelReadyForCurrentSelection()) return true;
+    if (inflightLoad) return inflightLoad;
+
+    inflightLoad = doEnsureModel();
+    try {
+      return await inflightLoad;
+    } finally {
+      inflightLoad = null;
+    }
+  }
+
+  async function doEnsureModel(): Promise<boolean> {
     try {
       const { getCachedModel } = await import('./useModelCache');
       const { getModelById } = await import('./useModelRegistry');
@@ -310,6 +326,25 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.error = err instanceof Error ? err.message : 'Failed to load model';
       state.value.status = 'Error';
       return false;
+    }
+  }
+
+  /**
+   * Warm up the worker with the currently selected model as soon as it is
+   * already cached, so processing does not have to wait for the session to load.
+   * Best-effort: a failure here is swallowed and retried on demand.
+   */
+  async function preloadCachedModel(): Promise<void> {
+    if (!worker || state.value.isProcessing) return;
+    if (isModelReadyForCurrentSelection()) return;
+
+    try {
+      const { isModelCached } = await import('./useModelCache');
+      if (await isModelCached(options.model.value.url)) {
+        await ensureModel();
+      }
+    } catch {
+      /* best-effort preload */
     }
   }
 

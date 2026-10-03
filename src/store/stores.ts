@@ -1,16 +1,19 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { i18n } from './i18n';
-import type { HistoryRecord } from './type';
+import { i18n } from '../locales/i18n';
+import type { HistoryRecord } from '../type';
+
+export type LocaleCode = 'en' | 'zh' | 'ja';
+export type ThemeMode = 'light' | 'dark';
 
 export const useLocaleStore = defineStore(
   'locale',
   () => {
     const locale = ref<string>(i18n.global.locale.value);
 
-    function setLocale(lang: string) {
+    function setLocale(lang: LocaleCode) {
       locale.value = lang;
-      i18n.global.locale.value = lang as 'en' | 'zh' | 'ja';
+      i18n.global.locale.value = lang;
     }
 
     const localeLabel = computed(() => {
@@ -23,21 +26,62 @@ export const useLocaleStore = defineStore(
   { persist: { key: 'super-resolution-locale' } },
 );
 
-const MAX_RECORDS = 50;
-
-const HISTORY_PERSIST_FLAG = 'history-persist';
-
-function isHistoryPersistEnabled(): boolean {
-  try {
-    return localStorage.getItem(HISTORY_PERSIST_FLAG) === 'true';
-  } catch {
-    return false;
-  }
+function detectSystemTheme(): ThemeMode {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+export const useThemeStore = defineStore(
+  'theme',
+  () => {
+    const theme = ref<ThemeMode>(detectSystemTheme());
+    const isDark = computed(() => theme.value === 'dark');
+
+    function applyToDocument() {
+      if (typeof document === 'undefined') return;
+      document.documentElement.classList.toggle('dark', theme.value === 'dark');
+    }
+
+    function setTheme(value: ThemeMode) {
+      theme.value = value;
+      applyToDocument();
+    }
+
+    function toggle() {
+      setTheme(theme.value === 'dark' ? 'light' : 'dark');
+    }
+
+    return { theme, isDark, setTheme, toggle, applyToDocument };
+  },
+  { persist: { key: 'super-resolution-theme' } },
+);
+
+export const useSettingsStore = defineStore(
+  'settings',
+  () => {
+    const hasVisited = ref(false);
+    const historyPersist = ref(false);
+
+    function markVisited() {
+      hasVisited.value = true;
+    }
+
+    function setHistoryPersist(enabled: boolean) {
+      historyPersist.value = enabled;
+    }
+
+    return { hasVisited, markVisited, historyPersist, setHistoryPersist };
+  },
+  { persist: { key: 'super-resolution-settings' } },
+);
+
+const MAX_RECORDS = 50;
+
+// History records are only persisted while the user keeps the "persist history"
+// setting enabled; the flag itself lives in the pinia settings store.
 const conditionalHistoryStorage = {
   getItem(key: string): string | null {
-    if (!isHistoryPersistEnabled()) return null;
+    if (!useSettingsStore().historyPersist) return null;
     try {
       return localStorage.getItem(key);
     } catch {
@@ -45,7 +89,7 @@ const conditionalHistoryStorage = {
     }
   },
   setItem(key: string, value: string): void {
-    if (!isHistoryPersistEnabled()) return;
+    if (!useSettingsStore().historyPersist) return;
     try {
       localStorage.setItem(key, value);
     } catch {
