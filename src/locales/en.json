@@ -69,6 +69,26 @@
     "maxSize": "Max {size}px",
     "more": "More"
   },
+  "queue": {
+    "title": "Queue",
+    "selectAll": "Select all",
+    "selected": "{count} selected",
+    "empty": "No images yet",
+    "download": "Download",
+    "copy": "Copy",
+    "reprocess": "Reprocess"
+  },
+  "ops": {
+    "title": "Actions",
+    "scale": "Output scale",
+    "reprocess": "Reprocess",
+    "processNew": "New images",
+    "downloadAll": "Download all",
+    "format": "Format",
+    "model": "Model",
+    "gpu": "GPU acceleration",
+    "gpuUnsupported": "WebGPU not supported"
+  },
   "settings": {
     "title": "Settings",
     "subtitle": "Configure app preferences",

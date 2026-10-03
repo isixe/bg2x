@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, onMounted, onUnmounted } from 'vue';
-import { MODEL_REGISTRY, type ModelEntry } from '../composables/useModelRegistry';
+import { MODEL_REGISTRY } from '../composables/useModelRegistry';
+import type { ModelEntry, ModelState } from '../type';
 import { isModelCached, cacheModel, deleteCachedModel } from '../composables/useModelCache';
 import { fetchModelBytes } from '../composables/useModelDownload';
 import { useModelStore } from '../stores';
@@ -17,14 +18,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const modelStore = useModelStore();
-
-interface ModelState {
-  cached: boolean;
-  downloading: boolean;
-  progress: number;
-  error: string | null;
-  abortController: AbortController | null;
-}
 
 const modelStates = reactive<Record<string, ModelState>>({});
 const defaultModelId = computed(() => modelStore.defaultModelId);

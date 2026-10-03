@@ -69,6 +69,26 @@
     "maxSize": "最大 {size}px",
     "more": "更多"
   },
+  "queue": {
+    "title": "队列",
+    "selectAll": "全选",
+    "selected": "已选 {count} 项",
+    "empty": "暂无图片",
+    "download": "下载",
+    "copy": "复制",
+    "reprocess": "重新处理"
+  },
+  "ops": {
+    "title": "操作",
+    "scale": "放大倍数",
+    "reprocess": "重新处理",
+    "processNew": "处理新图片",
+    "downloadAll": "下载全部",
+    "format": "图片格式",
+    "model": "模型",
+    "gpu": "GPU 加速",
+    "gpuUnsupported": "浏览器不支持 WebGPU"
+  },
   "settings": {
     "title": "设置",
     "subtitle": "配置应用偏好",

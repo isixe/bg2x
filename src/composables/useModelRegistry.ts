@@ -1,7 +1,5 @@
-import type { ModelEntry } from '../config/models';
 import { MODELS } from '../config/models';
-
-export type { ModelEntry };
+import type { ModelEntry } from '../type';
 
 export const MODEL_REGISTRY: ModelEntry[] = MODELS;
 

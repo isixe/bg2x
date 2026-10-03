@@ -1,30 +1,20 @@
 /// <reference lib="webworker" />
 
 import * as ort from 'onnxruntime-web';
+import type { WorkerMessage } from '../type';
 
 ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
 
-type LoadModelMessage = {
-  type: 'load-model';
-  payload: { modelUrl: string; modelData?: ArrayBuffer };
-};
-
-type ProcessMessage = {
-  type: 'process';
-  payload: { imageData: ImageData; width: number; height: number; scale: number };
-};
-
-type WorkerMessage = LoadModelMessage | ProcessMessage;
-
 let session: ort.InferenceSession | null = null;
 let currentModelUrl: string | null = null;
+let currentGpu = false;
 
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const { type, payload } = e.data;
 
   switch (type) {
     case 'load-model':
-      await loadModel(payload.modelUrl, payload.modelData);
+      await loadModel(payload.modelUrl, payload.modelData, payload.gpu ?? false);
       break;
     case 'process':
       await processImage(payload);
@@ -32,10 +22,25 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   }
 };
 
-async function loadModel(modelUrl: string, modelData?: ArrayBuffer) {
+async function createSession(source: string | ArrayBuffer, gpu: boolean) {
+  const executionProviders = gpu ? ['webgpu'] : ['wasm'];
+
+  if (typeof source === 'string') {
+    return ort.InferenceSession.create(source, {
+      executionProviders,
+      graphOptimizationLevel: 'all',
+    });
+  }
+  return ort.InferenceSession.create(new Uint8Array(source), {
+    executionProviders,
+    graphOptimizationLevel: 'all',
+  });
+}
+
+async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false) {
   try {
-    if (session && currentModelUrl === modelUrl) {
-      self.postMessage({ type: 'model-loaded' });
+    if (session && currentModelUrl === modelUrl && currentGpu === gpu) {
+      self.postMessage({ type: 'model-loaded', payload: { modelUrl, gpu } });
       return;
     }
 
@@ -44,23 +49,23 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer) {
       payload: { progress: 0, status: 'Loading model...' },
     });
 
-    if (modelData) {
-      session = await ort.InferenceSession.create(modelData, {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      });
-    } else {
-      session = await ort.InferenceSession.create(modelUrl, {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      });
+    const source = modelData ?? modelUrl;
+    let effectiveGpu = gpu;
+
+    try {
+      session = await createSession(source, gpu);
+    } catch (gpuError) {
+      if (!gpu) throw gpuError;
+      session = await createSession(source, false);
+      effectiveGpu = false;
     }
 
     currentModelUrl = modelUrl;
+    currentGpu = effectiveGpu;
 
     self.postMessage({
       type: 'model-loaded',
-      payload: { modelUrl },
+      payload: { modelUrl, gpu: effectiveGpu },
     });
   } catch (error) {
     self.postMessage({
@@ -75,8 +80,10 @@ async function processImage(payload: {
   width: number;
   height: number;
   scale: number;
+  targetScale?: number;
 }) {
   const { imageData, width, height, scale } = payload;
+  const targetScale = payload.targetScale ?? scale;
 
   try {
     if (!session) {
@@ -106,19 +113,35 @@ async function processImage(payload: {
       payload: { progress: 70, status: 'Postprocessing...' },
     });
 
-    const outW = width * scale;
-    const outH = height * scale;
-    const outputData = postprocessOutput(outputTensor, outW, outH);
+    const nativeW = width * scale;
+    const nativeH = height * scale;
+    const outputData = postprocessOutput(outputTensor, nativeW, nativeH);
 
     self.postMessage({
       type: 'progress',
       payload: { progress: 90, status: 'Creating result...' },
     });
 
-    const resultCanvas = new OffscreenCanvas(outW, outH);
-    const ctx = resultCanvas.getContext('2d')!;
-    const resultImageData = new ImageData(new Uint8ClampedArray(outputData), outW, outH);
-    ctx.putImageData(resultImageData, 0, 0);
+    const nativeCanvas = new OffscreenCanvas(nativeW, nativeH);
+    const nativeCtx = nativeCanvas.getContext('2d')!;
+    nativeCtx.putImageData(
+      new ImageData(new Uint8ClampedArray(outputData), nativeW, nativeH),
+      0,
+      0,
+    );
+
+    const outW = width * targetScale;
+    const outH = height * targetScale;
+
+    let resultCanvas: OffscreenCanvas | HTMLCanvasElement = nativeCanvas;
+    if (outW !== nativeW || outH !== nativeH) {
+      const scaledCanvas = new OffscreenCanvas(outW, outH);
+      const scaledCtx = scaledCanvas.getContext('2d')!;
+      scaledCtx.imageSmoothingEnabled = true;
+      scaledCtx.imageSmoothingQuality = 'high';
+      scaledCtx.drawImage(nativeCanvas, 0, 0, outW, outH);
+      resultCanvas = scaledCanvas;
+    }
 
     const blob = await resultCanvas.convertToBlob({ type: 'image/png' });
     const resultUrl = URL.createObjectURL(blob);

@@ -1,3 +1,5 @@
+import type { CachedModel } from '../type';
+
 const DB_NAME = 'super-resolution-models';
 const DB_VERSION = 1;
 const STORE_NAME = 'models';
@@ -14,12 +16,6 @@ function openDB(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-}
-
-interface CachedModel {
-  url: string;
-  data: ArrayBuffer;
-  cachedAt: number;
 }
 
 export async function isModelCached(url: string): Promise<boolean> {

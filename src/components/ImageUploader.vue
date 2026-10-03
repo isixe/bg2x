@@ -68,11 +68,18 @@ function handleFileInput(e: Event) {
 .uploader {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* Grow to fill the remaining height of the center column. */
+  flex: 1;
+  min-height: 0;
 }
 
 .drop-zone {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
   border: 2px dashed var(--color-border);
   background: var(--color-gray);
   padding: 2.5rem 1.5rem;

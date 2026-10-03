@@ -1,75 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { Image as ImageIcon, ChevronLeft, Home, Upload, Clock, Layers, Settings } from 'lucide-vue-next';
+import AppHeader from '../components/AppHeader.astro';
 ---
 
 <Layout title="Settings">
   <div class="app-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <a href="/" class="logo">
-          <ImageIcon />
-        </a>
-        <button class="sidebar-collapse-btn" id="sidebarToggle" title="Toggle sidebar">
-          <ChevronLeft />
-        </button>
-      </div>
+    <AppHeader current="settings" />
 
-      <nav class="sidebar-nav">
-        <div class="nav-section">
-          <span class="nav-label" data-i18n="nav.general">General</span>
-          <a href="/#/" class="nav-item">
-            <Home />
-            <span data-i18n="nav.home">Home</span>
-          </a>
-          <a href="/#/upload" class="nav-item">
-            <Upload />
-            <span data-i18n="nav.upload">Upload</span>
-          </a>
-          <a href="/#/models" class="nav-item">
-            <Layers />
-            <span data-i18n="nav.models">Models</span>
-          </a>
-        </div>
-
-        <div class="nav-section">
-          <span class="nav-label" data-i18n="nav.tools">Tools</span>
-          <a href="/#/history" class="nav-item">
-            <Clock />
-            <span data-i18n="nav.history">History</span>
-          </a>
-        </div>
-      </nav>
-
-      <div class="sidebar-footer">
-        <a href="/settings" class="nav-item active">
-          <Settings />
-          <span data-i18n="nav.settings">Settings</span>
-        </a>
-      </div>
-    </aside>
-
-    <!-- Main Content -->
     <main class="main-content">
       <div class="settings-page">
         <div class="settings-header">
           <h1>Settings</h1>
           <p class="settings-subtitle">Configure app preferences</p>
-        </div>
-
-        <div class="settings-section">
-          <h2 class="section-title">Layout</h2>
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-label">Auto-expand sidebar on hover</span>
-              <span class="setting-desc">When sidebar is collapsed, hovering over it will temporarily expand it</span>
-            </div>
-            <label class="toggle-switch">
-              <input type="checkbox" id="autoExpandToggle" />
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
         </div>
 
         <div class="settings-section">
@@ -110,181 +52,16 @@ import { Image as ImageIcon, ChevronLeft, Home, Upload, Clock, Layers, Settings 
 <style>
   .app-layout {
     display: flex;
-    min-height: 100vh;
-  }
-
-  /* Sidebar styles (same as index.astro) */
-  .sidebar {
-    width: 240px;
-    background: var(--color-sidebar);
-    border-right: var(--border-thin);
-    display: flex;
     flex-direction: column;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 100;
-    transition: width 0.2s ease;
-    overflow: hidden;
-  }
-
-  .sidebar.sidebar-collapsed {
-    width: 60px;
-  }
-
-  .sidebar.sidebar-collapsed .sidebar-header {
-    padding: 1.25rem 0;
-    justify-content: center;
-  }
-
-  .sidebar.sidebar-collapsed .logo {
-    display: none;
-  }
-
-  .sidebar.sidebar-collapsed .sidebar-collapse-btn svg {
-    transform: rotate(180deg);
-  }
-
-  .sidebar.sidebar-collapsed .nav-label {
-    display: none;
-  }
-
-  .sidebar.sidebar-collapsed .nav-item span {
-    display: none;
-  }
-
-  .sidebar.sidebar-collapsed .nav-item {
-    justify-content: center;
-    padding: 0.75rem;
-    gap: 0;
-  }
-
-  .sidebar.sidebar-collapsed .sidebar-footer .nav-item span {
-    display: none;
-  }
-
-  .sidebar.sidebar-collapsed .sidebar-footer .nav-item {
-    justify-content: center;
-    padding: 0.75rem;
-    gap: 0;
-  }
-
-  .sidebar-header {
-    padding: 1.25rem;
-    border-bottom: var(--border-thin);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    text-decoration: none;
-  }
-
-  .logo svg {
-    width: 28px;
-    height: 28px;
-    color: var(--color-primary);
-  }
-
-  .sidebar-nav {
-    flex: 1;
-    padding: 1rem 0.75rem;
-    overflow-y: auto;
-  }
-
-  .nav-section {
-    margin-bottom: 1.5rem;
-  }
-
-  .nav-label {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--color-gray-dark);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0 0.75rem;
-    margin-bottom: 0.5rem;
-  }
-
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.625rem 0.75rem;
-    border-radius: var(--radius-md);
-    color: var(--color-dark);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: all 0.15s ease;
-  }
-
-  .nav-item:hover {
-    background: var(--color-gray);
-  }
-
-  .nav-item.active {
-    background: var(--color-primary);
-    color: white;
-  }
-
-  .nav-item svg {
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
-  }
-
-  .sidebar-collapse-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    margin: 0;
-    border-radius: var(--radius-md);
-    border: none;
-    background: none;
-    cursor: pointer;
-    color: var(--color-gray-dark);
-    transition: all 0.15s ease;
-    flex-shrink: 0;
-  }
-
-  .sidebar-collapse-btn:hover {
-    background: var(--color-gray);
-    color: var(--color-dark);
-  }
-
-  .sidebar-collapse-btn svg {
-    width: 18px;
-    height: 18px;
-    transition: transform 0.2s ease;
-  }
-
-  .sidebar-footer {
-    padding: 0.75rem;
-    border-top: var(--border-thin);
+    min-height: 100vh;
+    background: var(--color-background);
   }
 
   .main-content {
     flex: 1;
-    margin-left: 240px;
-    min-height: 100vh;
-    transition: margin-left 0.2s ease;
+    min-height: 0;
   }
 
-  .sidebar.sidebar-collapsed ~ .main-content {
-    margin-left: 60px;
-  }
-
-  /* Settings page */
   .settings-page {
     max-width: 640px;
     margin: 0 auto;
@@ -350,7 +127,6 @@ import { Image as ImageIcon, ChevronLeft, Home, Upload, Clock, Layers, Settings 
     color: var(--color-gray-dark);
   }
 
-  /* Toggle switch */
   .toggle-switch {
     position: relative;
     display: inline-block;
@@ -413,138 +189,31 @@ import { Image as ImageIcon, ChevronLeft, Home, Upload, Clock, Layers, Settings 
   }
 
   @media (max-width: 768px) {
-    .sidebar {
-      width: 60px;
-    }
-
-    .sidebar-header {
-      padding: 1rem 0.75rem;
-      justify-content: center;
-    }
-
-    .sidebar-header .logo {
-      display: none;
-    }
-
-    .sidebar-collapse-btn {
-      width: 100%;
-    }
-
-    .nav-label {
-      display: none;
-    }
-
-    .nav-item span {
-      display: none;
-    }
-
-    .nav-item {
-      justify-content: center;
-      padding: 0.75rem;
-    }
-
-    .sidebar-footer .nav-item span {
-      display: none;
-    }
-
-    .main-content {
-      margin-left: 60px;
+    .settings-page {
+      padding: 1.5rem 1rem;
     }
   }
 </style>
 
 <script>
-  // Sidebar i18n translations
-  const sidebarI18n: Record<string, Record<string, string>> = {
-    en: { 'nav.general': 'General', 'nav.tools': 'Tools', 'nav.home': 'Home', 'nav.upload': 'Upload', 'nav.models': 'Models', 'nav.history': 'History', 'nav.settings': 'Settings' },
-    zh: { 'nav.general': '通用', 'nav.tools': '工具', 'nav.home': '首页', 'nav.upload': '上传', 'nav.models': '模型管理', 'nav.history': '历史记录', 'nav.settings': '设置' },
-    ja: { 'nav.general': '一般', 'nav.tools': 'ツール', 'nav.home': 'ホーム', 'nav.upload': 'アップロード', 'nav.models': 'モデル管理', 'nav.history': '履歴', 'nav.settings': '設定' },
-  };
-
-  function applySidebarI18n() {
-    let locale = 'en';
-    try { locale = localStorage.getItem('super-resolution-locale') || 'en'; } catch {}
-    const map = sidebarI18n[locale] || sidebarI18n.en;
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-      const key = el.getAttribute('data-i18n');
-      if (key && map[key]) el.textContent = map[key];
-    });
-  }
-  applySidebarI18n();
-
-  const sidebar = document.querySelector('.sidebar');
-  const toggle = document.getElementById('sidebarToggle');
-  const autoExpandToggle = document.getElementById('autoExpandToggle') as HTMLInputElement;
   const historyPersistToggle = document.getElementById('historyPersistToggle') as HTMLInputElement;
   const langSelect = document.getElementById('langSelect') as HTMLSelectElement;
 
-  // Restore collapsed state
-  if (localStorage.getItem('sidebar-collapsed') === 'true') {
-    sidebar?.classList.add('sidebar-collapsed');
-  }
-
-  // Restore auto-expand setting
-  const autoExpand = localStorage.getItem('sidebar-auto-expand') === 'true';
-  if (autoExpandToggle) autoExpandToggle.checked = autoExpand;
-
-  // Restore history persistence setting (default: session-only)
   if (historyPersistToggle) {
     historyPersistToggle.checked = localStorage.getItem('history-persist') === 'true';
   }
 
-  // Restore language setting
   if (langSelect) {
     const saved = localStorage.getItem('super-resolution-locale') || 'en';
     langSelect.value = saved;
   }
 
-  // Toggle collapse
-  toggle?.addEventListener('click', () => {
-    sidebar?.classList.toggle('sidebar-collapsed');
-    const collapsed = sidebar?.classList.contains('sidebar-collapsed') ?? false;
-    localStorage.setItem('sidebar-collapsed', String(collapsed));
-  });
-
-  // Auto-expand toggle
-  autoExpandToggle?.addEventListener('change', () => {
-    localStorage.setItem('sidebar-auto-expand', String(autoExpandToggle.checked));
-  });
-
-  // History persistence toggle
   historyPersistToggle?.addEventListener('change', () => {
     localStorage.setItem('history-persist', String(historyPersistToggle.checked));
   });
 
-  // Language switcher
   langSelect?.addEventListener('change', () => {
-    const locale = langSelect.value;
-    localStorage.setItem('super-resolution-locale', locale);
-    applySidebarI18n();
-  });
-
-  // Hover to expand when collapsed
-  let hoverExpandTimeout: ReturnType<typeof setTimeout>;
-  let leaveTimeout: ReturnType<typeof setTimeout>;
-
-  sidebar?.addEventListener('mouseenter', () => {
-    if (!autoExpandToggle?.checked) return;
-    if (!sidebar?.classList.contains('sidebar-collapsed')) return;
-
-    clearTimeout(leaveTimeout);
-    hoverExpandTimeout = setTimeout(() => {
-      sidebar?.classList.add('sidebar-hover-expanded');
-      sidebar?.classList.remove('sidebar-collapsed');
-    }, 300);
-  });
-
-  sidebar?.addEventListener('mouseleave', () => {
-    if (!autoExpandToggle?.checked) return;
-    if (!sidebar?.classList.contains('sidebar-hover-expanded')) return;
-
-    clearTimeout(hoverExpandTimeout);
-    leaveTimeout = setTimeout(() => {
-      sidebar?.classList.remove('sidebar-hover-expanded');
-      sidebar?.classList.add('sidebar-collapsed');
-    }, 300);
+    localStorage.setItem('super-resolution-locale', langSelect.value);
+    window.dispatchEvent(new Event('locale-changed'));
   });
 </script>

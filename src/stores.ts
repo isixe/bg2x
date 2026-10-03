@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { i18n } from './i18n';
+import type { HistoryRecord } from './type';
 
 export const useLocaleStore = defineStore(
   'locale',
@@ -21,19 +22,6 @@ export const useLocaleStore = defineStore(
   },
   { persist: { key: 'super-resolution-locale' } },
 );
-
-export interface HistoryRecord {
-  id: string;
-  timestamp: number;
-  originalFileName: string;
-  originalSize: { width: number; height: number };
-  resultSize: { width: number; height: number };
-  modelId: string;
-  modelName: string;
-  originalDataUrl: string;
-  resultDataUrl: string;
-  resultBlobUrl?: string;
-}
 
 const MAX_RECORDS = 50;
 

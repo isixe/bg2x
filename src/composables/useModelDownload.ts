@@ -1,10 +1,4 @@
-import type { ModelEntry } from './useModelRegistry';
-
-export interface FetchModelBytesOptions {
-  signal?: AbortSignal;
-  onProgress?: (percent: number) => void;
-  timeoutMs?: number;
-}
+import type { FetchModelBytesOptions, ModelEntry } from '../type';
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 

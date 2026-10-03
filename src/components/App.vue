@@ -1,34 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import HomePage from './HomePage.vue';
-import ImageUploader from './ImageUploader.vue';
 import ModelsSection from './ModelsSection.vue';
-import ProcessingPanel from './ProcessingPanel.vue';
 import PreviewDialog from './PreviewDialog.vue';
+import UploadWorkspace from './UploadWorkspace.vue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
-import { useHistoryStore, type HistoryRecord } from '../stores';
+import { useHistoryStore } from '../stores';
+import type { HistoryRecord, PreviewItem, ViewName } from '../type';
 import { useI18n } from 'vue-i18n';
 import { Clock, Download, Trash2, X } from 'lucide-vue-next';
-
-type PreviewItem = {
-  id: string;
-  name: string;
-  originalUrl: string;
-  resultUrl: string | null;
-  originalSize?: { width: number; height: number } | null;
-  resultSize?: { width: number; height: number } | null;
-};
 
 const { t } = useI18n();
 const historyStore = useHistoryStore();
 
-const processingPanel = ref<InstanceType<typeof ProcessingPanel> | null>(null);
-const selectedCount = ref(0);
-const isProcessing = ref(false);
 const selectedModelId = ref(MODEL_REGISTRY[0].id);
-
-type ViewName = 'home' | 'upload' | 'history' | 'models';
 
 function getViewFromHash(): ViewName {
   if (typeof window === 'undefined') return 'home';
@@ -87,24 +73,6 @@ onUnmounted(() => {
   window.removeEventListener('hashchange', handleHashChange);
 });
 
-function handleFilesSelected(files: File[]) {
-  selectedCount.value += files.length;
-  isProcessing.value = true;
-  processingPanel.value?.processBatch(files);
-}
-
-function handleProcessingStart() {
-  isProcessing.value = true;
-}
-
-function handleProcessingComplete() {
-  isProcessing.value = false;
-}
-
-function handleProcessingError() {
-  isProcessing.value = false;
-}
-
 async function handleResultReady(payload: {
   file: File;
   originalSize: { width: number; height: number };
@@ -120,12 +88,6 @@ async function handleResultReady(payload: {
     resultUrl: payload.resultUrl,
   });
 }
-
-watch(selectedModelId, () => {
-  if (processingPanel.value) {
-    processingPanel.value.resetState?.();
-  }
-});
 </script>
 
 <template>
@@ -204,53 +166,11 @@ watch(selectedModelId, () => {
 
     <!-- Upload View -->
     <template v-else>
-      <div class="summary-bar">
-        <div class="model-select-wrapper">
-          <label class="model-select-label">{{ t('upload.model') }}</label>
-          <select
-            class="model-select"
-            :value="selectedModelId"
-            @change="selectedModelId = ($event.target as HTMLSelectElement).value"
-          >
-            <option v-for="model in MODEL_REGISTRY" :key="model.id" :value="model.id">
-              {{ model.name }}
-            </option>
-          </select>
-        </div>
-      </div>
-
-      <div class="content-area">
-        <div class="panel upload-panel">
-          <ImageUploader @files-selected="handleFilesSelected" />
-        </div>
-
-        <div class="panel processing-panel">
-          <ProcessingPanel
-            ref="processingPanel"
-            :model-id="selectedModel.id"
-            :model-url="selectedModel.url"
-            :model-scale="selectedModel.scale"
-            @processing-start="handleProcessingStart"
-            @processing-complete="handleProcessingComplete"
-            @processing-error="handleProcessingError"
-            @result-ready="handleResultReady"
-          />
-        </div>
-      </div>
-
-      <div class="bottom-bar">
-        <div class="bottom-left">
-          <span class="selected-info">
-            {{ t('upload.selectedItems') }}
-            <strong>{{ t('upload.images', { count: selectedCount }) }}</strong>
-          </span>
-        </div>
-        <div class="bottom-right">
-          <button class="clean-btn" :disabled="selectedCount === 0 || isProcessing">
-            {{ isProcessing ? t('upload.processing') : t('upload.upscale') }}
-          </button>
-        </div>
-      </div>
+      <UploadWorkspace
+        :selected-model-id="selectedModelId"
+        @update:selected-model-id="selectedModelId = $event"
+        @result-ready="handleResultReady"
+      />
     </template>
 
     <PreviewDialog v-if="historyPreview" :item="historyPreview" @close="historyPreview = null" />
@@ -261,114 +181,8 @@ watch(selectedModelId, () => {
 .app-wrapper {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  background: var(--color-background);
-}
-
-.summary-bar {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  padding: 1rem 2rem;
-  border-bottom: var(--border-thin);
-}
-
-.model-select-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.model-select-label {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: var(--color-gray-dark);
-}
-
-.model-select {
-  padding: 0.5rem 2rem 0.5rem 0.75rem;
-  border: var(--border-thin);
-  border-radius: var(--radius-md);
-  background: var(--color-card);
-  color: var(--color-dark);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpolyline points='6,9 12,15 18,9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.5rem center;
-}
-
-.model-select:hover {
-  border-color: var(--color-primary);
-}
-
-.model-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(212, 132, 62, 0.15);
-}
-
-.content-area {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding: 1.5rem 2rem;
   flex: 1;
-}
-
-.panel {
-  background: var(--color-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
-}
-
-.bottom-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem 2rem;
-  background: var(--color-card);
-  border-top: var(--border-thin);
-}
-
-.bottom-left {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.selected-info {
-  font-size: 0.875rem;
-  color: var(--color-gray-dark);
-}
-
-.selected-info strong {
-  color: var(--color-dark);
-  font-weight: 600;
-}
-
-.clean-btn {
-  background: var(--color-primary);
-  color: white;
-  padding: 0.75rem 2rem;
-  font-weight: 600;
-  border-radius: var(--radius-md);
-}
-
-.clean-btn:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-}
-
-.clean-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  background: var(--color-background);
 }
 
 .models-view {
@@ -555,22 +369,12 @@ watch(selectedModelId, () => {
 }
 
 @media (max-width: 768px) {
-  .summary-bar {
-    flex-wrap: wrap;
-    gap: 0.75rem;
+  .history-view {
+    padding: 1rem;
   }
 
-  .model-select-wrapper {
-    margin-left: 0;
-  }
-
-  .bottom-bar {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .clean-btn {
-    width: 100%;
+  .models-view {
+    padding: 1rem;
   }
 }
 </style>

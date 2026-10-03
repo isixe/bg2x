@@ -69,6 +69,26 @@
     "maxSize": "最大 {size}px",
     "more": "もっと見る"
   },
+  "queue": {
+    "title": "キュー",
+    "selectAll": "すべて選択",
+    "selected": "{count} 件選択中",
+    "empty": "画像はまだありません",
+    "download": "ダウンロード",
+    "copy": "コピー",
+    "reprocess": "再処理"
+  },
+  "ops": {
+    "title": "操作",
+    "scale": "拡大倍率",
+    "reprocess": "再処理",
+    "processNew": "新しい画像",
+    "downloadAll": "すべてダウンロード",
+    "format": "形式",
+    "model": "モデル",
+    "gpu": "GPU アクセラレーション",
+    "gpuUnsupported": "WebGPU がサポートされていません"
+  },
   "settings": {
     "title": "設定",
     "subtitle": "アプリの設定",

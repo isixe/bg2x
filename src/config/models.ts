@@ -1,17 +1,4 @@
-export interface ModelEntry {
-  id: string;
-  name: string;
-  /** Primary URL — also used as the IndexedDB cache key. Must equal urls[0]. */
-  url: string;
-  /**
-   * Ordered fallback candidates for the same model. Downloads try each URL in
-   * sequence until one succeeds. Only official huggingface.co links are used.
-   */
-  urls: string[];
-  scale: number;
-  description: string;
-  maxSize?: number;
-}
+import type { ModelEntry } from '../type';
 
 const HF_HOST = 'https://huggingface.co';
 

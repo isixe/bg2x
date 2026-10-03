@@ -19,6 +19,7 @@
     "astro": "^5.13.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "jszip": "^3.10.2",
     "lucide-vue-next": "^1.0.0",
     "onnxruntime-web": "1.30.0",
     "pinia": "^4.0.3",

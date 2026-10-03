@@ -1,0 +1,156 @@
+---
+import { Image as ImageIcon, Clock, Home, Layers, Settings, Upload } from 'lucide-vue-next';
+
+interface Props {
+  current?: string;
+}
+
+const { current } = Astro.props;
+---
+
+<header class="app-header" data-current={current ?? ''}>
+  <a href="/" class="header-logo">
+    <ImageIcon />
+    <span class="logo-text">Super Resolution</span>
+  </a>
+  <nav class="header-nav" aria-label="Main">
+    <a href="/#/" class="nav-item" data-nav="home" data-i18n-title="nav.home"><Home /></a>
+    <a href="/#/upload" class="nav-item" data-nav="upload" data-i18n-title="nav.upload"><Upload /></a>
+    <a href="/#/history" class="nav-item" data-nav="history" data-i18n-title="nav.history"><Clock /></a>
+    <a href="/#/models" class="nav-item" data-nav="models" data-i18n-title="nav.models"><Layers /></a>
+    <a href="/settings" class="nav-item" data-nav="settings" data-i18n-title="nav.settings"><Settings /></a>
+  </nav>
+</header>
+
+<style>
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    height: 56px;
+    padding: 0 1.5rem;
+    background: var(--color-sidebar, #faf5ee);
+    border-bottom: var(--border-thin);
+  }
+
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    min-width: 0;
+  }
+
+  .header-logo svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    color: var(--color-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    color: var(--color-gray-dark);
+    text-decoration: none;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .nav-item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav-item:hover {
+    background: rgba(212, 132, 62, 0.1);
+    color: var(--color-primary);
+  }
+
+  .nav-item.active {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  @media (max-width: 640px) {
+    .app-header {
+      padding: 0 1rem;
+    }
+
+    .logo-text {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  const headerI18n: Record<string, Record<string, string>> = {
+    'nav.home': { en: 'Home', zh: '首页', ja: 'ホーム' },
+    'nav.upload': { en: 'Upload', zh: '上传', ja: 'アップロード' },
+    'nav.history': { en: 'History', zh: '历史', ja: '履歴' },
+    'nav.models': { en: 'Models', zh: '模型', ja: 'モデル管理' },
+    'nav.settings': { en: 'Settings', zh: '设置', ja: '設定' },
+  };
+
+  function applyHeaderI18n() {
+    const locale = localStorage.getItem('super-resolution-locale') || 'en';
+    document.querySelectorAll<HTMLElement>('[data-i18n-title]').forEach((el) => {
+      const key = el.getAttribute('data-i18n-title');
+      const entry = key ? headerI18n[key] : undefined;
+      if (entry) {
+        el.setAttribute('title', entry[locale] ?? entry.en);
+        el.setAttribute('aria-label', entry[locale] ?? entry.en);
+      }
+    });
+  }
+
+  function getNavFromHash(): string {
+    const hash = location.hash.replace(/^#\/?/, '');
+    if (hash === 'upload') return 'upload';
+    if (hash === 'history') return 'history';
+    if (hash === 'models') return 'models';
+    return 'home';
+  }
+
+  function setActiveNav(nav: string) {
+    document.querySelectorAll<HTMLElement>('.nav-item[data-nav]').forEach((el) => {
+      el.classList.toggle('active', el.getAttribute('data-nav') === nav);
+    });
+  }
+
+  function updateActiveNav() {
+    const header = document.querySelector<HTMLElement>('.app-header');
+    const forced = header?.getAttribute('data-current');
+    setActiveNav(forced && forced.length > 0 ? forced : getNavFromHash());
+  }
+
+  applyHeaderI18n();
+  updateActiveNav();
+
+  window.addEventListener('hashchange', updateActiveNav);
+  window.addEventListener('locale-changed', applyHeaderI18n);
+</script>
