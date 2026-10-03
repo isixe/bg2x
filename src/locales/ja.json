@@ -65,6 +65,7 @@
   "models": {
     "title": "モデル管理",
     "downloadBeforeUse": "使用前にモデルをダウンロードしてください",
+    "downloadRequired": "先にモデルをダウンロードしてください",
     "upscale": "{scale}x 拡大",
     "maxSize": "最大 {size}px",
     "more": "もっと見る"

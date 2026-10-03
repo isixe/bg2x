@@ -2,9 +2,9 @@
 import { computed, reactive, onMounted, onUnmounted } from 'vue';
 import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import type { ModelEntry, ModelState } from '../type';
-import { isModelCached, cacheModel, deleteCachedModel } from '../composables/useModelCache';
+import { cacheModel, deleteCachedModel } from '../composables/useModelCache';
 import { fetchModelBytes } from '../composables/useModelDownload';
-import { useModelStore } from '../store/stores';
+import { useModelCacheStore, useModelStore } from '../store/stores';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
@@ -16,6 +16,7 @@ defineProps<{
 const router = useRouter();
 const { t } = useI18n();
 const modelStore = useModelStore();
+const modelCacheStore = useModelCacheStore();
 
 const modelStates = reactive<Record<string, ModelState>>({});
 const defaultModelId = computed(() => modelStore.defaultModelId);
@@ -29,7 +30,10 @@ onMounted(async () => {
       error: null,
       abortController: null,
     };
-    modelStates[model.id].cached = await isModelCached(model.url);
+  }
+  await modelCacheStore.refresh();
+  for (const model of MODEL_REGISTRY) {
+    modelStates[model.id].cached = modelCacheStore.cachedModelIds.includes(model.id);
   }
 });
 
@@ -56,6 +60,7 @@ async function downloadModel(model: ModelEntry) {
     });
 
     await cacheModel(model.url, buffer);
+    modelCacheStore.setCached(model.id, true);
     state.cached = true;
     state.progress = 100;
     modelStore.setDefaultModel(model.id);
@@ -73,6 +78,7 @@ async function removeModel(model: ModelEntry) {
   const state = modelStates[model.id];
   if (state.downloading) return;
   await deleteCachedModel(model.url);
+  modelCacheStore.setCached(model.id, false);
   state.cached = false;
   state.progress = 0;
 }

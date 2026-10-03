@@ -65,6 +65,7 @@
   "models": {
     "title": "模型管理",
     "downloadBeforeUse": "使用前请先下载模型",
+    "downloadRequired": "请先下载模型",
     "upscale": "{scale}x 放大",
     "maxSize": "最大 {size}px",
     "more": "更多"

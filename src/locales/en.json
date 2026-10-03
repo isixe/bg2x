@@ -65,6 +65,7 @@
   "models": {
     "title": "Models",
     "downloadBeforeUse": "Download models before use",
+    "downloadRequired": "Please download a model first",
     "upscale": "{scale}x upscale",
     "maxSize": "Max {size}px",
     "more": "More"

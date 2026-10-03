@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
@@ -13,7 +13,7 @@ import {
   Moon,
   Languages,
 } from 'lucide-vue-next';
-import { useLocaleStore, useThemeStore } from '../store/stores';
+import { useLocaleStore, useModelCacheStore, useThemeStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
 import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue';
 import DropdownMenuContent from './ui/dropdown-menu/DropdownMenuContent.vue';
@@ -30,14 +30,31 @@ const { t } = useI18n();
 const route = useRoute();
 const localeStore = useLocaleStore();
 const themeStore = useThemeStore();
+const modelCacheStore = useModelCacheStore();
 
-const navItems = [
-  { name: 'home', to: { name: 'home' }, icon: Home, label: 'nav.home' },
-  { name: 'upload', to: { name: 'upload' }, icon: Upload, label: 'nav.upload' },
-  { name: 'history', to: { name: 'history' }, icon: Clock, label: 'nav.history' },
-  { name: 'models', to: { name: 'models' }, icon: Layers, label: 'nav.models' },
-  { name: 'settings', to: { name: 'settings' }, icon: Settings, label: 'nav.settings' },
-] as const;
+const navItems = computed(() => {
+  const items = [
+    { name: 'home', to: { name: 'home' }, icon: Home, label: 'nav.home' },
+    { name: 'upload', to: { name: 'upload' }, icon: Upload, label: 'nav.upload' },
+    { name: 'models', to: { name: 'models' }, icon: Layers, label: 'nav.models' },
+    { name: 'history', to: { name: 'history' }, icon: Clock, label: 'nav.history' },
+    { name: 'settings', to: { name: 'settings' }, icon: Settings, label: 'nav.settings' },
+  ] as const;
+  return items.filter((item) => item.name !== 'home' || !modelCacheStore.hasCachedModels);
+});
+
+const modelRequiredVisible = ref(false);
+let modelRequiredTimer: ReturnType<typeof setTimeout> | undefined;
+
+function showModelRequired() {
+  modelRequiredVisible.value = true;
+  if (modelRequiredTimer) clearTimeout(modelRequiredTimer);
+  modelRequiredTimer = setTimeout(() => (modelRequiredVisible.value = false), 3000);
+}
+
+onUnmounted(() => {
+  if (modelRequiredTimer) clearTimeout(modelRequiredTimer);
+});
 
 const themeActionKey = computed(() =>
   themeStore.isDark ? 'action.theme.light' : 'action.theme.dark',
@@ -68,17 +85,28 @@ watch(
     </RouterLink>
     <div class="header-end">
       <nav class="header-nav" aria-label="Main">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.name"
-          :to="item.to"
-          class="nav-item"
-          :class="{ active: isActive(item.name) }"
-          :title="t(item.label)"
-          :aria-label="t(item.label)"
-        >
-          <component :is="item.icon" />
-        </RouterLink>
+        <template v-for="item in navItems" :key="item.name">
+          <button
+            v-if="item.name === 'upload' && !modelCacheStore.hasCachedModels"
+            type="button"
+            class="nav-item"
+            :title="t(item.label)"
+            :aria-label="t(item.label)"
+            @click="showModelRequired"
+          >
+            <component :is="item.icon" />
+          </button>
+          <RouterLink
+            v-else
+            :to="item.to"
+            class="nav-item"
+            :class="{ active: isActive(item.name) }"
+            :title="t(item.label)"
+            :aria-label="t(item.label)"
+          >
+            <component :is="item.icon" />
+          </RouterLink>
+        </template>
       </nav>
       <div class="header-actions">
         <DropdownMenu>
@@ -115,6 +143,12 @@ watch(
         </button>
       </div>
     </div>
+
+    <Transition name="header-toast">
+      <div v-if="modelRequiredVisible" class="header-toast" role="status">
+        {{ t('models.downloadRequired') }}
+      </div>
+    </Transition>
   </header>
 </template>
 
@@ -222,6 +256,9 @@ html.dark .theme-btn :global(.icon-moon) {
   justify-content: center;
   width: 36px;
   height: 36px;
+  /* override the global `button` fill/padding so the upload entry reads as an icon */
+  padding: 0;
+  background: transparent;
   border-radius: var(--radius-md);
   color: var(--color-gray-dark);
   text-decoration: none;
@@ -243,6 +280,35 @@ html.dark .theme-btn :global(.icon-moon) {
 .nav-item.active {
   background: var(--color-primary);
   color: #fff;
+}
+
+.header-toast {
+  position: fixed;
+  top: 68px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 0.5rem 0.875rem;
+  background: var(--color-dark);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+
+.header-toast-enter-active,
+.header-toast-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.header-toast-enter-from,
+.header-toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -0.5rem);
 }
 
 @media (max-width: 640px) {

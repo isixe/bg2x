@@ -5,7 +5,7 @@ import HistoryView from '../components/HistoryView.vue';
 import ModelsView from '../components/ModelsView.vue';
 import SettingsView from '../components/SettingsView.vue';
 import { pinia } from '../store/pinia';
-import { useSettingsStore } from '../store/stores';
+import { useModelCacheStore, useSettingsStore } from '../store/stores';
 
 export const router = createRouter({
   history: typeof window === 'undefined' ? createMemoryHistory() : createWebHistory(),
@@ -20,21 +20,23 @@ export const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 });
 
-// The welcome page is only shown on the very first visit. On later visits an
-// entry to the root path goes straight to the upload workspace, while the other
-// routes are always honored.
-let initialResolutionDone = false;
-
-router.beforeEach((to) => {
-  if (initialResolutionDone) return true;
-  initialResolutionDone = true;
+router.beforeEach(async (to) => {
+  // Client-only SPA: never redirect during SSR so the static shells prerender
+  // without touching IndexedDB.
+  if (typeof window === 'undefined') return true;
 
   const settings = useSettingsStore(pinia);
-  if (to.name === 'home' && settings.hasVisited) {
-    return { name: 'upload' };
+  if (!settings.hasVisited) settings.markVisited();
+
+  const modelCache = useModelCacheStore(pinia);
+  if (!modelCache.isReady) {
+    await modelCache.refresh();
   }
-  if (!settings.hasVisited) {
-    settings.markVisited();
+
+  if (modelCache.hasCachedModels) {
+    if (to.name === 'home') return { name: 'upload' };
+  } else if (to.name === 'upload') {
+    return { name: 'home' };
   }
   return true;
 });

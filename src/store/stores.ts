@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { i18n } from '../locales/i18n';
 import type { HistoryRecord } from '../type';
+import { MODEL_REGISTRY } from '../composables/useModelRegistry';
+import { isModelCached } from '../composables/useModelCache';
 
 export type LocaleCode = 'en' | 'zh' | 'ja';
 export type ThemeMode = 'light' | 'dark';
@@ -206,3 +208,33 @@ export const useModelStore = defineStore(
   },
   { persist: { key: 'super-resolution-default-model' } },
 );
+
+// Tracks which models currently exist in the IndexedDB cache. This is the
+// single source of truth for "does the user have a usable model yet" - the
+// router uses it to gate the upload workspace, and the header reacts to it.
+export const useModelCacheStore = defineStore('model-cache', () => {
+  const cachedModelIds = ref<string[]>([]);
+  const isReady = ref(false);
+
+  const hasCachedModels = computed(() => cachedModelIds.value.length > 0);
+
+  async function refresh() {
+    const cached: string[] = [];
+    await Promise.all(
+      MODEL_REGISTRY.map(async (model) => {
+        if (await isModelCached(model.url)) cached.push(model.id);
+      }),
+    );
+    cachedModelIds.value = cached;
+    isReady.value = true;
+  }
+
+  function setCached(id: string, cached: boolean) {
+    const ids = new Set(cachedModelIds.value);
+    if (cached) ids.add(id);
+    else ids.delete(id);
+    cachedModelIds.value = [...ids];
+  }
+
+  return { cachedModelIds, isReady, hasCachedModels, refresh, setCached };
+});
