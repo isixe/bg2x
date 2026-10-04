@@ -94,5 +94,6 @@ export type WorkerMessage = LoadModelMessage | ProcessMessage;
 export type WorkerResponse =
   | { type: 'progress'; payload: { progress: number; status: string } }
   | { type: 'model-loaded'; payload?: { modelUrl: string; gpu?: boolean } }
+  | { type: 'gpu-fallback'; payload: { message: string } }
   | { type: 'complete'; payload: { resultUrl: string; size: { width: number; height: number } } }
   | { type: 'error'; payload: { message: string } };

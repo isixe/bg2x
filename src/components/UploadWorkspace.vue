@@ -32,6 +32,7 @@ const {
   hasReprocessable,
   hasDownloadable,
   gpuSupported,
+  gpuFallback,
   processBatch,
   reprocess,
   toggleSelect,
@@ -147,6 +148,7 @@ const statusClass = computed(() => {
       :model-id="selectedModelId"
       :is-processing="state.isProcessing"
       :gpu-supported="gpuSupported"
+      :gpu-fallback="gpuFallback"
       :has-reprocessable="hasReprocessable"
       :has-downloadable="hasDownloadable"
       @update:target-scale="targetScale = $event"

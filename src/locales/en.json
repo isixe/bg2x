@@ -52,6 +52,7 @@
     "pending": "Waiting",
     "itemProcessing": "Processing...",
     "failed": "Failed",
+    "gpuFallback": "GPU acceleration failed, switched to CPU",
     "clickToCompare": "Click to compare",
     "close": "Close"
   },
@@ -88,7 +89,8 @@
     "format": "Format",
     "model": "Model",
     "gpu": "GPU acceleration",
-    "gpuUnsupported": "WebGPU not supported"
+    "gpuUnsupported": "WebGPU not supported",
+    "gpuFallbackHint": "GPU acceleration failed — running on CPU. Toggle GPU to retry."
   },
   "settings": {
     "title": "Settings",

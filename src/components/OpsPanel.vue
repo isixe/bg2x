@@ -22,6 +22,7 @@ defineProps<{
   modelId: string;
   isProcessing: boolean;
   gpuSupported: boolean;
+  gpuFallback: boolean;
   hasReprocessable: boolean;
   hasDownloadable: boolean;
 }>();
@@ -144,6 +145,7 @@ function pickFormat(value: DownloadFormat) {
       </label>
     </div>
     <p v-if="!gpuSupported" class="gpu-hint">{{ t('ops.gpuUnsupported') }}</p>
+    <p v-else-if="gpuFallback" class="gpu-hint">{{ t('ops.gpuFallbackHint') }}</p>
   </aside>
 </template>
 

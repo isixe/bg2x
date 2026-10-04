@@ -8,6 +8,8 @@ ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
 let session: ort.InferenceSession | null = null;
 let currentModelUrl: string | null = null;
 let currentGpu = false;
+/** Source used to build the current session; kept so we can rebuild it on CPU if GPU inference fails. */
+let currentSource: string | ArrayBuffer | null = null;
 
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const { type, payload } = e.data;
@@ -60,6 +62,7 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false)
       effectiveGpu = false;
     }
 
+    currentSource = source;
     currentModelUrl = modelUrl;
     currentGpu = effectiveGpu;
 
@@ -105,8 +108,32 @@ async function processImage(payload: {
     const inputName = session.inputNames[0];
     const outputName = session.outputNames[0];
 
-    const results = await session.run({ [inputName]: inputTensor });
-    const outputTensor = results[outputName];
+    let outputTensor: ort.Tensor;
+    try {
+      const results = await session.run({ [inputName]: inputTensor });
+      outputTensor = results[outputName];
+    } catch (inferenceError) {
+      // WebGPU can fail at runtime (e.g. a kernel cannot allocate its output)
+      // even when the session was created successfully. Rebuild on WASM and
+      // retry the same inference once before surfacing a hard error.
+      if (!currentGpu || !currentSource) throw inferenceError;
+
+      self.postMessage({
+        type: 'gpu-fallback',
+        payload: { message: `GPU inference failed, falling back to CPU: ${inferenceError}` },
+      });
+      self.postMessage({
+        type: 'progress',
+        payload: { progress: 30, status: 'GPU failed, retrying on CPU...' },
+      });
+
+      session = await createSession(currentSource, false);
+      currentGpu = false;
+
+      const retryInput = preprocessImage(imageData);
+      const retryResults = await session.run({ [inputName]: retryInput });
+      outputTensor = retryResults[outputName];
+    }
 
     self.postMessage({
       type: 'progress',

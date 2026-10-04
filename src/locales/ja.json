@@ -52,6 +52,7 @@
     "pending": "待機中",
     "itemProcessing": "処理中...",
     "failed": "失敗",
+    "gpuFallback": "GPU アクセラレーションに失敗したため、CPU に切り替えました",
     "clickToCompare": "クリックで比較",
     "close": "閉じる"
   },
@@ -88,7 +89,8 @@
     "format": "形式",
     "model": "モデル",
     "gpu": "GPU アクセラレーション",
-    "gpuUnsupported": "WebGPU がサポートされていません"
+    "gpuUnsupported": "WebGPU がサポートされていません",
+    "gpuFallbackHint": "GPU アクセラレーションに失敗し CPU で実行中。GPU を再度有効にすると再試行します。"
   },
   "settings": {
     "title": "設定",

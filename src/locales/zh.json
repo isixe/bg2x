@@ -52,6 +52,7 @@
     "pending": "等待中",
     "itemProcessing": "处理中...",
     "failed": "失败",
+    "gpuFallback": "GPU 加速失败，已切换到 CPU",
     "clickToCompare": "点击对比",
     "close": "关闭"
   },
@@ -88,7 +89,8 @@
     "format": "图片格式",
     "model": "模型",
     "gpu": "GPU 加速",
-    "gpuUnsupported": "浏览器不支持 WebGPU"
+    "gpuUnsupported": "浏览器不支持 WebGPU",
+    "gpuFallbackHint": "GPU 加速失败，正在使用 CPU。可重新开启 GPU 以重试。"
   },
   "settings": {
     "title": "设置",

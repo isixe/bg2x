@@ -68,6 +68,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const hasDownloadable = computed(() => state.value.items.some((i) => i.status === 'done'));
 
   const gpuSupported = typeof navigator !== 'undefined' && 'gpu' in navigator;
+  const gpuFallback = ref(false);
 
   /** copy button feedback: show a check icon for a short while after a successful copy */
   const copiedId = ref<number | null>(null);
@@ -166,6 +167,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             loadedGpuWanted = pendingGpuWanted;
             pendingGpuWanted = null;
             break;
+
+          case 'gpu-fallback':
+            gpuFallback.value = true;
+            options.gpu.value = false;
+            loadedGpuWanted = false;
+            state.value.status = t('processing.gpuFallback');
+            break;
         }
       };
 
@@ -211,6 +219,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
    * process — queued items are kept (unlike the old resetState wipe).
    */
   watch([() => options.model.value.url, options.gpu], () => {
+    if (options.gpu.value) gpuFallback.value = false;
     if (state.value.isProcessing) return;
     state.value.isModelLoaded = false;
     loadedUrl = null;
@@ -662,6 +671,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     hasReprocessable,
     hasDownloadable,
     gpuSupported,
+    gpuFallback,
     processBatch,
     reprocess,
     toggleSelect,
