@@ -24,7 +24,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <aside class="queue-panel">
+  <section class="queue-panel">
     <div class="queue-header">
       <label class="queue-select-all">
         <input
@@ -68,7 +68,7 @@ const emit = defineEmits<{
         />
         <img
           class="queue-thumb"
-          :src="item.originalUrl"
+          :src="item.resultUrl ?? item.originalUrl"
           :alt="item.name"
           role="button"
           tabindex="0"
@@ -146,7 +146,7 @@ const emit = defineEmits<{
         <span>{{ t('queue.reprocess') }}</span>
       </button>
     </div>
-  </aside>
+  </section>
 </template>
 
 <style scoped>
@@ -159,9 +159,6 @@ const emit = defineEmits<{
   box-shadow: var(--shadow-sm);
   padding: 1rem;
   min-width: 0;
-  max-height: calc(100vh - 7.5rem);
-  position: sticky;
-  top: 5.5rem;
 }
 
 .queue-header {
