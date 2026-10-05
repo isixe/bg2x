@@ -2,7 +2,7 @@
 import ModelsSection from './ModelsSection.vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { Image as ImageIcon, Upload } from 'lucide-vue-next';
+import { Upload } from 'lucide-vue-next';
 
 const router = useRouter();
 const { t } = useI18n();
@@ -18,7 +18,7 @@ function goToUpload() {
       <!-- Welcome Section -->
       <div class="welcome-section">
         <div class="welcome-icon">
-          <ImageIcon :stroke-width="1.5" />
+          <img src="/favicon.png" alt="bg2x" class="welcome-logo" />
         </div>
         <h1 class="welcome-title">{{ t('home.title') }}</h1>
         <p class="welcome-desc">{{ t('home.desc') }}</p>
@@ -66,15 +66,13 @@ function goToUpload() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(212, 132, 62, 0.1);
-  border-radius: 16px;
   margin-bottom: 1.25rem;
 }
 
-.welcome-icon svg {
-  width: 36px;
-  height: 36px;
-  color: var(--color-primary);
+.welcome-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
 }
 
 .welcome-title {

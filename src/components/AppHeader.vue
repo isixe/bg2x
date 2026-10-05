@@ -3,7 +3,6 @@ import { computed, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
-  Image as ImageIcon,
   Clock,
   Home,
   Layers,
@@ -81,7 +80,7 @@ watch(
 <template>
   <header class="app-header">
     <RouterLink :to="{ name: 'home' }" class="header-logo">
-      <ImageIcon />
+      <img src="/favicon.png" alt="bg2x" class="logo-img" />
       <span class="logo-text">bg2x</span>
     </RouterLink>
     <div class="header-end">
@@ -189,10 +188,12 @@ watch(
   min-width: 0;
 }
 
-.header-logo svg {
+.logo-img {
   width: 20px;
   height: 20px;
   flex-shrink: 0;
+  border-radius: var(--radius-md);
+  object-fit: contain;
 }
 
 .logo-text {
