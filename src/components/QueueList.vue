@@ -58,6 +58,8 @@ const emit = defineEmits<{
           active: activeId === item.id,
         }"
         role="listitem"
+        :title="item.status === 'done' ? t('processing.clickToCompare') : item.name"
+        @click="emit('preview', item)"
       >
         <input
           type="checkbox"
@@ -72,8 +74,6 @@ const emit = defineEmits<{
           :alt="item.name"
           role="button"
           tabindex="0"
-          :title="item.status === 'done' ? t('processing.clickToCompare') : item.name"
-          @click="emit('preview', item)"
           @keydown.enter.prevent="emit('preview', item)"
         />
         <div class="queue-info">
@@ -263,6 +263,7 @@ const emit = defineEmits<{
   background: var(--color-gray);
 }
 
+.queue-item.done,
 .queue-item.done .queue-thumb {
   cursor: pointer;
 }
