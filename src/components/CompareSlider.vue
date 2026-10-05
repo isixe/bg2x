@@ -1,18 +1,25 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { usePanZoom } from '../composables/usePanZoom';
 
 const { t } = useI18n();
 
-const props = defineProps<{
+defineProps<{
   originalUrl: string;
   resultUrl: string;
   height?: string;
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
+const { isPanning, transform } = usePanZoom(containerRef);
+
 const sliderPosition = ref(50);
 const isDragging = ref(false);
+
+const containerClass = computed(() => ({
+  panning: isPanning.value,
+}));
 
 const resultClipStyle = computed(() => ({
   clipPath: `inset(0 0 0 ${sliderPosition.value}%)`,
@@ -21,6 +28,10 @@ const resultClipStyle = computed(() => ({
 const handleStyle = computed(() => ({
   left: `${sliderPosition.value}%`,
 }));
+
+function blockPropagation(event: Event) {
+  event.stopPropagation();
+}
 
 function handleSliderMove(clientX: number) {
   const el = containerRef.value;
@@ -105,16 +116,17 @@ onUnmounted(() => {
   <div
     ref="containerRef"
     class="compare"
-    :style="{ height: props.height ?? '320px' }"
-    @mousedown="onMouseDown"
-    @touchstart="onTouchStart"
+    :class="containerClass"
+    :style="{ height: height ?? '320px' }"
   >
-    <div class="image-layer">
+    <div class="image-layer" :style="{ transform }">
       <img :src="originalUrl" :alt="t('processing.original')" draggable="false" />
     </div>
 
-    <div class="image-layer result-layer" :style="resultClipStyle">
-      <img :src="resultUrl" :alt="t('processing.result')" draggable="false" />
+    <div class="result-clip" :style="resultClipStyle">
+      <div class="image-layer" :style="{ transform }">
+        <img :src="resultUrl" :alt="t('processing.result')" draggable="false" />
+      </div>
     </div>
 
     <span class="compare-label label-original">{{ t('processing.original') }}</span>
@@ -130,6 +142,7 @@ onUnmounted(() => {
       aria-valuemax="100"
       :aria-valuenow="Math.round(sliderPosition)"
       aria-orientation="horizontal"
+      @pointerdown="blockPropagation"
       @mousedown.stop="onMouseDown"
       @touchstart.stop="onTouchStart"
       @keydown="onKeydown"
@@ -164,7 +177,11 @@ onUnmounted(() => {
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
-  cursor: ew-resize;
+  cursor: grab;
+}
+
+.compare.panning {
+  cursor: grabbing;
 }
 
 .image-layer {
@@ -173,6 +190,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .image-layer img {
@@ -183,7 +202,9 @@ onUnmounted(() => {
   -webkit-user-drag: none;
 }
 
-.result-layer {
+.result-clip {
+  position: absolute;
+  inset: 0;
   background-color: var(--color-gray);
   background-image:
     linear-gradient(45deg, #e6e0da 25%, transparent 25%),
