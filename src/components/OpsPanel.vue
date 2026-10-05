@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { ChevronDown, Download, ImagePlus, RotateCcw } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { ChevronDown, Download, ImagePlus, RotateCcw, Star } from 'lucide-vue-next';
+import { SelectItemText } from 'reka-ui';
 import { useI18n } from 'vue-i18n';
-import { MODEL_REGISTRY } from '../composables/useModelRegistry';
+import { sortModelsByFavorites } from '../composables/useModelRegistry';
+import { useModelStore } from '../store/stores';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
 import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue';
 import DropdownMenuContent from './ui/dropdown-menu/DropdownMenuContent.vue';
@@ -40,6 +42,8 @@ const SCALE_OPTIONS = [1, 2, 4];
 const FORMATS: DownloadFormat[] = ['png', 'jpeg', 'webp'];
 
 const format = ref<DownloadFormat>('png');
+const modelStore = useModelStore();
+const sortedModels = computed(() => sortModelsByFavorites(modelStore.favoriteModelIds));
 
 function pickFormat(value: DownloadFormat) {
   format.value = value;
@@ -125,8 +129,43 @@ function pickFormat(value: DownloadFormat) {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem v-for="model in MODEL_REGISTRY" :key="model.id" :value="model.id">
-            {{ model.name }}
+          <SelectItem
+            v-for="model in sortedModels"
+            :key="model.id"
+            :value="model.id"
+            raw
+            class="items-start gap-2 py-2 pr-8"
+          >
+            <button
+              type="button"
+              class="model-fav"
+              :class="{ 'is-active': modelStore.isFavorite(model.id) }"
+              :title="
+                modelStore.isFavorite(model.id)
+                  ? t('models.removeFavorite')
+                  : t('models.addFavorite')
+              "
+              @pointerdown.stop
+              @pointerup.stop
+              @click.stop="modelStore.toggleFavorite(model.id)"
+            >
+              <Star :size="15" :fill="modelStore.isFavorite(model.id) ? 'currentColor' : 'none'" />
+            </button>
+            <span class="model-item-body">
+              <SelectItemText class="model-item-title">
+                {{ model.name }}
+                <span class="model-item-size">{{
+                  t('models.sizeApprox', { size: model.sizeMB })
+                }}</span>
+              </SelectItemText>
+              <span class="model-item-desc">{{ t(model.descKey) }}</span>
+              <span class="model-item-output">
+                {{ t('models.upscale', { scale: model.scale })
+                }}<template v-if="model.maxSize">
+                  · {{ t('models.maxSize', { size: model.maxSize }) }}</template
+                >
+              </span>
+            </span>
           </SelectItem>
         </SelectContent>
       </Select>
@@ -300,5 +339,60 @@ function pickFormat(value: DownloadFormat) {
   font-size: 0.6875rem;
   color: var(--color-gray-dark);
   margin: 0;
+}
+
+.model-fav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+  margin-top: 1px;
+  background: none;
+  color: var(--color-gray-dark);
+  border-radius: var(--radius-md);
+  transition: color 0.15s ease;
+}
+
+.model-fav:hover {
+  color: var(--color-primary);
+}
+
+.model-fav.is-active {
+  color: var(--color-primary);
+}
+
+.model-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.model-item-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-dark);
+  white-space: normal;
+}
+
+.model-item-size {
+  font-weight: 500;
+  color: var(--color-gray-dark);
+}
+
+.model-item-desc {
+  font-size: 0.75rem;
+  color: var(--color-gray-dark);
+  white-space: normal;
+}
+
+.model-item-output {
+  font-size: 0.6875rem;
+  color: var(--color-gray-dark);
 }
 </style>

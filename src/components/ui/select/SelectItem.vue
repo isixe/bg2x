@@ -5,11 +5,12 @@ import { SelectItem, SelectItemIndicator, SelectItemText, useForwardProps } from
 import { Check } from 'lucide-vue-next';
 import { cn } from '@/lib/utils';
 
-const props = defineProps<SelectItemProps & { class?: HTMLAttributes['class'] }>();
+const props = defineProps<SelectItemProps & { class?: HTMLAttributes['class']; raw?: boolean }>();
 
 const delegatedProps = computed(() => {
   const delegated = { ...props };
   delete delegated.class;
+  delete delegated.raw;
   return delegated;
 });
 
@@ -26,7 +27,8 @@ const forwarded = useForwardProps(delegatedProps);
       )
     "
   >
-    <SelectItemText class="min-w-0 truncate">
+    <slot v-if="raw" />
+    <SelectItemText v-else class="min-w-0 truncate">
       <slot />
     </SelectItemText>
     <span class="absolute right-2 flex size-3.5 items-center justify-center">

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, onMounted, onUnmounted } from 'vue';
-import { MODEL_REGISTRY } from '../composables/useModelRegistry';
+import { MODEL_REGISTRY, sortModelsByFavorites } from '../composables/useModelRegistry';
 import type { ModelEntry, ModelState } from '../type';
 import { cacheModel, deleteCachedModel } from '../composables/useModelCache';
 import { fetchModelBytes } from '../composables/useModelDownload';
 import { useModelCacheStore, useModelStore } from '../store/stores';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
+import { Check, ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
 
 defineProps<{
   showMore?: boolean;
@@ -20,6 +20,17 @@ const modelCacheStore = useModelCacheStore();
 
 const modelStates = reactive<Record<string, ModelState>>({});
 const defaultModelId = computed(() => modelStore.defaultModelId);
+const favoriteIds = computed(() => modelStore.favoriteModelIds);
+
+const groups = computed(() => {
+  const sorted = sortModelsByFavorites(favoriteIds.value);
+  const favorites = sorted.filter((m) => favoriteIds.value.includes(m.id));
+  if (favorites.length === 0) return [{ key: '', models: sorted }];
+  return [
+    { key: 'models.favorites', models: favorites },
+    { key: 'models.others', models: sorted.filter((m) => !favoriteIds.value.includes(m.id)) },
+  ];
+});
 
 onMounted(async () => {
   for (const model of MODEL_REGISTRY) {
@@ -83,12 +94,19 @@ async function removeModel(model: ModelEntry) {
   state.progress = 0;
 }
 
-function handleSetDefault(model: ModelEntry) {
-  modelStore.setDefaultModel(model.id);
+function selectModel(model: ModelEntry) {
+  const state = modelStates[model.id];
+  if (state?.downloading) return;
+  if (state?.cached) modelStore.setDefaultModel(model.id);
+  else downloadModel(model);
 }
 
-function goToUpload() {
-  router.push({ name: 'upload' });
+function toggleFavorite(model: ModelEntry) {
+  modelStore.toggleFavorite(model.id);
+}
+
+function isFavorite(model: ModelEntry) {
+  return modelStore.isFavorite(model.id);
 }
 
 function goToModels() {
@@ -107,86 +125,102 @@ function goToModels() {
       </button>
     </div>
 
-    <div class="model-list">
-      <div v-for="model in MODEL_REGISTRY" :key="model.id" class="model-card">
-        <div class="model-card-main">
-          <div class="model-info">
-            <div class="model-name-row">
-              <span class="model-name">{{ model.name }}</span>
-              <span v-if="defaultModelId === model.id" class="badge-default">{{
-                t('home.default')
-              }}</span>
-              <span v-else-if="modelStates[model.id]?.cached" class="badge-cached">{{
-                t('home.ready')
-              }}</span>
-              <span v-else-if="modelStates[model.id]?.downloading" class="badge-downloading">{{
-                t('home.downloading')
-              }}</span>
+    <div v-for="group in groups" :key="group.key" class="model-group">
+      <span v-if="group.key" class="group-label">{{ t(group.key) }}</span>
+      <div class="model-list">
+        <div
+          v-for="model in group.models"
+          :key="model.id"
+          class="model-card"
+          :class="{ 'is-selected': defaultModelId === model.id }"
+          role="button"
+          tabindex="0"
+          @click="selectModel(model)"
+          @keydown.enter.prevent="selectModel(model)"
+          @keydown.space.prevent="selectModel(model)"
+        >
+          <div class="model-card-main">
+            <div class="model-info">
+              <div class="model-name-row">
+                <span class="model-name">{{ model.name }}</span>
+                <span class="badge-size">{{ t('models.sizeApprox', { size: model.sizeMB }) }}</span>
+                <span v-if="modelStates[model.id]?.cached" class="badge-cached">{{
+                  t('home.ready')
+                }}</span>
+                <span v-else-if="modelStates[model.id]?.downloading" class="badge-downloading">{{
+                  t('home.downloading')
+                }}</span>
+              </div>
+              <p class="model-desc">{{ t(model.descKey) }}</p>
+              <div class="model-meta">
+                <span class="meta-item">{{ t('models.upscale', { scale: model.scale }) }}</span>
+                <span v-if="model.maxSize" class="meta-item">{{
+                  t('models.maxSize', { size: model.maxSize })
+                }}</span>
+              </div>
             </div>
-            <p class="model-desc">{{ model.description }}</p>
-            <div class="model-meta">
-              <span class="meta-item">{{ t('models.upscale', { scale: model.scale }) }}</span>
-              <span v-if="model.maxSize" class="meta-item">{{
-                t('models.maxSize', { size: model.maxSize })
-              }}</span>
-            </div>
-          </div>
 
-          <div class="model-actions">
-            <button
-              v-if="!modelStates[model.id]?.cached && !modelStates[model.id]?.downloading"
-              class="btn-download"
-              @click="downloadModel(model)"
-            >
-              <Download :size="16" />
-              {{ t('home.downloadModel') }}
-            </button>
-            <button
-              v-else-if="modelStates[model.id]?.downloading"
-              class="btn-cancel"
-              @click="modelStates[model.id].abortController?.abort()"
-            >
-              {{ t('home.cancel') }}
-            </button>
-            <template v-else>
+            <div class="model-actions">
               <button
-                v-if="defaultModelId !== model.id"
-                class="btn-set-default"
-                :title="t('home.default')"
-                @click="handleSetDefault(model)"
+                class="btn-fav"
+                :class="{ 'is-active': isFavorite(model) }"
+                :title="isFavorite(model) ? t('models.removeFavorite') : t('models.addFavorite')"
+                @click.stop="toggleFavorite(model)"
               >
-                <Star :size="14" />
+                <Star :size="16" :fill="isFavorite(model) ? 'currentColor' : 'none'" />
               </button>
-              <button class="btn-select" @click="goToUpload">
-                {{ t('home.useModel') }}
+              <button
+                v-if="!modelStates[model.id]?.cached && !modelStates[model.id]?.downloading"
+                class="btn-download"
+                @click.stop="downloadModel(model)"
+              >
+                <Download :size="16" />
+                {{ t('home.downloadModel') }}
               </button>
-              <button class="btn-remove" :title="t('home.removeModel')" @click="removeModel(model)">
+              <button
+                v-else-if="modelStates[model.id]?.downloading"
+                class="btn-cancel"
+                @click.stop="modelStates[model.id].abortController?.abort()"
+              >
+                {{ t('home.cancel') }}
+              </button>
+              <button
+                v-else
+                class="btn-remove"
+                :title="t('home.removeModel')"
+                @click.stop="removeModel(model)"
+              >
                 <Trash2 :size="14" />
               </button>
-            </template>
+              <span
+                v-if="defaultModelId === model.id"
+                class="model-check"
+                :title="t('models.selected')"
+              >
+                <Check :size="16" />
+              </span>
+            </div>
           </div>
-        </div>
 
-        <!-- Progress bar -->
-        <div
-          v-if="
-            modelStates[model.id]?.downloading ||
-            (modelStates[model.id]?.progress > 0 && modelStates[model.id]?.progress < 100)
-          "
-          class="model-progress"
-        >
-          <div class="progress-track">
-            <div
-              class="progress-fill"
-              :style="{ width: (modelStates[model.id]?.progress ?? 0) + '%' }"
-            ></div>
+          <div
+            v-if="
+              modelStates[model.id]?.downloading ||
+              (modelStates[model.id]?.progress > 0 && modelStates[model.id]?.progress < 100)
+            "
+            class="model-progress"
+          >
+            <div class="progress-track">
+              <div
+                class="progress-fill"
+                :style="{ width: (modelStates[model.id]?.progress ?? 0) + '%' }"
+              ></div>
+            </div>
+            <span class="progress-text">{{ modelStates[model.id]?.progress ?? 0 }}%</span>
           </div>
-          <span class="progress-text">{{ modelStates[model.id]?.progress ?? 0 }}%</span>
-        </div>
 
-        <!-- Error message -->
-        <div v-if="modelStates[model.id]?.error" class="model-error">
-          {{ modelStates[model.id].error }}
+          <div v-if="modelStates[model.id]?.error" class="model-error">
+            {{ modelStates[model.id].error }}
+          </div>
         </div>
       </div>
     </div>
@@ -238,6 +272,19 @@ function goToModels() {
   background: rgba(212, 132, 62, 0.1);
 }
 
+.model-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.group-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--color-gray-dark);
+}
+
 .model-list {
   display: flex;
   flex-direction: column;
@@ -249,6 +296,7 @@ function goToModels() {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   border: 2px solid transparent;
+  cursor: pointer;
   transition:
     border-color 0.2s,
     box-shadow 0.2s;
@@ -256,6 +304,15 @@ function goToModels() {
 
 .model-card:hover {
   box-shadow: var(--shadow-md);
+}
+
+.model-card:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.model-card.is-selected {
+  border-color: var(--color-primary);
 }
 
 .model-card-main {
@@ -274,6 +331,7 @@ function goToModels() {
 .model-name-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 0.375rem;
 }
@@ -282,6 +340,12 @@ function goToModels() {
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-dark);
+}
+
+.badge-size {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-gray-dark);
 }
 
 .badge-cached {
@@ -298,15 +362,6 @@ function goToModels() {
   font-weight: 600;
   color: var(--color-primary);
   background: rgba(212, 132, 62, 0.1);
-  padding: 0.125rem 0.5rem;
-  border-radius: 9999px;
-}
-
-.badge-default {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--color-primary);
-  background: rgba(212, 132, 62, 0.12);
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
 }
@@ -332,6 +387,42 @@ function goToModels() {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+}
+
+.btn-fav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
+  padding: 0;
+  line-height: 1;
+  background: none;
+  color: var(--color-gray-dark);
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+}
+
+.btn-fav:hover {
+  background: rgba(212, 132, 62, 0.1);
+  color: var(--color-primary);
+}
+
+.btn-fav.is-active {
+  color: var(--color-primary);
+}
+
+.model-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: white;
+  background: var(--color-primary);
+  border-radius: 9999px;
 }
 
 .btn-download {
@@ -363,19 +454,6 @@ function goToModels() {
   background: #e5e0da;
 }
 
-.btn-select {
-  padding: 0.5rem 1.25rem;
-  background: var(--color-primary);
-  color: white;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  border-radius: var(--radius-md);
-}
-
-.btn-select:hover {
-  background: var(--color-primary-hover);
-}
-
 .btn-remove {
   display: flex;
   align-items: center;
@@ -393,26 +471,6 @@ function goToModels() {
 .btn-remove:hover {
   background: rgba(220, 38, 38, 0.08);
   color: #dc2626;
-}
-
-.btn-set-default {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  /* override global `button` padding, otherwise the icon gets squeezed to 0 width */
-  padding: 0;
-  line-height: 1;
-  background: none;
-  color: var(--color-gray-dark);
-  border-radius: var(--radius-md);
-  transition: all 0.15s ease;
-}
-
-.btn-set-default:hover {
-  background: rgba(212, 132, 62, 0.1);
-  color: var(--color-primary);
 }
 
 .model-progress {

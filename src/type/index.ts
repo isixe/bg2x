@@ -9,7 +9,8 @@ export interface ModelEntry {
    */
   urls: string[];
   scale: number;
-  description: string;
+  descKey: string;
+  sizeMB: number;
   maxSize?: number;
 }
 

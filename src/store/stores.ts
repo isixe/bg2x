@@ -199,12 +199,24 @@ export const useModelStore = defineStore(
   'model',
   () => {
     const defaultModelId = ref<string>('real-esrgan-animevideov3');
+    const favoriteModelIds = ref<string[]>([]);
 
     function setDefaultModel(id: string) {
       defaultModelId.value = id;
     }
 
-    return { defaultModelId, setDefaultModel };
+    function toggleFavorite(id: string) {
+      const ids = new Set(favoriteModelIds.value);
+      if (ids.has(id)) ids.delete(id);
+      else ids.add(id);
+      favoriteModelIds.value = [...ids];
+    }
+
+    function isFavorite(id: string) {
+      return favoriteModelIds.value.includes(id);
+    }
+
+    return { defaultModelId, setDefaultModel, favoriteModelIds, toggleFavorite, isFavorite };
   },
   { persist: { key: 'super-resolution-default-model' } },
 );
