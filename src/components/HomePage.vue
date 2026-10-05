@@ -61,8 +61,8 @@ function goToUpload() {
 }
 
 .welcome-icon {
-  width: 64px;
-  height: 64px;
+  width: 192px;
+  height: 192px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -70,8 +70,8 @@ function goToUpload() {
 }
 
 .welcome-logo {
-  width: 64px;
-  height: 64px;
+  width: 192px;
+  height: 192px;
   object-fit: contain;
 }
 

@@ -189,8 +189,8 @@ watch(
 }
 
 .logo-img {
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   border-radius: var(--radius-md);
   object-fit: contain;
