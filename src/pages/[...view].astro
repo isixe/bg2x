@@ -14,7 +14,8 @@ export function getStaticPaths() {
 }
 
 const { view } = Astro.params;
-const title = (view && VIEW_TITLES[view]) ?? 'bg2x';
+const pageTitle = view ? VIEW_TITLES[view] : undefined;
+const title = pageTitle ? `bg2x - ${pageTitle}` : 'bg2x';
 ---
 
 <Layout title={title}>
