@@ -29,7 +29,7 @@ function goToUpload() {
       </div>
 
       <!-- Models Section -->
-      <ModelsSection show-more />
+      <ModelsSection show-more :show-favorites="false" />
     </div>
   </div>
 </template>
@@ -107,5 +107,11 @@ function goToUpload() {
   background: var(--color-primary-hover);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
+}
+
+@media (max-width: 640px) {
+  .home-view {
+    padding: 1rem;
+  }
 }
 </style>

@@ -9,9 +9,15 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { Check, ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
 
-defineProps<{
-  showMore?: boolean;
-}>();
+withDefaults(
+  defineProps<{
+    showMore?: boolean;
+    showFavorites?: boolean;
+  }>(),
+  {
+    showFavorites: true,
+  },
+);
 
 const router = useRouter();
 const { t } = useI18n();
@@ -143,10 +149,20 @@ function goToModels() {
           @keydown.enter.prevent="selectModel(model)"
           @keydown.space.prevent="selectModel(model)"
         >
+          <button
+            v-if="showFavorites"
+            class="btn-fav"
+            :class="{ 'is-active': isFavorite(model) }"
+            :title="isFavorite(model) ? t('models.removeFavorite') : t('models.addFavorite')"
+            @click.stop="toggleFavorite(model)"
+          >
+            <Star :size="16" :fill="isFavorite(model) ? 'currentColor' : 'none'" />
+          </button>
+
           <div class="model-card-main">
             <div class="model-info">
               <div class="model-name-row">
-                <span class="model-name">{{ model.name }}</span>
+                <span class="model-name" :title="model.name">{{ model.name }}</span>
                 <span class="badge-size">{{ t('models.sizeApprox', { size: model.sizeMB }) }}</span>
                 <span v-if="modelStates[model.id]?.cached" class="badge-cached">{{
                   t('home.ready')
@@ -165,14 +181,6 @@ function goToModels() {
             </div>
 
             <div class="model-actions">
-              <button
-                class="btn-fav"
-                :class="{ 'is-active': isFavorite(model) }"
-                :title="isFavorite(model) ? t('models.removeFavorite') : t('models.addFavorite')"
-                @click.stop="toggleFavorite(model)"
-              >
-                <Star :size="16" :fill="isFavorite(model) ? 'currentColor' : 'none'" />
-              </button>
               <button
                 v-if="!modelStates[model.id]?.cached && !modelStates[model.id]?.downloading"
                 class="btn-download"
@@ -292,6 +300,7 @@ function goToModels() {
 }
 
 .model-card {
+  position: relative;
   background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
@@ -320,6 +329,8 @@ function goToModels() {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem;
+  /* reserve the top-right corner for the absolutely positioned favorite button */
+  padding-right: 3.25rem;
   gap: 1.5rem;
 }
 
@@ -331,24 +342,32 @@ function goToModels() {
 .model-name-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   margin-bottom: 0.375rem;
+  min-width: 0;
 }
 
 .model-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-dark);
 }
 
 .badge-size {
+  flex-shrink: 0;
   font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-gray-dark);
 }
 
 .badge-cached {
+  flex-shrink: 0;
   font-size: 0.6875rem;
   font-weight: 600;
   color: #16a34a;
@@ -358,6 +377,7 @@ function goToModels() {
 }
 
 .badge-downloading {
+  flex-shrink: 0;
   font-size: 0.6875rem;
   font-weight: 600;
   color: var(--color-primary);
@@ -370,10 +390,12 @@ function goToModels() {
   font-size: 0.8125rem;
   color: var(--color-gray-dark);
   margin: 0 0 0.375rem;
+  overflow-wrap: anywhere;
 }
 
 .model-meta {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
@@ -390,6 +412,10 @@ function goToModels() {
 }
 
 .btn-fav {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -507,5 +533,41 @@ function goToModels() {
   padding: 0.5rem 1.25rem 0.75rem;
   font-size: 0.8125rem;
   color: #dc2626;
+}
+
+@media (max-width: 560px) {
+  .section-header {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+  }
+
+  .section-hint {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .model-card-main {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding: 1rem;
+    gap: 0.75rem;
+  }
+
+  .model-info {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  /* keep the model name clear of the favorite button pinned to the top-right */
+  .model-name-row {
+    padding-right: 1.75rem;
+  }
+
+  /* Move the action row below the info so it never squeezes the text. */
+  .model-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
 }
 </style>
