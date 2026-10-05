@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { Settings, Info, Layers, ExternalLink, Github, Globe, Scale } from 'lucide-vue-next';
 import { useLocaleStore, useSettingsStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
 import Select from './ui/select/Select.vue';
@@ -7,10 +10,28 @@ import SelectContent from './ui/select/SelectContent.vue';
 import SelectItem from './ui/select/SelectItem.vue';
 import SelectTrigger from './ui/select/SelectTrigger.vue';
 import SelectValue from './ui/select/SelectValue.vue';
+import { APP_NAME, APP_VERSION, GITHUB_URL, HOMEPAGE_URL, LICENSE } from '../config/app';
+import { RELATED_PROJECTS } from '../config/related';
+
+type SettingsTab = 'general' | 'about' | 'related';
+
+interface SettingsTabItem {
+  id: SettingsTab;
+  icon: Component;
+  label: string;
+}
 
 const { t } = useI18n();
 const localeStore = useLocaleStore();
 const settingsStore = useSettingsStore();
+
+const activeTab = ref<SettingsTab>('general');
+
+const tabs: SettingsTabItem[] = [
+  { id: 'general', icon: Settings, label: 'settings.tabGeneral' },
+  { id: 'about', icon: Info, label: 'settings.tabAbout' },
+  { id: 'related', icon: Layers, label: 'settings.tabRelated' },
+];
 
 function onLanguageChange(value: string) {
   localeStore.setLocale(value as LocaleCode);
@@ -19,43 +40,115 @@ function onLanguageChange(value: string) {
 
 <template>
   <div class="settings-page">
-    <div class="settings-header">
-      <h1>{{ t('settings.title') }}</h1>
-      <p class="settings-subtitle">{{ t('settings.subtitle') }}</p>
-    </div>
+    <aside class="settings-nav">
+      <h1 class="settings-title">{{ t('settings.title') }}</h1>
+      <nav class="settings-tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          class="settings-tab"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
+        >
+          <component :is="tab.icon" class="tab-icon" />
+          <span>{{ t(tab.label) }}</span>
+        </button>
+      </nav>
+    </aside>
 
-    <div class="settings-section">
-      <h2 class="section-title">{{ t('settings.historySection') }}</h2>
-      <div class="setting-item">
-        <div class="setting-info">
-          <span class="setting-label">{{ t('settings.persistHistory') }}</span>
-          <span class="setting-desc">{{ t('settings.persistHistoryDesc') }}</span>
+    <div class="settings-content">
+      <section v-if="activeTab === 'general'" class="settings-panel">
+        <div class="settings-section">
+          <h2 class="section-title">{{ t('settings.historySection') }}</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.persistHistory') }}</span>
+              <span class="setting-desc">{{ t('settings.persistHistoryDesc') }}</span>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="settingsStore.historyPersist" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
-        <label class="toggle-switch">
-          <input v-model="settingsStore.historyPersist" type="checkbox" />
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-    </div>
 
-    <div class="settings-section">
-      <h2 class="section-title">{{ t('settings.language') }}</h2>
-      <div class="setting-item">
-        <div class="setting-info">
-          <span class="setting-label">{{ t('settings.language') }}</span>
-          <span class="setting-desc">{{ t('settings.languageDesc') }}</span>
+        <div class="settings-section">
+          <h2 class="section-title">{{ t('settings.language') }}</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.language') }}</span>
+              <span class="setting-desc">{{ t('settings.languageDesc') }}</span>
+            </div>
+            <Select :model-value="localeStore.locale" @update:model-value="onLanguageChange">
+              <SelectTrigger class="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="zh">中文</SelectItem>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="ja">日本語</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <Select :model-value="localeStore.locale" @update:model-value="onLanguageChange">
-          <SelectTrigger class="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="zh">中文</SelectItem>
-            <SelectItem value="en">English</SelectItem>
-            <SelectItem value="ja">日本語</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      </section>
+
+      <section v-else-if="activeTab === 'about'" class="settings-panel">
+        <div class="about-card">
+          <img class="about-logo" src="/favicon.png" :alt="APP_NAME" />
+          <div class="about-body">
+            <div class="about-head">
+              <h2 class="about-name">{{ APP_NAME }}</h2>
+              <span class="about-version">v{{ APP_VERSION }}</span>
+            </div>
+            <p class="about-desc">{{ t('settings.aboutDesc') }}</p>
+          </div>
+        </div>
+
+        <div class="link-list">
+          <a class="link-item" :href="GITHUB_URL" target="_blank" rel="noopener noreferrer">
+            <Github class="link-icon" />
+            <span class="link-label">{{ t('settings.viewOnGithub') }}</span>
+            <ExternalLink class="link-ext" />
+          </a>
+          <a class="link-item" :href="HOMEPAGE_URL" target="_blank" rel="noopener noreferrer">
+            <Globe class="link-icon" />
+            <span class="link-label">{{ t('settings.homepage') }}</span>
+            <ExternalLink class="link-ext" />
+          </a>
+          <div class="link-item static">
+            <Info class="link-icon" />
+            <span class="link-label">{{ t('settings.version') }}</span>
+            <span class="link-value">{{ APP_VERSION }}</span>
+          </div>
+          <div class="link-item static">
+            <Scale class="link-icon" />
+            <span class="link-label">{{ t('settings.license') }}</span>
+            <span class="link-value">{{ LICENSE }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section v-else class="settings-panel">
+        <p class="panel-desc">{{ t('settings.relatedDesc') }}</p>
+        <div class="related-grid">
+          <a
+            v-for="project in RELATED_PROJECTS"
+            :key="project.name"
+            class="related-card"
+            :href="project.url"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <div class="related-head">
+              <span class="related-name">{{ project.name }}</span>
+              <ExternalLink class="related-ext" />
+            </div>
+            <p class="related-desc">{{ t(`settings.relatedItems.${project.i18nKey}`) }}</p>
+          </a>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -63,28 +156,82 @@ function onLanguageChange(value: string) {
 <style scoped>
 .settings-page {
   flex: 1;
-  overflow-y: auto;
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 2.5rem 2rem;
+  display: flex;
+  min-height: 0;
   width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
 }
 
-.settings-header {
-  margin-bottom: 2.5rem;
+.settings-nav {
+  width: 200px;
+  flex-shrink: 0;
+  padding: 2.5rem 1rem 2.5rem 2rem;
+  border-right: var(--border-thin);
 }
 
-.settings-header h1 {
-  font-size: 1.5rem;
+.settings-title {
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--color-dark);
-  margin: 0 0 0.375rem;
+  margin: 0 0 1.5rem 0.75rem;
 }
 
-.settings-subtitle {
-  font-size: 0.875rem;
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  border: none;
+  background: transparent;
   color: var(--color-gray-dark);
-  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.settings-tab:hover {
+  background: rgba(212, 132, 62, 0.08);
+  color: var(--color-dark);
+}
+
+.settings-tab.active {
+  background: rgba(212, 132, 62, 0.12);
+  color: var(--color-primary);
+}
+
+.settings-tab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.tab-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 2.5rem 2rem;
+}
+
+.settings-panel {
+  max-width: 640px;
 }
 
 .settings-section {
@@ -173,9 +320,198 @@ function onLanguageChange(value: string) {
   transform: translateX(20px);
 }
 
+.about-card {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1.25rem;
+  background: var(--color-card);
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.about-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.about-body {
+  min-width: 0;
+}
+
+.about-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.about-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-dark);
+  margin: 0;
+}
+
+.about-version {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: rgba(212, 132, 62, 0.12);
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+}
+
+.about-desc {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--color-gray-dark);
+  margin: 0;
+}
+
+.link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.link-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-card);
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  color: var(--color-dark);
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+a.link-item:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.link-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--color-gray-dark);
+  flex-shrink: 0;
+}
+
+.link-label {
+  flex: 1;
+}
+
+.link-value {
+  color: var(--color-gray-dark);
+  font-size: 0.8125rem;
+}
+
+.link-ext {
+  width: 14px;
+  height: 14px;
+  color: var(--color-gray-dark);
+}
+
+.panel-desc {
+  font-size: 0.875rem;
+  color: var(--color-gray-dark);
+  margin: 0 0 1.25rem;
+}
+
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+.related-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 1rem 1.125rem;
+  background: var(--color-card);
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.related-card:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+}
+
+.related-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.related-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+
+.related-card:hover .related-name {
+  color: var(--color-primary);
+}
+
+.related-ext {
+  width: 14px;
+  height: 14px;
+  color: var(--color-gray-dark);
+}
+
+.related-desc {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-gray-dark);
+  margin: 0;
+}
+
 @media (max-width: 768px) {
   .settings-page {
-    padding: 1.5rem 1rem;
+    flex-direction: column;
+  }
+
+  .settings-nav {
+    width: 100%;
+    padding: 1.5rem 1rem 0.5rem;
+    border-right: none;
+    border-bottom: var(--border-thin);
+  }
+
+  .settings-title {
+    margin-left: 0.25rem;
+  }
+
+  .settings-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 0.375rem;
+  }
+
+  .settings-tab {
+    width: auto;
+    flex-shrink: 0;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .settings-content {
+    padding: 1.25rem 1rem;
   }
 }
 </style>
