@@ -2,6 +2,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BatchItem, ModelEntry, WorkerResponse } from '../type';
+import { getCachedModel, isModelCached } from './useModelCache';
+import { getModelById } from './useModelRegistry';
+import { fetchModelBytes } from './useModelDownload';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
@@ -312,10 +315,6 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
   async function doEnsureModel(): Promise<boolean> {
     try {
-      const { getCachedModel } = await import('./useModelCache');
-      const { getModelById } = await import('./useModelRegistry');
-      const { fetchModelBytes } = await import('./useModelDownload');
-
       const modelUrl = options.model.value.url;
       let modelData = await getCachedModel(modelUrl);
       if (!modelData) {
@@ -348,7 +347,6 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (isModelReadyForCurrentSelection()) return;
 
     try {
-      const { isModelCached } = await import('./useModelCache');
       if (await isModelCached(options.model.value.url)) {
         await ensureModel();
       }
