@@ -8,10 +8,23 @@ import { isModelCached } from '../composables/useModelCache';
 export type LocaleCode = 'en' | 'zh' | 'ja';
 export type ThemeMode = 'light' | 'dark';
 
+// Pick the initial UI language from the browser on first visit. A language the
+// user chose manually is restored from persistence and takes precedence.
+function detectLocale(): LocaleCode {
+  if (typeof navigator === 'undefined') return 'en';
+  const candidates = [navigator.language, ...(navigator.languages ?? [])].filter(Boolean);
+  for (const lang of candidates) {
+    const lower = lang.toLowerCase();
+    if (lower.startsWith('zh')) return 'zh';
+    if (lower.startsWith('ja')) return 'ja';
+  }
+  return 'en';
+}
+
 export const useLocaleStore = defineStore(
   'locale',
   () => {
-    const locale = ref<string>(i18n.global.locale.value);
+    const locale = ref<string>(detectLocale());
 
     function setLocale(lang: LocaleCode) {
       locale.value = lang;
