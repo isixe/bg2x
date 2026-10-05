@@ -109,6 +109,10 @@ function isFavorite(model: ModelEntry) {
   return modelStore.isFavorite(model.id);
 }
 
+function isSelected(model: ModelEntry) {
+  return defaultModelId.value === model.id && modelStates[model.id]?.cached === true;
+}
+
 function goToModels() {
   router.push({ name: 'models' });
 }
@@ -132,7 +136,7 @@ function goToModels() {
           v-for="model in group.models"
           :key="model.id"
           class="model-card"
-          :class="{ 'is-selected': defaultModelId === model.id }"
+          :class="{ 'is-selected': isSelected(model) }"
           role="button"
           tabindex="0"
           @click="selectModel(model)"
@@ -192,11 +196,7 @@ function goToModels() {
               >
                 <Trash2 :size="14" />
               </button>
-              <span
-                v-if="defaultModelId === model.id"
-                class="model-check"
-                :title="t('models.selected')"
-              >
+              <span v-if="isSelected(model)" class="model-check" :title="t('models.selected')">
                 <Check :size="16" />
               </span>
             </div>
