@@ -129,6 +129,7 @@
   },
   "action": {
     "language": "Switch language",
+    "github": "View source on GitHub",
     "theme": {
       "dark": "Switch to dark mode",
       "light": "Switch to light mode"

@@ -12,6 +12,7 @@ import {
   Sun,
   Moon,
   Languages,
+  Github,
 } from 'lucide-vue-next';
 import { useLocaleStore, useModelCacheStore, useThemeStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
@@ -141,6 +142,16 @@ watch(
           <Moon class="icon-moon" />
           <Sun class="icon-sun" />
         </button>
+        <a
+          class="icon-btn"
+          href="https://github.com/isixe/bg2x"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="t('action.github')"
+          :aria-label="t('action.github')"
+        >
+          <Github />
+        </a>
       </div>
     </div>
 
@@ -221,6 +232,7 @@ watch(
   /* override the global `button` fill/padding so it reads as an icon button */
   padding: 0;
   background: transparent;
+  text-decoration: none;
   color: var(--color-gray-dark);
   border-radius: var(--radius-md);
   transition:

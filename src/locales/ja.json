@@ -129,6 +129,7 @@
   },
   "action": {
     "language": "言語を切り替え",
+    "github": "GitHub でソースを見る",
     "theme": {
       "dark": "ダークモードに切り替え",
       "light": "ライトモードに切り替え"
