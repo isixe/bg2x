@@ -1,7 +1,16 @@
 {
   "name": "bg2x",
-  "type": "module",
   "version": "0.1.0",
+  "description": "Browser-based AI image super-resolution with fully client-side inference.",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "author": "isixe",
+  "license": "MIT",
+  "homepage": "https://bg2x.itea.dev/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/isixe/bg2x.git"
+  },
   "scripts": {
     "dev": "astro dev --host 0.0.0.0",
     "build": "astro build",
@@ -11,7 +20,9 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
-    "typecheck": "astro check"
+    "typecheck": "astro check",
+    "desktop:pack": "astro build && electron-builder",
+    "desktop:publish": "astro build && electron-builder --publish always"
   },
   "dependencies": {
     "@astrojs/vue": "^5.1.0",
@@ -38,6 +49,8 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "eslint-plugin-vue": "^10.11.0",
     "prettier": "^3.9.8",
     "typescript": "^5.9.3",

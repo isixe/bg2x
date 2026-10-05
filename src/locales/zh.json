@@ -118,19 +118,38 @@
   },
   "settings": {
     "title": "设置",
-    "subtitle": "配置应用偏好",
-    "layout": "布局",
-    "autoExpandSidebar": "悬停时自动展开侧边栏",
-    "autoExpandSidebarDesc": "侧边栏收起后，鼠标悬停时临时展开",
+    "tabGeneral": "通用",
+    "tabAbout": "关于",
+    "tabRelated": "相关",
     "language": "语言",
     "languageDesc": "选择您偏好的语言",
     "historySection": "历史记录",
     "persistHistory": "持久化历史记录",
-    "persistHistoryDesc": "在浏览器中保留生成的结果以便下次访问"
+    "persistHistoryDesc": "在浏览器中保留生成的结果以便下次访问",
+    "aboutDesc": "bg2x 是一款基于浏览器的 AI 图像超分辨率工具。所有推理都在你的设备上通过 ONNX Runtime Web（WASM / WebGPU）本地完成——图片不会离开你的浏览器。",
+    "version": "版本",
+    "license": "许可证",
+    "viewOnGithub": "在 GitHub 上查看源码",
+    "homepage": "项目主页",
+    "relatedDesc": "来自同一作者的更多工具。",
+    "relatedItems": {
+      "linkChecker": "检查网站中链接的有效性。",
+      "metaThief": "从网页中提取元数据。",
+      "colorConverter": "在 RGB、HEX、HSL、HWB 和 CMYK 之间转换颜色。",
+      "colorPalette": "生成和管理调色板。",
+      "cookieInspector": "查看、解析并管理浏览器 Cookie。",
+      "adSenseDetective": "检测网站上的 AdSense 配置详情。"
+    }
   },
   "action": {
     "language": "切换语言",
     "github": "在 GitHub 上查看源码",
+    "download": "下载桌面端",
+    "downloadWindows": "Windows (.exe)",
+    "downloadMacos": "macOS (.dmg)",
+    "downloadLinux": "Linux (AppImage)",
+    "downloadDebian": "Debian (.deb)",
+    "allReleases": "所有版本",
     "theme": {
       "dark": "切换到夜间模式",
       "light": "切换到日间模式"

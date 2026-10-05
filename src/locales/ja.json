@@ -118,19 +118,38 @@
   },
   "settings": {
     "title": "設定",
-    "subtitle": "アプリの設定",
-    "layout": "レイアウト",
-    "autoExpandSidebar": "ホバー時にサイドバーを自動展開",
-    "autoExpandSidebarDesc": "サイドバーを折りたたんだ状態でホバーすると一時的に展開します",
+    "tabGeneral": "一般",
+    "tabAbout": "このアプリについて",
+    "tabRelated": "関連",
     "language": "言語",
     "languageDesc": "希望の言語を選択してください",
     "historySection": "履歴",
     "persistHistory": "履歴を保存",
-    "persistHistoryDesc": "生成した結果をブラウザに保存して次回も利用します"
+    "persistHistoryDesc": "生成した結果をブラウザに保存して次回も利用します",
+    "aboutDesc": "bg2x はブラウザベースの AI 画像超解像ツールです。すべての推論は ONNX Runtime Web（WASM / WebGPU）により端末上でローカルに実行され、画像がブラウザの外に出ることはありません。",
+    "version": "バージョン",
+    "license": "ライセンス",
+    "viewOnGithub": "GitHub でソースを見る",
+    "homepage": "ホームページ",
+    "relatedDesc": "同じ作者による他のツール。",
+    "relatedItems": {
+      "linkChecker": "ウェブサイト内のリンクの有効性をチェックします。",
+      "metaThief": "ウェブページからメタデータを抽出します。",
+      "colorConverter": "RGB・HEX・HSL・HWB・CMYK 間で色を変換します。",
+      "colorPalette": "カラーパレットを生成・管理します。",
+      "cookieInspector": "ブラウザの Cookie を検査・解析・管理します。",
+      "adSenseDetective": "ウェブサイトの AdSense 設定情報を検出します。"
+    }
   },
   "action": {
     "language": "言語を切り替え",
     "github": "GitHub でソースを見る",
+    "download": "デスクトップアプリをダウンロード",
+    "downloadWindows": "Windows (.exe)",
+    "downloadMacos": "macOS (.dmg)",
+    "downloadLinux": "Linux (AppImage)",
+    "downloadDebian": "Debian (.deb)",
+    "allReleases": "すべてのリリース",
     "theme": {
       "dark": "ダークモードに切り替え",
       "light": "ライトモードに切り替え"

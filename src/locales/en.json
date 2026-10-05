@@ -118,19 +118,38 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Configure app preferences",
-    "layout": "Layout",
-    "autoExpandSidebar": "Auto-expand sidebar on hover",
-    "autoExpandSidebarDesc": "When sidebar is collapsed, hovering over it will temporarily expand it",
+    "tabGeneral": "General",
+    "tabAbout": "About",
+    "tabRelated": "Related",
     "language": "Language",
     "languageDesc": "Select your preferred language",
     "historySection": "History",
     "persistHistory": "Persist history records",
-    "persistHistoryDesc": "Keep generated results in your browser between sessions"
+    "persistHistoryDesc": "Keep generated results in your browser between sessions",
+    "aboutDesc": "bg2x is a browser-based AI image upscaler. All inference runs locally on your device via ONNX Runtime Web (WASM / WebGPU) — your images never leave your browser.",
+    "version": "Version",
+    "license": "License",
+    "viewOnGithub": "View source on GitHub",
+    "homepage": "Homepage",
+    "relatedDesc": "More tools by the same author.",
+    "relatedItems": {
+      "linkChecker": "Check the validity of URLs in your website.",
+      "metaThief": "Extract metadata from web pages.",
+      "colorConverter": "Convert colors between RGB, HEX, HSL, HWB, and CMYK.",
+      "colorPalette": "Generate and manage color palettes.",
+      "cookieInspector": "Inspect, parse, and manage browser cookies.",
+      "adSenseDetective": "Detect AdSense setup details on a website."
+    }
   },
   "action": {
     "language": "Switch language",
     "github": "View source on GitHub",
+    "download": "Download desktop app",
+    "downloadWindows": "Windows (.exe)",
+    "downloadMacos": "macOS (.dmg)",
+    "downloadLinux": "Linux (AppImage)",
+    "downloadDebian": "Debian (.deb)",
+    "allReleases": "All releases",
     "theme": {
       "dark": "Switch to dark mode",
       "light": "Switch to light mode"

@@ -1,0 +1,62 @@
+appId: dev.itea.bg2x
+productName: bg2x
+copyright: Copyright © 2026 isixe
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+asar: true
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: ${productName}-${version}-setup-${arch}.${ext}
+mac:
+  icon: build/icon.png
+  category: public.app-category.graphics-design
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+linux:
+  icon: build/icon.png
+  category: Graphics
+  synopsis: AI image super-resolution
+  description: Browser-based AI image super-resolution with fully client-side inference.
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+deb:
+  maintainer: isixe
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libsecret-1-0
+publish:
+  provider: github
+  owner: isixe
+  repo: bg2x

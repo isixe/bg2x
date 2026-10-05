@@ -91,6 +91,18 @@ The production build is output to `./dist/`.
 >
 > These headers are configured in `astro.config.mjs` for development. Make sure your production host sends them too, or threaded inference will fall back to a single thread.
 
+## Desktop App
+
+An Electron build ships for Windows, macOS, and Linux (including a Debian `.deb` package). It bundles the same client-side inference pipeline and serves the built site through a custom `app://` protocol that injects the cross-origin isolation headers above, so threaded WASM still works.
+
+Build the desktop app locally:
+
+```bash
+pnpm desktop:pack
+```
+
+Installers are written to `./release/`. Pushing a tag that matches the `package.json` version (for example `v0.1.0`) triggers `.github/workflows/release.yml`, which builds every platform and publishes them to a GitHub Release. Use `pnpm desktop:publish` to build and upload from a local machine.
+
 ## Project Structure
 
 ```
@@ -130,6 +142,7 @@ bg2x/
 | `pnpm typecheck` | Run `astro check`                     |
 | `pnpm lint`      | Lint `src/` with ESLint               |
 | `pnpm format`    | Format `src/` with Prettier           |
+| `pnpm desktop:pack` | Build the desktop app to `./release/` |
 
 ## License
 
