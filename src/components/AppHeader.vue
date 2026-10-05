@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import {
@@ -12,6 +12,8 @@ import {
   Moon,
   Languages,
   Github,
+  Menu,
+  X,
 } from 'lucide-vue-next';
 import { useLocaleStore, useModelCacheStore, useThemeStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
@@ -52,8 +54,69 @@ function showModelRequired() {
   modelRequiredTimer = setTimeout(() => (modelRequiredVisible.value = false), 3000);
 }
 
+// On phones the primary nav collapses into a hamburger + right-side drawer.
+// Only the nav uses the drawer; the utility actions stay in the header.
+const MOBILE_QUERY = '(max-width: 640px)';
+const isMobile = ref(
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia(MOBILE_QUERY).matches
+    : false,
+);
+const navOpen = ref(false);
+
+let mobileMq: ReturnType<typeof window.matchMedia> | null = null;
+
+function handleMobileChange(e: { matches: boolean }) {
+  isMobile.value = e.matches;
+}
+
+function closeNav() {
+  navOpen.value = false;
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape') closeNav();
+}
+
+function onDrawerUpload() {
+  showModelRequired();
+  closeNav();
+}
+
+watch(isMobile, (mobile) => {
+  if (!mobile) closeNav();
+});
+
+watch(
+  () => route.name,
+  () => closeNav(),
+);
+
+watch(navOpen, (open) => {
+  if (typeof window === 'undefined') return;
+  if (open) {
+    window.addEventListener('keydown', onKeydown);
+    document.body.style.overflow = 'hidden';
+  } else {
+    window.removeEventListener('keydown', onKeydown);
+    document.body.style.overflow = '';
+  }
+});
+
+onMounted(() => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+  mobileMq = window.matchMedia(MOBILE_QUERY);
+  isMobile.value = mobileMq.matches;
+  mobileMq.addEventListener('change', handleMobileChange);
+});
+
 onUnmounted(() => {
   if (modelRequiredTimer) clearTimeout(modelRequiredTimer);
+  mobileMq?.removeEventListener('change', handleMobileChange);
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', onKeydown);
+    document.body.style.overflow = '';
+  }
 });
 
 const themeActionKey = computed(() =>
@@ -152,6 +215,18 @@ watch(
           <Github />
         </a>
       </div>
+      <button
+        v-if="isMobile"
+        type="button"
+        class="icon-btn nav-toggle"
+        :title="t('nav.menu')"
+        :aria-label="t('nav.menu')"
+        :aria-expanded="navOpen"
+        aria-controls="mobile-nav-drawer"
+        @click="navOpen = true"
+      >
+        <Menu />
+      </button>
     </div>
 
     <Transition name="header-toast">
@@ -159,6 +234,56 @@ watch(
         {{ t('models.downloadRequired') }}
       </div>
     </Transition>
+
+    <Teleport to="body">
+      <Transition name="nav-drawer">
+        <div v-if="isMobile && navOpen" class="nav-overlay" @click.self="closeNav">
+          <nav
+            id="mobile-nav-drawer"
+            class="nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            :aria-label="t('nav.menu')"
+          >
+            <div class="nav-drawer-head">
+              <span class="nav-drawer-title">{{ t('nav.menu') }}</span>
+              <button
+                type="button"
+                class="icon-btn nav-drawer-close"
+                :title="t('processing.close')"
+                :aria-label="t('processing.close')"
+                @click="closeNav"
+              >
+                <X />
+              </button>
+            </div>
+            <ul class="nav-drawer-list">
+              <li v-for="item in navItems" :key="item.name">
+                <button
+                  v-if="item.name === 'upload' && !modelCacheStore.hasCachedModels"
+                  type="button"
+                  class="nav-drawer-item"
+                  @click="onDrawerUpload"
+                >
+                  <component :is="item.icon" />
+                  <span>{{ t(item.label) }}</span>
+                </button>
+                <RouterLink
+                  v-else
+                  :to="item.to"
+                  class="nav-drawer-item"
+                  :class="{ active: isActive(item.name) }"
+                  @click="closeNav"
+                >
+                  <component :is="item.icon" />
+                  <span>{{ t(item.label) }}</span>
+                </RouterLink>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </Transition>
+    </Teleport>
   </header>
 </template>
 
@@ -295,6 +420,112 @@ html.dark .theme-btn :global(.icon-moon) {
   color: #fff;
 }
 
+.nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.nav-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(80vw, 300px);
+  height: 100%;
+  padding: 1rem;
+  overflow-y: auto;
+  background: var(--color-card);
+  box-shadow: var(--shadow-md);
+}
+
+.nav-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.nav-drawer-title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-dark);
+}
+
+.nav-drawer-close {
+  background: var(--color-gray);
+  color: var(--color-gray-dark);
+}
+
+.nav-drawer-close:hover {
+  background: var(--color-border);
+  color: var(--color-primary);
+}
+
+.nav-drawer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.nav-drawer-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-gray-dark);
+  text-decoration: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.nav-drawer-item :global(svg) {
+  width: 18px;
+  height: 18px;
+}
+
+.nav-drawer-item:hover {
+  background: rgba(212, 132, 62, 0.1);
+  color: var(--color-primary);
+}
+
+.nav-drawer-item.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.nav-drawer-enter-active,
+.nav-drawer-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.nav-drawer-enter-active .nav-drawer,
+.nav-drawer-leave-active .nav-drawer {
+  transition: transform 0.2s ease;
+}
+
+.nav-drawer-enter-from,
+.nav-drawer-leave-to {
+  opacity: 0;
+}
+
+.nav-drawer-enter-from .nav-drawer,
+.nav-drawer-leave-to .nav-drawer {
+  transform: translateX(100%);
+}
+
 .header-toast {
   position: fixed;
   top: 68px;
@@ -331,6 +562,17 @@ html.dark .theme-btn :global(.icon-moon) {
 
   .logo-text {
     display: none;
+  }
+
+  /* Primary nav moves into the hamburger drawer. */
+  .header-nav {
+    display: none;
+  }
+
+  .header-actions {
+    padding-left: 0;
+    margin-left: 0;
+    border-left: none;
   }
 }
 </style>

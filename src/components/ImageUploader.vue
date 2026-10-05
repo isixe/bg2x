@@ -137,4 +137,18 @@ function handleFileInput(e: Event) {
   opacity: 0;
   cursor: pointer;
 }
+
+@media (max-width: 1023px) {
+  /* Keep the empty state compact instead of letting the dropzone stretch
+     across the whole viewport height. */
+  .uploader {
+    flex: none;
+  }
+
+  .drop-zone {
+    flex: none;
+    height: 240px;
+    padding: 1.5rem 1.25rem;
+  }
+}
 </style>
