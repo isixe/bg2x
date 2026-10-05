@@ -148,7 +148,7 @@ onUnmounted(() => {
 <template>
   <div class="upload-workspace">
     <main class="workspace-main">
-      <div class="workspace-toolbar">
+      <div v-if="state.items.length > 0 || !isWide" class="workspace-toolbar">
         <div class="toolbar-left">
           <span v-if="state.items.length > 0" class="toolbar-count">
             {{ t('upload.images', { count: state.items.length }) }}
