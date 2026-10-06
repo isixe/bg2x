@@ -69,7 +69,6 @@
     "downloadBeforeUse": "使用前にモデルをダウンロードしてください",
     "downloadRequired": "先にモデルをダウンロードしてください",
     "upscale": "{scale}x 拡大",
-    "maxSize": "最大 {size}px",
     "more": "もっと見る",
     "favorites": "お気に入り",
     "others": "その他のモデル",

@@ -11,7 +11,6 @@ export interface ModelEntry {
   scale: number;
   descKey: string;
   sizeMB: number;
-  maxSize?: number;
 }
 
 export interface HistoryRecord {

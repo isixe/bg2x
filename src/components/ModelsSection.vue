@@ -186,9 +186,6 @@ function goToModels() {
               <p class="model-desc">{{ t(model.descKey) }}</p>
               <div class="model-meta">
                 <span class="meta-item">{{ t('models.upscale', { scale: model.scale }) }}</span>
-                <span v-if="model.maxSize" class="meta-item">{{
-                  t('models.maxSize', { size: model.maxSize })
-                }}</span>
                 <span class="meta-item">{{ t('models.sizeApprox', { size: model.sizeMB }) }}</span>
               </div>
             </div>

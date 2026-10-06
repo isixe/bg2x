@@ -160,10 +160,7 @@ function pickFormat(value: DownloadFormat) {
               </SelectItemText>
               <span class="model-item-desc">{{ t(model.descKey) }}</span>
               <span class="model-item-output">
-                {{ t('models.upscale', { scale: model.scale })
-                }}<template v-if="model.maxSize">
-                  · {{ t('models.maxSize', { size: model.maxSize }) }}</template
-                >
+                {{ t('models.upscale', { scale: model.scale }) }}
               </span>
             </span>
           </SelectItem>
