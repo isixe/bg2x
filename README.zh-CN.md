@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/favicon.png" alt="bg2x" width="96px">
+  <img src="public/favicon.png" alt="bg2x" width="200px">
 </p>
 
 <h2 align="center">bg2x</h2>
@@ -154,15 +154,15 @@ bg2x/
 
 ## 命令
 
-| 命令                | 说明                                  |
-| ------------------- | ------------------------------------- |
-| `pnpm dev`          | 在 `localhost:4321` 启动开发服务器    |
-| `pnpm build`        | 构建生产站点到 `./dist/`              |
-| `pnpm preview`      | 预览生产构建                          |
-| `pnpm typecheck`    | 运行 `astro check`                    |
-| `pnpm lint`         | 使用 ESLint 检查 `src/`               |
-| `pnpm format`       | 使用 Prettier 格式化 `src/`           |
-| `pnpm desktop:pack` | 构建桌面端应用到 `./release/`         |
+| 命令                | 说明                               |
+| ------------------- | ---------------------------------- |
+| `pnpm dev`          | 在 `localhost:4321` 启动开发服务器 |
+| `pnpm build`        | 构建生产站点到 `./dist/`           |
+| `pnpm preview`      | 预览生产构建                       |
+| `pnpm typecheck`    | 运行 `astro check`                 |
+| `pnpm lint`         | 使用 ESLint 检查 `src/`            |
+| `pnpm format`       | 使用 Prettier 格式化 `src/`        |
+| `pnpm desktop:pack` | 构建桌面端应用到 `./release/`      |
 
 ## 许可证
 
