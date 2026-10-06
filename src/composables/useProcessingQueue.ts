@@ -2,9 +2,10 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BatchItem, ModelEntry, WorkerResponse } from '../type';
-import { getCachedModel, isModelCached } from './useModelCache';
+import { cacheModel, getCachedModel, isModelCached } from './useModelCache';
 import { getModelById } from './useModelRegistry';
 import { fetchModelBytes } from './useModelDownload';
+import { useModelCacheStore } from '../store/stores';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
@@ -36,6 +37,7 @@ interface ProcessingState {
 
 export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const { t } = useI18n();
+  const modelCacheStore = useModelCacheStore();
 
   const state = ref<ProcessingState>({
     isProcessing: false,
@@ -324,6 +326,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         }
         state.value.status = 'Downloading model...';
         modelData = await fetchModelBytes(model);
+        await cacheModel(modelUrl, modelData);
+        modelCacheStore.setCached(options.model.value.id, true);
       }
 
       await loadModel(modelUrl, modelData);
