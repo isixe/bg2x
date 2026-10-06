@@ -1,13 +1,13 @@
 export interface ModelEntry {
   id: string;
   name: string;
-  /** Primary URL — also used as the IndexedDB cache key. Must equal fallbackUrls[0]. */
+  /** Primary download source — a single official source. */
   url: string;
   /**
-   * Ordered fallback candidates for the same model. Downloads try each URL in
-   * sequence until one succeeds. Only official huggingface.co links are used.
+   * Optional extra mirror URLs for the same model, tried in order after `url`
+   * until one succeeds. Must not repeat `url`.
    */
-  fallbackUrls: string[];
+  fallbackUrls?: string[];
   scale: number;
   descKey: string;
   sizeMB: number;
@@ -34,7 +34,8 @@ export interface FetchModelBytesOptions {
 }
 
 export interface CachedModel {
-  url: string;
+  /** `ModelEntry.id` — the cache key, independent of which source it was downloaded from. */
+  id: string;
   data: ArrayBuffer;
   cachedAt: number;
 }
@@ -74,7 +75,7 @@ export interface BatchItem {
 
 export type LoadModelMessage = {
   type: 'load-model';
-  payload: { modelUrl: string; modelData?: ArrayBuffer; gpu?: boolean };
+  payload: { modelId: string; modelData: ArrayBuffer; gpu?: boolean };
 };
 
 export type ProcessMessage = {
@@ -94,7 +95,7 @@ export type WorkerMessage = LoadModelMessage | ProcessMessage;
 
 export type WorkerResponse =
   | { type: 'progress'; payload: { progress: number; status: string } }
-  | { type: 'model-loaded'; payload?: { modelUrl: string; gpu?: boolean } }
+  | { type: 'model-loaded'; payload?: { modelId: string; gpu?: boolean } }
   | { type: 'gpu-fallback'; payload: { message: string } }
   | { type: 'complete'; payload: { resultUrl: string; size: { width: number; height: number } } }
   | { type: 'error'; payload: { message: string } };

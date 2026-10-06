@@ -76,7 +76,7 @@ async function downloadModel(model: ModelEntry) {
       onProgress: (p) => (state.progress = p),
     });
 
-    await cacheModel(model.url, buffer);
+    await cacheModel(model.id, buffer);
     modelCacheStore.setCached(model.id, true);
     state.cached = true;
     state.progress = 100;
@@ -94,7 +94,7 @@ async function downloadModel(model: ModelEntry) {
 async function removeModel(model: ModelEntry) {
   const state = modelStates[model.id];
   if (state.downloading) return;
-  await deleteCachedModel(model.url);
+  await deleteCachedModel(model.id);
   modelCacheStore.setCached(model.id, false);
   state.cached = false;
   state.progress = 0;

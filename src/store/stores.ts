@@ -247,7 +247,7 @@ export const useModelCacheStore = defineStore('model-cache', () => {
     const cached: string[] = [];
     await Promise.all(
       MODEL_REGISTRY.map(async (model) => {
-        if (await isModelCached(model.url)) cached.push(model.id);
+        if (await isModelCached(model.id)) cached.push(model.id);
       }),
     );
     cachedModelIds.value = cached;

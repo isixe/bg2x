@@ -104,8 +104,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   let queueRunning = false;
   let batchAborted = false;
 
-  /** which (url, gpu) the worker session currently serves; gpu = value requested at load time */
-  let loadedUrl: string | null = null;
+  /** which (model id, gpu) the worker session currently serves; gpu = value requested at load time */
+  let loadedModelId: string | null = null;
   let loadedGpuWanted: boolean | null = null;
   let pendingGpuWanted: boolean | null = null;
 
@@ -168,7 +168,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             state.value.isModelLoaded = true;
             state.value.isLoadingModel = false;
             state.value.status = 'Model loaded';
-            loadedUrl = payload?.modelUrl ?? options.model.value.url;
+            loadedModelId = payload?.modelId ?? options.model.value.id;
             loadedGpuWanted = pendingGpuWanted;
             pendingGpuWanted = null;
             break;
@@ -223,11 +223,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
    * Soft invalidation: changing model or gpu only forces a reload on the next
    * process — queued items are kept (unlike the old resetState wipe).
    */
-  watch([() => options.model.value.url, options.gpu], () => {
+  watch([() => options.model.value.id, options.gpu], () => {
     if (options.gpu.value) gpuFallback.value = false;
     if (state.value.isProcessing) return;
     state.value.isModelLoaded = false;
-    loadedUrl = null;
+    loadedModelId = null;
     loadedGpuWanted = null;
     if (!state.value.items.some((i) => i.status === 'processing')) {
       state.value.status = state.value.items.length > 0 ? 'Ready' : state.value.status;
@@ -258,7 +258,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     previewId.value = null;
   }
 
-  async function loadModel(modelUrl: string, modelData?: ArrayBuffer) {
+  async function loadModel(modelId: string, modelData: ArrayBuffer) {
     if (!worker) return;
 
     state.value.isLoadingModel = true;
@@ -269,7 +269,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
     worker.postMessage({
       type: 'load-model',
-      payload: { modelUrl, modelData, gpu: options.gpu.value },
+      payload: { modelId, modelData, gpu: options.gpu.value },
     });
   }
 
@@ -308,7 +308,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   function isModelReadyForCurrentSelection(): boolean {
     return (
       state.value.isModelLoaded &&
-      loadedUrl === options.model.value.url &&
+      loadedModelId === options.model.value.id &&
       loadedGpuWanted === options.gpu.value
     );
   }
@@ -329,20 +329,20 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
   async function doEnsureModel(): Promise<boolean> {
     try {
-      const modelUrl = options.model.value.url;
-      let modelData = await getCachedModel(modelUrl);
+      const modelId = options.model.value.id;
+      let modelData = await getCachedModel(modelId);
       if (!modelData) {
-        const model = getModelById(options.model.value.id);
+        const model = getModelById(modelId);
         if (!model) {
-          throw new Error(`Unknown model: ${options.model.value.id}`);
+          throw new Error(`Unknown model: ${modelId}`);
         }
         state.value.status = 'Downloading model...';
         modelData = await fetchModelBytes(model);
-        await cacheModel(modelUrl, modelData);
-        modelCacheStore.setCached(options.model.value.id, true);
+        await cacheModel(modelId, modelData);
+        modelCacheStore.setCached(modelId, true);
       }
 
-      await loadModel(modelUrl, modelData);
+      await loadModel(modelId, modelData);
       await waitForModelLoaded();
       return true;
     } catch (err) {
@@ -363,7 +363,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (isModelReadyForCurrentSelection()) return;
 
     try {
-      if (await isModelCached(options.model.value.url)) {
+      if (await isModelCached(options.model.value.id)) {
         await ensureModel();
       }
     } catch {

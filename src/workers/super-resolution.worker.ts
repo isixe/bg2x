@@ -15,7 +15,7 @@ console.log(
 );
 
 let session: ort.InferenceSession | null = null;
-let currentModelUrl: string | null = null;
+let currentModelId: string | null = null;
 let currentGpu = false;
 /** Source used to build the current session; kept so we can rebuild it on CPU if GPU inference fails. */
 let currentSource: string | ArrayBuffer | null = null;
@@ -25,7 +25,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
   switch (type) {
     case 'load-model':
-      await loadModel(payload.modelUrl, payload.modelData, payload.gpu ?? false);
+      await loadModel(payload.modelId, payload.modelData, payload.gpu ?? false);
       break;
     case 'process':
       await processImage(payload);
@@ -48,10 +48,10 @@ async function createSession(source: string | ArrayBuffer, gpu: boolean) {
   });
 }
 
-async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false) {
+async function loadModel(modelId: string, modelData: ArrayBuffer, gpu = false) {
   try {
-    if (session && currentModelUrl === modelUrl && currentGpu === gpu) {
-      self.postMessage({ type: 'model-loaded', payload: { modelUrl, gpu } });
+    if (session && currentModelId === modelId && currentGpu === gpu) {
+      self.postMessage({ type: 'model-loaded', payload: { modelId, gpu } });
       return;
     }
 
@@ -60,7 +60,7 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false)
       payload: { progress: 0, status: 'Loading model...' },
     });
 
-    const source = modelData ?? modelUrl;
+    const source = modelData;
     let effectiveGpu = gpu;
     const t0 = performance.now();
     console.log(
@@ -77,7 +77,7 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false)
     }
 
     currentSource = source;
-    currentModelUrl = modelUrl;
+    currentModelId = modelId;
     currentGpu = effectiveGpu;
 
     console.log(
@@ -85,7 +85,7 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false)
     );
     self.postMessage({
       type: 'model-loaded',
-      payload: { modelUrl, gpu: effectiveGpu },
+      payload: { modelId, gpu: effectiveGpu },
     });
   } catch (error) {
     console.error(`[worker] model load failed: ${error}`);
