@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/favicon.png" alt="bg2x" width="96px">
+  <img src="public/favicon.png" alt="bg2x" width="150px">
 </p>
 
 <h2 align="center">bg2x</h2>
