@@ -19,7 +19,7 @@
 - Router uses `createWebHistory` in the browser and `createMemoryHistory` during SSR.
 - Inference pipeline: `src/composables/useProcessingQueue.ts` (main thread) ↔ `src/workers/super-resolution.worker.ts`, communicating through the typed messages in `src/type/index.ts` (`WorkerMessage` / `WorkerResponse`). Change one side → update those shared types.
 - `useProcessingQueue` temporarily swaps `worker.onmessage` in `waitForModelLoaded` and dedupes concurrent loads with `inflightLoad`; edit that flow carefully.
-- Models: registry in `src/config/models.ts` (`MODELS`). `ModelEntry.url` **must equal `urls[0]`** — `url` is the IndexedDB cache key; `urls` is an ordered list of fallback mirrors. Cached in IndexedDB DB `super-resolution-models` → store `models` (keyPath `url`), see `useModelCache.ts`.
+- Models: registry in `src/config/models.ts` (`MODELS`). `ModelEntry.url` **must equal `fallbackUrls[0]`** — `url` is the IndexedDB cache key; `fallbackUrls` is an ordered list of fallback mirrors. Cached in IndexedDB DB `super-resolution-models` → store `models` (keyPath `url`), see `useModelCache.ts`.
 - Worker execution providers: `webgpu` when GPU is on, with automatic fallback to `wasm`; thread count = `navigator.hardwareConcurrency`.
 
 ## Vite / Astro quirks — do not "fix" these

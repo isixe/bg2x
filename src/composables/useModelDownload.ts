@@ -7,7 +7,7 @@ export async function fetchModelBytes(
   opts: FetchModelBytesOptions = {},
 ): Promise<ArrayBuffer> {
   const { signal, onProgress, timeoutMs = DEFAULT_TIMEOUT_MS } = opts;
-  const urls = [...new Set([model.url, ...(model.urls ?? [])])];
+  const urls = [...new Set([model.url, ...(model.fallbackUrls ?? [])])];
   const errors: string[] = [];
 
   for (const url of urls) {
