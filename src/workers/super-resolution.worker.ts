@@ -3,7 +3,16 @@
 import * as ort from 'onnxruntime-web';
 import type { WorkerMessage } from '../type';
 
-ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+// numThreads > 1 deadlocks InferenceSession.create() forever under Electron's
+// app:// (Emscripten pthread pool race, microsoft/onnxruntime#26858): A/B tested
+// 8 threads => stuck, 1 thread => loads. Browsers keep full multithreading.
+const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron');
+ort.env.wasm.numThreads = isElectron ? 1 : navigator.hardwareConcurrency || 4;
+// Fail wasm backend init instead of hanging forever (0 = no timeout).
+ort.env.wasm.initTimeout = 30_000;
+console.log(
+  `[worker] init numThreads=${ort.env.wasm.numThreads} electron=${isElectron} isolated=${typeof self !== 'undefined' && self.crossOriginIsolated}`,
+);
 
 let session: ort.InferenceSession | null = null;
 let currentModelUrl: string | null = null;
@@ -53,10 +62,15 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false)
 
     const source = modelData ?? modelUrl;
     let effectiveGpu = gpu;
+    const t0 = performance.now();
+    console.log(
+      `[worker] createSession start gpu=${gpu} bytes=${source instanceof ArrayBuffer ? source.byteLength : 'url'}`,
+    );
 
     try {
       session = await createSession(source, gpu);
     } catch (gpuError) {
+      console.warn(`[worker] gpu session failed (${(performance.now() - t0) | 0}ms): ${gpuError}`);
       if (!gpu) throw gpuError;
       session = await createSession(source, false);
       effectiveGpu = false;
@@ -66,11 +80,15 @@ async function loadModel(modelUrl: string, modelData?: ArrayBuffer, gpu = false)
     currentModelUrl = modelUrl;
     currentGpu = effectiveGpu;
 
+    console.log(
+      `[worker] model loaded in ${(performance.now() - t0).toFixed(0)}ms gpu=${effectiveGpu}`,
+    );
     self.postMessage({
       type: 'model-loaded',
       payload: { modelUrl, gpu: effectiveGpu },
     });
   } catch (error) {
+    console.error(`[worker] model load failed: ${error}`);
     self.postMessage({
       type: 'error',
       payload: { message: `Failed to load model: ${error}` },
