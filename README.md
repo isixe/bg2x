@@ -1,6 +1,21 @@
-# bg2x
+<p align="center">
+  <img src="public/favicon.png" alt="bg2x" width="96px">
+</p>
 
-A free, privacy-first AI image super-resolution (upscaling) tool. All processing happens locally in your browser — your images never leave your device.
+<h2 align="center">bg2x</h2>
+
+<p align="center">A free, privacy-first AI image super-resolution (upscaling) tool that runs entirely in your browser.</p>
+
+<p align="center">
+  <a href="https://bg2x.itea.dev/">Demo</a> ·
+  <a href="#installation">Installation</a> ·
+  <a href="#desktop-app">Desktop App</a> ·
+  <a href="https://github.com/isixe/bg2x">GitHub</a>
+</p>
+
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
 
 ## Features
 
@@ -13,6 +28,7 @@ A free, privacy-first AI image super-resolution (upscaling) tool. All processing
 - **Batch Processing** — Queue multiple images and process them one after another.
 - **Offline-Friendly Model Cache** — Models are cached in IndexedDB after the first download.
 - **Trilingual Interface** — English, Chinese, and Japanese, with light and dark themes.
+- **Desktop App** — Native Electron builds for Windows, macOS, and Linux.
 
 ## Tech Stack
 
@@ -95,6 +111,8 @@ The production build is output to `./dist/`.
 
 An Electron build ships for Windows, macOS, and Linux (including a Debian `.deb` package). It bundles the same client-side inference pipeline and serves the built site through a custom `app://` protocol that injects the cross-origin isolation headers above, so threaded WASM still works.
 
+Download the latest build from the in-app **Desktop app** page (the monitor icon in the header), which detects your operating system and links straight to the matching installer, or browse all release assets on the [Releases page](https://github.com/isixe/bg2x/releases).
+
 Build the desktop app locally:
 
 ```bash
@@ -108,11 +126,12 @@ Installers are written to `./release/`. Pushing a tag that matches the `package.
 ```
 bg2x/
 ├── public/                  # Static assets
+├── electron/                # Electron main process
 ├── src/
 │   ├── components/          # Vue components (views, panels, UI)
 │   │   └── ui/              # shadcn-vue primitives
 │   ├── composables/         # Model registry, cache, downloads, processing queue
-│   ├── config/              # Model configuration
+│   ├── config/              # App metadata, models, related projects
 │   ├── layouts/             # Astro layout
 │   ├── locales/             # i18n messages (en, zh, ja) and setup
 │   ├── pages/               # Astro entry points
@@ -122,6 +141,7 @@ bg2x/
 │   ├── type/                # Shared TypeScript types
 │   └── workers/             # ONNX Runtime Web inference worker
 ├── astro.config.mjs         # Astro configuration
+├── electron-builder.yml     # Desktop packaging configuration
 ├── eslint.config.mjs        # ESLint flat config
 ├── tsconfig.json            # TypeScript configuration
 └── package.json             # Dependencies and scripts
@@ -134,14 +154,14 @@ bg2x/
 
 ## Commands
 
-| Command          | Action                                |
-| ---------------- | ------------------------------------- |
-| `pnpm dev`       | Start dev server at `localhost:4321`  |
-| `pnpm build`     | Build production site to `./dist/`    |
-| `pnpm preview`   | Preview the production build          |
-| `pnpm typecheck` | Run `astro check`                     |
-| `pnpm lint`      | Lint `src/` with ESLint               |
-| `pnpm format`    | Format `src/` with Prettier           |
+| Command             | Action                                |
+| ------------------- | ------------------------------------- |
+| `pnpm dev`          | Start dev server at `localhost:4321`  |
+| `pnpm build`        | Build production site to `./dist/`    |
+| `pnpm preview`      | Preview the production build          |
+| `pnpm typecheck`    | Run `astro check`                     |
+| `pnpm lint`         | Lint `src/` with ESLint               |
+| `pnpm format`       | Format `src/` with Prettier           |
 | `pnpm desktop:pack` | Build the desktop app to `./release/` |
 
 ## License
