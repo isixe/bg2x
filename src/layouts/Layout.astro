@@ -32,6 +32,20 @@ const { title } = Astro.props;
         } catch (e) {}
       })();
     </script>
+    <script is:inline>
+      // Same HTML ships to web and Electron, so the tracker is injected at runtime only on the web.
+      (function () {
+        try {
+          if (navigator.userAgent.indexOf('Electron') !== -1) return;
+          var s = document.createElement('script');
+          s.src = 'https://analytics.itea.dev/tracker.min.js';
+          s.setAttribute('data-website-id', 'bg2x');
+          s.crossOrigin = 'anonymous';
+          s.async = false;
+          document.head.appendChild(s);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <slot />
