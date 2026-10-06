@@ -83,14 +83,11 @@
     "x4plus": "High-quality general-purpose 4x model. Strong on real-world photos and textures; slower due to its size.",
     "x4plusAnime": "6-block anime model. Preserves clean edges and flat colors; ideal for illustrations and line art.",
     "anime4b": "Very small anime model (4 blocks). Fast and light; use when speed matters more than fine detail.",
-    "swinirM": "Transformer-based model focused on pixel fidelity. Excellent for compressed or degraded photos; large and slow.",
-    "swinirL": "Largest SwinIR variant with the highest reconstruction fidelity. Best quality, slowest and heaviest.",
     "swin2srLight": "Lightweight Swin2SR 2x model. Fast general-purpose upscaling with modest resource use.",
     "swin2srClassicalX4": "Swin2SR 4x model for classical degradation. High fidelity on clean images at larger magnification.",
     "swin2srRealworldX4": "Swin2SR 4x model tuned for real-world/BSRGAN degradation. Good for noisy or compressed photos.",
     "swin2srCompressedX4": "Swin2SR 4x model for heavily compressed images (JPEG). Recovers detail while suppressing blocking.",
-    "realcugan2x": "Real-CUGAN 2x model for anime. Strong line preservation and denoising on illustrations.",
-    "esrganX4": "Classic ESRGAN 4x model. Rich texture synthesis; may over-sharpen on real photos."
+    "realcugan2x": "Real-CUGAN 2x model for anime. Strong line preservation and denoising on illustrations."
   },
   "queue": {
     "title": "Queue",

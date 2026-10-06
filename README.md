@@ -19,9 +19,9 @@
 
 ## Features
 
-- **AI-Powered Super Resolution** — Upscale images up to 4x with Real-ESRGAN, SwinIR, Swin2SR, Real-CUGAN, and ESRGAN models.
+- **AI-Powered Super Resolution** — Upscale images up to 4x with Real-ESRGAN, Swin2SR, and Real-CUGAN models.
 - **Privacy Protected** — 100% client-side inference through ONNX Runtime Web inside a Web Worker. No backend, no uploads.
-- **Multiple AI Models** — 15 specialized models for photos, anime, illustrations, and compressed images.
+- **Multiple AI Models** — 12 specialized models for photos, anime, illustrations, and compressed images.
 - **GPU Acceleration** — Runs on WebGPU when available, with automatic fallback to WASM.
 - **Multiple Export Formats** — Export as PNG, JPG, or WebP, and download a whole batch as a ZIP.
 - **Drag & Drop Support** — Add images through drag-and-drop or the file picker.
@@ -55,15 +55,12 @@ Models are downloaded on demand from Hugging Face and cached locally in IndexedD
 | Real-ESRGAN x4plus             | 4x    | ~67MB  |
 | Real-ESRGAN x4plus Anime       | 4x    | ~18MB  |
 | Real-ESRGAN x4plus Anime 4B32F | 4x    | ~5.2MB |
-| SwinIR-M x4                    | 4x    | ~61MB  |
-| SwinIR-L x4                    | 4x    | ~122MB |
 | Swin2SR Lightweight x2         | 2x    | ~8.1MB |
 | Swin2SR Classical x2           | 2x    | ~54MB  |
 | Swin2SR Classical x4           | 4x    | ~55MB  |
 | Swin2SR RealWorld x4           | 4x    | ~53MB  |
 | Swin2SR Compressed x4          | 4x    | ~55MB  |
-| Real-CUGAN 2x                  | 2x    | ~5.2MB |
-| ESRGAN x4                      | 4x    | ~67MB  |
+| Real-CUGAN 2x                  | 2x    | ~5.2MB  |
 
 ## Installation
 

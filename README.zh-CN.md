@@ -19,9 +19,9 @@
 
 ## 特性
 
-- **AI 超分辨率** —— 使用 Real-ESRGAN、SwinIR、Swin2SR、Real-CUGAN 和 ESRGAN 模型，最高可放大 4 倍。
+- **AI 超分辨率** —— 使用 Real-ESRGAN、Swin2SR 和 Real-CUGAN 模型，最高可放大 4 倍。
 - **隐私保护** —— 通过 Web Worker 中的 ONNX Runtime Web 进行 100% 客户端推理。无后端，不上传。
-- **多种 AI 模型** —— 15 个专用模型，覆盖照片、动漫、插画和压缩图片。
+- **多种 AI 模型** —— 12 个专用模型，覆盖照片、动漫、插画和压缩图片。
 - **GPU 加速** —— 在支持时使用 WebGPU 运行，并可自动回退到 WASM。
 - **多种导出格式** —— 可导出为 PNG、JPG 或 WebP，并支持将整批结果打包为 ZIP 下载。
 - **拖拽支持** —— 通过拖拽或文件选择器添加图片。
@@ -55,15 +55,12 @@
 | Real-ESRGAN x4plus             | 4x   | ~67MB  |
 | Real-ESRGAN x4plus Anime       | 4x   | ~18MB  |
 | Real-ESRGAN x4plus Anime 4B32F | 4x   | ~5.2MB |
-| SwinIR-M x4                    | 4x   | ~61MB  |
-| SwinIR-L x4                    | 4x   | ~122MB |
 | Swin2SR Lightweight x2         | 2x   | ~8.1MB |
 | Swin2SR Classical x2           | 2x   | ~54MB  |
 | Swin2SR Classical x4           | 4x   | ~55MB  |
 | Swin2SR RealWorld x4           | 4x   | ~53MB  |
 | Swin2SR Compressed x4          | 4x   | ~55MB  |
-| Real-CUGAN 2x                  | 2x   | ~5.2MB |
-| ESRGAN x4                      | 4x   | ~67MB  |
+| Real-CUGAN 2x                  | 2x   | ~5.2MB  |
 
 ## 安装
 

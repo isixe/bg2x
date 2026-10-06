@@ -83,14 +83,11 @@
     "x4plus": "高质量通用 4x 模型，对真实照片和纹理效果出色；体积较大，推理较慢。",
     "x4plusAnime": "6 层动漫模型，保留干净边缘与纯色块，适合插画与线稿。",
     "anime4b": "超小体积动漫模型（4 层），快速轻量，适合更看重速度而非细节的场景。",
-    "swinirM": "基于 Transformer、注重像素保真度，适合压缩或退化的照片；体积大、速度慢。",
-    "swinirL": "最大规模的 SwinIR，重建保真度最高；质量最好但最慢、最占资源。",
     "swin2srLight": "轻量级 Swin2SR 2x 模型，速度快、资源占用低，适合通用放大。",
     "swin2srClassicalX4": "面向经典退化的 Swin2SR 4x 模型，在干净图像上以更大倍率获得高保真。",
     "swin2srRealworldX4": "面向真实世界/BSRGAN 退化的 Swin2SR 4x 模型，适合有噪点或压缩痕迹的照片。",
     "swin2srCompressedX4": "针对高度压缩（JPEG）图像的 Swin2SR 4x 模型，在抑制块效应的同时恢复细节。",
-    "realcugan2x": "面向动漫的 Real-CUGAN 2x 模型，线条保留与降噪效果好，适合插画。",
-    "esrganX4": "经典 ESRGAN 4x 模型，纹理合成丰富；在真实照片上可能过度锐化。"
+    "realcugan2x": "面向动漫的 Real-CUGAN 2x 模型，线条保留与降噪效果好，适合插画。"
   },
   "queue": {
     "title": "队列",

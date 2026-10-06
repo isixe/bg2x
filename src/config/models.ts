@@ -105,28 +105,4 @@ export const MODELS: ModelEntry[] = [
     descKey: 'modelDesc.anime4b',
     sizeMB: 5.2,
   },
-  {
-    id: 'swinir-m-x4',
-    name: 'SwinIR-M x4',
-    url: hf('rocca/swin-ir-onnx', '003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x4_GAN.onnx'),
-    scale: 4,
-    descKey: 'modelDesc.swinirM',
-    sizeMB: 61,
-  },
-  {
-    id: 'swinir-l-x4',
-    name: 'SwinIR-L x4',
-    url: hf('Heliosoph/swinir-onnx', 'swinir_realsr_x4.onnx'),
-    scale: 4,
-    descKey: 'modelDesc.swinirL',
-    sizeMB: 122,
-  },
-  {
-    id: 'esrgan-x4',
-    name: 'ESRGAN x4',
-    url: hf('Subeesesh/esrgan-onnx', 'esrgan.onnx'),
-    scale: 4,
-    descKey: 'modelDesc.esrganX4',
-    sizeMB: 67,
-  },
 ];
