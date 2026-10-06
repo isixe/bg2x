@@ -116,6 +116,18 @@
     "gpuUnsupported": "WebGPU not supported",
     "gpuFallbackHint": "GPU acceleration failed — running on CPU. Toggle GPU to retry."
   },
+  "download": {
+    "title": "Desktop app",
+    "subtitle": "Grab the native build for your operating system. Inference still runs entirely on your device, just like the web version.",
+    "loading": "Loading the latest release…",
+    "error": "Couldn't load the latest release.",
+    "retry": "Retry",
+    "recommended": "Recommended for your system",
+    "otherPlatforms": "Other platforms",
+    "viewAll": "View all releases on GitHub",
+    "version": "Latest version",
+    "noDetection": "We couldn't detect your operating system — pick a download below."
+  },
   "settings": {
     "title": "Settings",
     "tabGeneral": "General",
@@ -130,15 +142,10 @@
     "version": "Version",
     "license": "License",
     "viewOnGithub": "View source on GitHub",
-    "homepage": "Homepage",
-    "relatedDesc": "More tools by the same author.",
+    "relatedDesc": "Here are some of my other projects. If you're into image processing tools, you're welcome to try them.",
     "relatedItems": {
-      "linkChecker": "Check the validity of URLs in your website.",
-      "metaThief": "Extract metadata from web pages.",
-      "colorConverter": "Convert colors between RGB, HEX, HSL, HWB, and CMYK.",
-      "colorPalette": "Generate and manage color palettes.",
-      "cookieInspector": "Inspect, parse, and manage browser cookies.",
-      "adSenseDetective": "Detect AdSense setup details on a website."
+      "bgx": "Remove image backgrounds with AI.",
+      "imageDash": "A search engine image search launcher."
     }
   },
   "action": {

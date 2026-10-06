@@ -116,6 +116,18 @@
     "gpuUnsupported": "WebGPU がサポートされていません",
     "gpuFallbackHint": "GPU アクセラレーションに失敗し CPU で実行中。GPU を再度有効にすると再試行します。"
   },
+  "download": {
+    "title": "デスクトップアプリ",
+    "subtitle": "お使いの OS 向けのネイティブ版をダウンロード。推論はウェブ版と同じくすべて端末上でローカルに実行されます。",
+    "loading": "最新リリースを取得しています…",
+    "error": "最新リリースを取得できませんでした。",
+    "retry": "再試行",
+    "recommended": "お使いのシステムに推奨",
+    "otherPlatforms": "その他のプラットフォーム",
+    "viewAll": "GitHub ですべてのリリースを見る",
+    "version": "最新バージョン",
+    "noDetection": "お使いの OS を判別できませんでした。以下から選択してください。"
+  },
   "settings": {
     "title": "設定",
     "tabGeneral": "一般",
@@ -130,15 +142,10 @@
     "version": "バージョン",
     "license": "ライセンス",
     "viewOnGithub": "GitHub でソースを見る",
-    "homepage": "ホームページ",
-    "relatedDesc": "同じ作者による他のツール。",
+    "relatedDesc": "以下は私の他のプロジェクトです。画像処理ツールに興味があれば、ぜひ使ってみてください。",
     "relatedItems": {
-      "linkChecker": "ウェブサイト内のリンクの有効性をチェックします。",
-      "metaThief": "ウェブページからメタデータを抽出します。",
-      "colorConverter": "RGB・HEX・HSL・HWB・CMYK 間で色を変換します。",
-      "colorPalette": "カラーパレットを生成・管理します。",
-      "cookieInspector": "ブラウザの Cookie を検査・解析・管理します。",
-      "adSenseDetective": "ウェブサイトの AdSense 設定情報を検出します。"
+      "bgx": "AI で画像の背景を削除。",
+      "imageDash": "検索エンジンの画像検索ランチャー。"
     }
   },
   "action": {

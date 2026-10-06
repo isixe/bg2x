@@ -7,18 +7,17 @@ import {
   Home,
   Layers,
   Settings,
-  Upload,
+  ZoomIn,
   Sun,
   Moon,
   Languages,
-  Download,
+  MonitorDown,
   Github,
   Menu,
   X,
 } from 'lucide-vue-next';
 import { useLocaleStore, useModelCacheStore, useThemeStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
-import { GITHUB_LATEST_RELEASE_API, GITHUB_RELEASES_URL } from '../config/app';
 import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue';
 import DropdownMenuContent from './ui/dropdown-menu/DropdownMenuContent.vue';
 import DropdownMenuItem from './ui/dropdown-menu/DropdownMenuItem.vue';
@@ -38,64 +37,10 @@ const modelCacheStore = useModelCacheStore();
 
 const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron');
 
-interface ReleaseAsset {
-  name: string;
-  browser_download_url: string;
-}
-
-interface DownloadOption {
-  key: string;
-  label: string;
-  url: string;
-}
-
-const downloadOpen = ref(false);
-const releaseAssets = ref<ReleaseAsset[]>([]);
-let releaseLoaded = false;
-
-const downloadOptions = computed<DownloadOption[]>(() => {
-  const assets = releaseAssets.value;
-  const pick = (pattern: RegExp) =>
-    assets.find((asset) => pattern.test(asset.name))?.browser_download_url;
-  const options: DownloadOption[] = [];
-  const windows = pick(/\.exe$/i);
-  if (windows) options.push({ key: 'windows', label: 'action.downloadWindows', url: windows });
-  const macos = pick(/\.dmg$/i) ?? pick(/\.zip$/i);
-  if (macos) options.push({ key: 'macos', label: 'action.downloadMacos', url: macos });
-  const linux = pick(/\.AppImage$/i);
-  if (linux) options.push({ key: 'linux', label: 'action.downloadLinux', url: linux });
-  const debian = pick(/\.deb$/i);
-  if (debian) options.push({ key: 'debian', label: 'action.downloadDebian', url: debian });
-  return options;
-});
-
-async function loadLatestRelease() {
-  if (releaseLoaded) return;
-  releaseLoaded = true;
-  try {
-    const response = await fetch(GITHUB_LATEST_RELEASE_API, {
-      headers: { Accept: 'application/vnd.github+json' },
-    });
-    if (!response.ok) return;
-    const data = (await response.json()) as { assets?: ReleaseAsset[] };
-    releaseAssets.value = data.assets ?? [];
-  } catch {
-    releaseAssets.value = [];
-  }
-}
-
-function openDownload(url: string) {
-  window.open(url, '_blank', 'noopener,noreferrer');
-}
-
-watch(downloadOpen, (open) => {
-  if (open) loadLatestRelease();
-});
-
 const navItems = computed(() => {
   const items = [
     { name: 'home', to: { name: 'home' }, icon: Home, label: 'nav.home' },
-    { name: 'upload', to: { name: 'upload' }, icon: Upload, label: 'nav.upload' },
+    { name: 'upload', to: { name: 'upload' }, icon: ZoomIn, label: 'nav.upload' },
     { name: 'models', to: { name: 'models' }, icon: Layers, label: 'nav.models' },
     { name: 'history', to: { name: 'history' }, icon: Clock, label: 'nav.history' },
     { name: 'settings', to: { name: 'settings' }, icon: Settings, label: 'nav.settings' },
@@ -262,30 +207,16 @@ watch(
           <Moon class="icon-moon" />
           <Sun class="icon-sun" />
         </button>
-        <DropdownMenu v-if="!isElectron" v-model:open="downloadOpen">
-          <DropdownMenuTrigger as-child>
-            <button
-              type="button"
-              class="icon-btn"
-              :title="t('action.download')"
-              :aria-label="t('action.download')"
-            >
-              <Download />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent class="min-w-[12rem]">
-            <DropdownMenuItem
-              v-for="opt in downloadOptions"
-              :key="opt.key"
-              @select="openDownload(opt.url)"
-            >
-              {{ t(opt.label) }}
-            </DropdownMenuItem>
-            <DropdownMenuItem @select="openDownload(GITHUB_RELEASES_URL)">
-              {{ t('action.allReleases') }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <RouterLink
+          v-if="!isElectron"
+          :to="{ name: 'download' }"
+          class="icon-btn"
+          :class="{ active: isActive('download') }"
+          :title="t('action.download')"
+          :aria-label="t('action.download')"
+        >
+          <MonitorDown />
+        </RouterLink>
         <a
           class="icon-btn"
           href="https://github.com/isixe/bg2x"

@@ -4,6 +4,7 @@ import UploadWorkspace from '../components/UploadWorkspace.vue';
 import HistoryView from '../components/HistoryView.vue';
 import ModelsView from '../components/ModelsView.vue';
 import SettingsView from '../components/SettingsView.vue';
+import DownloadView from '../components/DownloadView.vue';
 import { pinia } from '../store/pinia';
 import { useModelCacheStore, useSettingsStore } from '../store/stores';
 
@@ -15,6 +16,7 @@ export const router = createRouter({
     { path: '/history', name: 'history', component: HistoryView },
     { path: '/models', name: 'models', component: ModelsView },
     { path: '/settings', name: 'settings', component: SettingsView },
+    { path: '/download', name: 'download', component: DownloadView },
     { path: '/:pathMatch(.*)*', redirect: { name: 'home' } },
   ],
   scrollBehavior: () => ({ top: 0 }),

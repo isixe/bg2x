@@ -116,6 +116,18 @@
     "gpuUnsupported": "浏览器不支持 WebGPU",
     "gpuFallbackHint": "GPU 加速失败，正在使用 CPU。可重新开启 GPU 以重试。"
   },
+  "download": {
+    "title": "桌面端",
+    "subtitle": "下载适配你操作系统的本机版本，功能与网页版一致，推理仍在你的设备上本地完成。",
+    "loading": "正在获取最新版本…",
+    "error": "无法获取最新版本。",
+    "retry": "重试",
+    "recommended": "推荐用于你的系统",
+    "otherPlatforms": "其他平台",
+    "viewAll": "在 GitHub 查看所有版本",
+    "version": "最新版本",
+    "noDetection": "无法识别你的操作系统，请在下方选择下载。"
+  },
   "settings": {
     "title": "设置",
     "tabGeneral": "通用",
@@ -130,15 +142,10 @@
     "version": "版本",
     "license": "许可证",
     "viewOnGithub": "在 GitHub 上查看源码",
-    "homepage": "项目主页",
-    "relatedDesc": "来自同一作者的更多工具。",
+    "relatedDesc": "以下我的一些其他项目，如果你对图片处理工具感兴趣，欢迎使用它们",
     "relatedItems": {
-      "linkChecker": "检查网站中链接的有效性。",
-      "metaThief": "从网页中提取元数据。",
-      "colorConverter": "在 RGB、HEX、HSL、HWB 和 CMYK 之间转换颜色。",
-      "colorPalette": "生成和管理调色板。",
-      "cookieInspector": "查看、解析并管理浏览器 Cookie。",
-      "adSenseDetective": "检测网站上的 AdSense 配置详情。"
+      "bgx": "使用 AI 去除图片背景。",
+      "imageDash": "搜索引擎图片搜索启动器。"
     }
   },
   "action": {
