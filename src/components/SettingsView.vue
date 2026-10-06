@@ -483,8 +483,6 @@ a.link-item:hover {
   width: 40px;
   height: 40px;
   flex-shrink: 0;
-  border-radius: var(--radius-md);
-  background: rgba(212, 132, 62, 0.1);
   color: var(--color-primary);
 }
 
