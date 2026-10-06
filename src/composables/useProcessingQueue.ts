@@ -273,23 +273,35 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
   }
 
-  function waitForModelLoaded(): Promise<void> {
+  /** Reject instead of spinning forever if the worker never replies (deadlock safety net). */
+  const MODEL_LOAD_TIMEOUT_MS = 60_000;
+
+  function waitForModelLoaded(timeoutMs = MODEL_LOAD_TIMEOUT_MS): Promise<void> {
     return new Promise((resolve, reject) => {
       const workerRef = worker!;
       const origOnMsg = workerRef.onmessage;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const restore = () => {
+        if (timer) clearTimeout(timer);
+        workerRef.onmessage = origOnMsg;
+      };
       const checkMsg = (e: MessageEvent) => {
         if (e.data.type === 'model-loaded') {
-          workerRef.onmessage = origOnMsg;
+          restore();
           origOnMsg?.call(workerRef, e);
           resolve();
         } else if (e.data.type === 'error') {
-          workerRef.onmessage = origOnMsg;
+          restore();
           reject(new Error(e.data.payload?.message ?? 'Failed to load model'));
         } else {
           origOnMsg?.call(workerRef, e);
         }
       };
       workerRef.onmessage = checkMsg;
+      timer = setTimeout(() => {
+        restore();
+        reject(new Error(`Model load timed out after ${Math.round(timeoutMs / 1000)}s`));
+      }, timeoutMs);
     });
   }
 
