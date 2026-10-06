@@ -18,7 +18,7 @@
     "removeModel": "Remove",
     "cancel": "Cancel",
     "default": "Default",
-    "ready": "Ready",
+    "downloaded": "Downloaded",
     "downloading": "Downloading",
     "downloadFailed": "Download failed",
     "noModels": "No models available"

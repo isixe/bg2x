@@ -18,7 +18,7 @@
     "removeModel": "削除",
     "cancel": "キャンセル",
     "default": "デフォルト",
-    "ready": "準備完了",
+    "downloaded": "ダウンロード済み",
     "downloading": "ダウンロード中",
     "downloadFailed": "ダウンロード失敗",
     "noModels": "利用可能なモデルがありません"

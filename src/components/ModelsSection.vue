@@ -149,27 +149,39 @@ function goToModels() {
           @keydown.enter.prevent="selectModel(model)"
           @keydown.space.prevent="selectModel(model)"
         >
-          <button
-            v-if="showFavorites"
-            class="btn-fav"
-            :class="{ 'is-active': isFavorite(model) }"
-            :title="isFavorite(model) ? t('models.removeFavorite') : t('models.addFavorite')"
-            @click.stop="toggleFavorite(model)"
-          >
-            <Star :size="16" :fill="isFavorite(model) ? 'currentColor' : 'none'" />
-          </button>
+          <div v-if="showFavorites || modelStates[model.id]?.cached" class="model-corner-actions">
+            <button
+              v-if="showFavorites"
+              class="btn-fav"
+              :class="{ 'is-active': isFavorite(model) }"
+              :title="isFavorite(model) ? t('models.removeFavorite') : t('models.addFavorite')"
+              @click.stop="toggleFavorite(model)"
+            >
+              <Star :size="16" :fill="isFavorite(model) ? 'currentColor' : 'none'" />
+            </button>
+            <button
+              v-if="modelStates[model.id]?.cached"
+              class="btn-remove"
+              :title="t('home.removeModel')"
+              @click.stop="removeModel(model)"
+            >
+              <Trash2 :size="14" />
+            </button>
+          </div>
 
           <div class="model-card-main">
             <div class="model-info">
               <div class="model-name-row">
                 <span class="model-name" :title="model.name">{{ model.name }}</span>
-                <span class="badge-size">{{ t('models.sizeApprox', { size: model.sizeMB }) }}</span>
                 <span v-if="modelStates[model.id]?.cached" class="badge-cached">{{
-                  t('home.ready')
+                  t('home.downloaded')
                 }}</span>
                 <span v-else-if="modelStates[model.id]?.downloading" class="badge-downloading">{{
                   t('home.downloading')
                 }}</span>
+                <span v-if="isSelected(model)" class="model-check" :title="t('models.selected')">
+                  <Check :size="12" />
+                </span>
               </div>
               <p class="model-desc">{{ t(model.descKey) }}</p>
               <div class="model-meta">
@@ -177,6 +189,7 @@ function goToModels() {
                 <span v-if="model.maxSize" class="meta-item">{{
                   t('models.maxSize', { size: model.maxSize })
                 }}</span>
+                <span class="meta-item">{{ t('models.sizeApprox', { size: model.sizeMB }) }}</span>
               </div>
             </div>
 
@@ -196,17 +209,6 @@ function goToModels() {
               >
                 {{ t('home.cancel') }}
               </button>
-              <button
-                v-else
-                class="btn-remove"
-                :title="t('home.removeModel')"
-                @click.stop="removeModel(model)"
-              >
-                <Trash2 :size="14" />
-              </button>
-              <span v-if="isSelected(model)" class="model-check" :title="t('models.selected')">
-                <Check :size="16" />
-              </span>
             </div>
           </div>
 
@@ -329,8 +331,8 @@ function goToModels() {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem;
-  /* reserve the top-right corner for the absolutely positioned favorite button */
-  padding-right: 3.25rem;
+  /* reserve the top-right corner for the favorite + remove buttons */
+  padding-right: 5.25rem;
   gap: 1.5rem;
 }
 
@@ -357,13 +359,6 @@ function goToModels() {
   font-size: 0.9375rem;
   font-weight: 600;
   color: var(--color-dark);
-}
-
-.badge-size {
-  flex-shrink: 0;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-gray-dark);
 }
 
 .badge-cached {
@@ -411,11 +406,17 @@ function goToModels() {
   flex-shrink: 0;
 }
 
-.btn-fav {
+.model-corner-actions {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-fav {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -440,12 +441,14 @@ function goToModels() {
 }
 
 .model-check {
-  display: flex;
+  flex-shrink: 0;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
   color: white;
   background: var(--color-primary);
   border-radius: 9999px;
@@ -550,18 +553,14 @@ function goToModels() {
   .model-card-main {
     flex-wrap: wrap;
     align-items: flex-start;
-    padding: 1rem;
+    /* reserve the right band for the favorite + remove buttons */
+    padding: 1rem 5.25rem 1rem 1rem;
     gap: 0.75rem;
   }
 
   .model-info {
     flex: 1 1 100%;
     min-width: 0;
-  }
-
-  /* keep the model name clear of the favorite button pinned to the top-right */
-  .model-name-row {
-    padding-right: 1.75rem;
   }
 
   /* Move the action row below the info so it never squeezes the text. */

@@ -18,7 +18,7 @@
     "removeModel": "移除",
     "cancel": "取消",
     "default": "默认",
-    "ready": "就绪",
+    "downloaded": "已下载",
     "downloading": "下载中",
     "downloadFailed": "下载失败",
     "noModels": "暂无可用模型"
