@@ -1,12 +1,12 @@
 import type { ModelEntry } from '../type';
 
 const HF_HOST = 'https://huggingface.co';
+const ML_HOST = 'https://www.modelscope.cn/models';
 
 function hf(repo: string, file: string): string {
   return `${HF_HOST}/${repo}/resolve/main/${file}`;
 }
 
-const ML_HOST = 'https://www.modelscope.cn/models';
 
 function ml(repo: string, file: string): string {
   return `${ML_HOST}/${repo}/resolve/master/${file}?view=false`;
@@ -85,6 +85,7 @@ export const MODELS: ModelEntry[] = [
     id: 'real-esrgan-animevideov3',
     name: 'Real-ESRGAN AnimeVideo v3',
     url: hf('skillsafe-ai/realesr-animevideov3', 'model.onnx'),
+    fallbackUrls: [ml('Rokaa111/real-esrgan-animevideov3', 'model.onnx')],
     scale: 4,
     descKey: 'modelDesc.animevideov3',
     sizeMB: 2.5,
@@ -93,6 +94,7 @@ export const MODELS: ModelEntry[] = [
     id: 'real-esrgan-x4plus-anime',
     name: 'Real-ESRGAN x4plus Anime',
     url: hf('deepghs/imgutils-models', 'real_esrgan/RealESRGAN_x4plus_anime_6B.onnx'),
+    fallbackUrls: [ml('Rokaa111/RealESRGAN_x4plus_anime_6B', 'RealESRGAN_x4plus_anime_6B.onnx')],
     scale: 4,
     descKey: 'modelDesc.x4plusAnime',
     sizeMB: 18,
@@ -101,6 +103,9 @@ export const MODELS: ModelEntry[] = [
     id: 'real-esrgan-x4plus-anime-4b32f',
     name: 'Real-ESRGAN x4plus Anime 4B32F',
     url: hf('deepghs/imgutils-models', 'real_esrgan/RealESRGAN_x4plus_anime_4B32F.onnx'),
+    fallbackUrls: [
+      ml('Rokaa111/real-esrgan-x4plus-anime-4b32f', 'RealESRGAN_x4plus_anime_4B32F.onnx'),
+    ],
     scale: 4,
     descKey: 'modelDesc.anime4b',
     sizeMB: 5.2,
