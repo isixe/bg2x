@@ -47,6 +47,12 @@ const RELATED_ICONS: Record<string, Component> = {
   imageDash: Images,
 };
 
+const failedLogos = ref<Record<string, boolean>>({});
+
+function onLogoError(i18nKey: string) {
+  failedLogos.value[i18nKey] = true;
+}
+
 function onLanguageChange(value: string) {
   localeStore.setLocale(value as LocaleCode);
 }
@@ -151,7 +157,16 @@ function onLanguageChange(value: string) {
             rel="noopener noreferrer"
           >
             <span class="related-icon">
-              <component :is="RELATED_ICONS[project.i18nKey] ?? Layers" />
+              <img
+                v-if="!failedLogos[project.i18nKey]"
+                class="related-logo"
+                :src="project.favicon"
+                :alt="project.name"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                @error="onLogoError(project.i18nKey)"
+              />
+              <component :is="RELATED_ICONS[project.i18nKey] ?? Layers" v-else />
             </span>
             <span class="related-body">
               <span class="related-name">{{ project.name }}</span>
@@ -476,6 +491,13 @@ a.link-item:hover {
 .related-icon :deep(svg) {
   width: 20px;
   height: 20px;
+}
+
+.related-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
 }
 
 .related-body {
