@@ -2,7 +2,16 @@
 import { ref } from 'vue';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Settings, Info, Layers, ExternalLink, Github, Globe, Scale } from 'lucide-vue-next';
+import {
+  Settings,
+  Info,
+  Layers,
+  ExternalLink,
+  Github,
+  Scale,
+  Eraser,
+  Images,
+} from 'lucide-vue-next';
 import { useLocaleStore, useSettingsStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
 import Select from './ui/select/Select.vue';
@@ -10,7 +19,7 @@ import SelectContent from './ui/select/SelectContent.vue';
 import SelectItem from './ui/select/SelectItem.vue';
 import SelectTrigger from './ui/select/SelectTrigger.vue';
 import SelectValue from './ui/select/SelectValue.vue';
-import { APP_NAME, APP_VERSION, GITHUB_URL, HOMEPAGE_URL, LICENSE } from '../config/app';
+import { APP_NAME, APP_VERSION, GITHUB_URL, LICENSE } from '../config/app';
 import { RELATED_PROJECTS } from '../config/related';
 
 type SettingsTab = 'general' | 'about' | 'related';
@@ -29,9 +38,14 @@ const activeTab = ref<SettingsTab>('general');
 
 const tabs: SettingsTabItem[] = [
   { id: 'general', icon: Settings, label: 'settings.tabGeneral' },
-  { id: 'about', icon: Info, label: 'settings.tabAbout' },
   { id: 'related', icon: Layers, label: 'settings.tabRelated' },
+  { id: 'about', icon: Info, label: 'settings.tabAbout' },
 ];
+
+const RELATED_ICONS: Record<string, Component> = {
+  bgx: Eraser,
+  imageDash: Images,
+};
 
 function onLanguageChange(value: string) {
   localeStore.setLocale(value as LocaleCode);
@@ -112,11 +126,6 @@ function onLanguageChange(value: string) {
             <span class="link-label">{{ t('settings.viewOnGithub') }}</span>
             <ExternalLink class="link-ext" />
           </a>
-          <a class="link-item" :href="HOMEPAGE_URL" target="_blank" rel="noopener noreferrer">
-            <Globe class="link-icon" />
-            <span class="link-label">{{ t('settings.homepage') }}</span>
-            <ExternalLink class="link-ext" />
-          </a>
           <div class="link-item static">
             <Info class="link-icon" />
             <span class="link-label">{{ t('settings.version') }}</span>
@@ -132,20 +141,23 @@ function onLanguageChange(value: string) {
 
       <section v-else class="settings-panel">
         <p class="panel-desc">{{ t('settings.relatedDesc') }}</p>
-        <div class="related-grid">
+        <div class="related-list">
           <a
             v-for="project in RELATED_PROJECTS"
             :key="project.name"
-            class="related-card"
+            class="related-item"
             :href="project.url"
             target="_blank"
             rel="noopener noreferrer"
           >
-            <div class="related-head">
+            <span class="related-icon">
+              <component :is="RELATED_ICONS[project.i18nKey] ?? Layers" />
+            </span>
+            <span class="related-body">
               <span class="related-name">{{ project.name }}</span>
-              <ExternalLink class="related-ext" />
-            </div>
-            <p class="related-desc">{{ t(`settings.relatedItems.${project.i18nKey}`) }}</p>
+              <span class="related-desc">{{ t(`settings.relatedItems.${project.i18nKey}`) }}</span>
+            </span>
+            <ExternalLink class="related-ext" />
           </a>
         </div>
       </section>
@@ -427,36 +439,51 @@ a.link-item:hover {
   margin: 0 0 1.25rem;
 }
 
-.related-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 0.75rem;
-}
-
-.related-card {
+.related-list {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
-  padding: 1rem 1.125rem;
+  gap: 0.5rem;
+}
+
+.related-item {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
   background: var(--color-card);
   border: var(--border-thin);
   border-radius: var(--radius-md);
   text-decoration: none;
-  transition:
-    border-color 0.15s ease,
-    transform 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 
-.related-card:hover {
+.related-item:hover {
   border-color: var(--color-primary);
-  transform: translateY(-2px);
 }
 
-.related-head {
+.related-icon {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: rgba(212, 132, 62, 0.1);
+  color: var(--color-primary);
+}
+
+.related-icon :deep(svg) {
+  width: 20px;
+  height: 20px;
+}
+
+.related-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .related-name {
@@ -465,14 +492,8 @@ a.link-item:hover {
   color: var(--color-dark);
 }
 
-.related-card:hover .related-name {
+.related-item:hover .related-name {
   color: var(--color-primary);
-}
-
-.related-ext {
-  width: 14px;
-  height: 14px;
-  color: var(--color-gray-dark);
 }
 
 .related-desc {
@@ -480,6 +501,13 @@ a.link-item:hover {
   line-height: 1.5;
   color: var(--color-gray-dark);
   margin: 0;
+}
+
+.related-ext {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-gray-dark);
 }
 
 @media (max-width: 768px) {
