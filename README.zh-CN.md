@@ -21,7 +21,7 @@
 
 - **AI 超分辨率** —— 使用 Real-ESRGAN、Swin2SR 和 Real-CUGAN 模型，最高可放大 4 倍。
 - **隐私保护** —— 通过 Web Worker 中的 ONNX Runtime Web 进行 100% 客户端推理。无后端，不上传。
-- **多种 AI 模型** —— 12 个专用模型，覆盖照片、动漫、插画和压缩图片。
+- **多种 AI 模型** —— 10 个专用模型，覆盖照片、动漫、插画和压缩图片。
 - **GPU 加速** —— 在支持时使用 WebGPU 运行，并可自动回退到 WASM。
 - **多种导出格式** —— 可导出为 PNG、JPG 或 WebP，并支持将整批结果打包为 ZIP 下载。
 - **拖拽支持** —— 通过拖拽或文件选择器添加图片。
@@ -45,22 +45,20 @@
 
 ## 可用模型
 
-模型按需从 Hugging Face 下载，并缓存到本地 IndexedDB。
+模型按需从 Hugging Face 下载，并缓存到本地 IndexedDB。当主源不可达时，会使用 ModelScope 镜像作为回退。
 
-| 模型                           | 倍率 | 大小   |
-| ------------------------------ | ---- | ------ |
-| Real-ESRGAN AnimeVideo v3      | 4x   | ~2.5MB |
-| Real-ESRGAN General x4v3       | 4x   | ~4.9MB |
-| Real-ESRGAN x2plus             | 2x   | ~67MB  |
-| Real-ESRGAN x4plus             | 4x   | ~67MB  |
-| Real-ESRGAN x4plus Anime       | 4x   | ~18MB  |
-| Real-ESRGAN x4plus Anime 4B32F | 4x   | ~5.2MB |
-| Swin2SR Lightweight x2         | 2x   | ~8.1MB |
-| Swin2SR Classical x2           | 2x   | ~54MB  |
-| Swin2SR Classical x4           | 4x   | ~55MB  |
-| Swin2SR RealWorld x4           | 4x   | ~53MB  |
-| Swin2SR Compressed x4          | 4x   | ~55MB  |
-| Real-CUGAN 2x                  | 2x   | ~5.2MB  |
+| 模型                           | 倍率 | 大小   | 适用场景                                       |
+| ------------------------------ | ---- | ------ | ---------------------------------------------- |
+| Real-ESRGAN AnimeVideo v3      | 4x   | ~2.5MB | 速度最快；适合动漫与视频帧、干净的线稿         |
+| Real-ESRGAN General x4v3       | 4x   | ~4.9MB | 紧凑的通用 4x；均衡的日常默认选择              |
+| Real-ESRGAN x4plus             | 4x   | ~67MB  | 高质量通用 4x；擅长真实照片与纹理（较慢）      |
+| Real-ESRGAN x4plus Anime       | 4x   | ~18MB  | 6 层动漫模型；适合插画，保留干净边缘与平色     |
+| Real-ESRGAN x4plus Anime 4B32F | 4x   | ~5.2MB | 超小 4 层动漫模型；快速轻量                    |
+| Swin2SR Lightweight x2         | 2x   | ~8.1MB | 轻量级 Swin2SR 2x 放大                         |
+| Swin2SR Classical x4           | 4x   | ~55MB  | 面向经典退化；干净图像高保真                   |
+| Swin2SR RealWorld x4           | 4x   | ~53MB  | 面向真实世界 / BSRGAN 退化；适合噪点或压缩照片 |
+| Swin2SR Compressed x4          | 4x   | ~55MB  | 面向高度压缩的 JPEG；抑制块效应                |
+| Real-CUGAN 2x (HFA2k)          | 2x   | ~5.2MB | 动漫向 2x；线条保留与降噪能力强                |
 
 ## 安装
 

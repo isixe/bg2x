@@ -21,7 +21,7 @@
 
 - **AI-Powered Super Resolution** — Upscale images up to 4x with Real-ESRGAN, Swin2SR, and Real-CUGAN models.
 - **Privacy Protected** — 100% client-side inference through ONNX Runtime Web inside a Web Worker. No backend, no uploads.
-- **Multiple AI Models** — 12 specialized models for photos, anime, illustrations, and compressed images.
+- **Multiple AI Models** — 10 specialized models for photos, anime, illustrations, and compressed images.
 - **GPU Acceleration** — Runs on WebGPU when available, with automatic fallback to WASM.
 - **Multiple Export Formats** — Export as PNG, JPG, or WebP, and download a whole batch as a ZIP.
 - **Drag & Drop Support** — Add images through drag-and-drop or the file picker.
@@ -45,22 +45,20 @@
 
 ## Available Models
 
-Models are downloaded on demand from Hugging Face and cached locally in IndexedDB.
+Models are downloaded on demand from Hugging Face and cached locally in IndexedDB. A ModelScope mirror is used as a fallback when the primary source is unreachable.
 
-| Model                          | Scale | Size   |
-| ------------------------------ | ----- | ------ |
-| Real-ESRGAN AnimeVideo v3      | 4x    | ~2.5MB |
-| Real-ESRGAN General x4v3       | 4x    | ~4.9MB |
-| Real-ESRGAN x2plus             | 2x    | ~67MB  |
-| Real-ESRGAN x4plus             | 4x    | ~67MB  |
-| Real-ESRGAN x4plus Anime       | 4x    | ~18MB  |
-| Real-ESRGAN x4plus Anime 4B32F | 4x    | ~5.2MB |
-| Swin2SR Lightweight x2         | 2x    | ~8.1MB |
-| Swin2SR Classical x2           | 2x    | ~54MB  |
-| Swin2SR Classical x4           | 4x    | ~55MB  |
-| Swin2SR RealWorld x4           | 4x    | ~53MB  |
-| Swin2SR Compressed x4          | 4x    | ~55MB  |
-| Real-CUGAN 2x                  | 2x    | ~5.2MB  |
+| Model                          | Scale | Size   | Best for                                                           |
+| ------------------------------ | ----- | ------ | ------------------------------------------------------------------ |
+| Real-ESRGAN AnimeVideo v3      | 4x    | ~2.5MB | Fastest; tuned for anime and video frames with clean line art      |
+| Real-ESRGAN General x4v3       | 4x    | ~4.9MB | Compact general-purpose 4x; balanced everyday default              |
+| Real-ESRGAN x4plus             | 4x    | ~67MB  | High-quality general 4x; real photos and textures (slower)         |
+| Real-ESRGAN x4plus Anime       | 4x    | ~18MB  | 6-block anime model; clean edges and flat colors for illustrations |
+| Real-ESRGAN x4plus Anime 4B32F | 4x    | ~5.2MB | Ultra-small 4-block anime model; fast and light                    |
+| Swin2SR Lightweight x2         | 2x    | ~8.1MB | Lightweight Swin2SR 2x upscaler                                    |
+| Swin2SR Classical x4           | 4x    | ~55MB  | Classical degradations; high fidelity on clean images              |
+| Swin2SR RealWorld x4           | 4x    | ~53MB  | Real-world / BSRGAN degradations; noisy or compressed photos       |
+| Swin2SR Compressed x4          | 4x    | ~55MB  | Heavily compressed JPEGs; suppresses block artifacts               |
+| Real-CUGAN 2x (HFA2k)          | 2x    | ~5.2MB | Anime-focused 2x; strong line preservation and denoising           |
 
 ## Installation
 
