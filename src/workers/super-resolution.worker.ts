@@ -23,7 +23,10 @@ console.log(
 // granularity Swin2SR needs) so tiles stay aligned; the overlap is feathered so
 // the seams are invisible.
 const TILE_SIZE = 256;
-const TILE_OVERLAP = 32;
+// 16px of source overlap is enough for the feathered blend to hide seams while
+// roughly halving the re-computed border pixels versus a 32px overlap
+// ((256/240)² ≈ 1.14 vs (256/224)² ≈ 1.31 → ~13% fewer pixels overall).
+const TILE_OVERLAP = 16;
 const TILE_STEP = TILE_SIZE - TILE_OVERLAP;
 
 // Rebuild the session on CPU if a single tile's inference does not settle in
@@ -163,16 +166,23 @@ async function processImage(payload: {
 
     abortRequested = false;
 
-    const nativeW = width * scale;
-    const nativeH = height * scale;
+    // When the requested output is smaller than the model's native scale, shrink
+    // each tile right after inference and blend in that smaller space instead of
+    // stitching a full native-size image and resampling it at the very end. The
+    // stitched buffer shrinks by (scale / targetScale)² — e.g. 4× for 4x→2x.
+    const rawFactor = scale / targetScale;
+    const downsample = targetScale < scale && Number.isInteger(rawFactor);
+    const blendScale = downsample ? targetScale : scale;
+    const blendW = width * blendScale;
+    const blendH = height * blendScale;
     const outW = width * targetScale;
     const outH = height * targetScale;
-    assertOutputSize(nativeW, nativeH);
-    assertOutputSize(outW, outH);
+    assertOutputSize(blendW, blendH);
+    if (outW !== blendW || outH !== blendH) assertOutputSize(outW, outH);
 
     postProgress(5, 'Preprocessing...');
 
-    const outData = new Uint8ClampedArray(nativeW * nativeH * 4);
+    const outData = new Uint8ClampedArray(blendW * blendH * 4);
 
     const inputName = session.inputNames[0];
     const outputName = session.outputNames[0];
@@ -182,9 +192,13 @@ async function processImage(payload: {
     const totalTiles = tilesX * tilesY;
     // Reused across tiles: safe because we always await the run before refilling.
     const tileBuffer = new Float32Array(3 * TILE_SIZE * TILE_SIZE);
+    // Per-axis blend weights: tile 0 is full-weight, later tiles ramp in. Built
+    // once per job and shared by every tile instead of reallocated per tile.
+    const weights = buildBlendWeights(blendScale);
 
     let done = 0;
     for (let ty = 0; ty < tilesY; ty++) {
+      const ay = ty === 0 ? weights.full : weights.ramp;
       for (let tx = 0; tx < tilesX; tx++) {
         if (abortRequested) throw new AbortError();
 
@@ -200,7 +214,11 @@ async function processImage(payload: {
         refill();
         const tileTensor = new ort.Tensor('float32', tileBuffer, [1, 3, TILE_SIZE, TILE_SIZE]);
         const tileOut = await runWithFallback(inputName, outputName, tileTensor, refill);
-        blendTile(outData, tileOut, x0, y0, nativeW, nativeH, scale, tx, ty);
+        const tileData = downsample
+          ? downsampleTile(tileOut, TILE_SIZE * scale, rawFactor)
+          : tileOut;
+        const ax = tx === 0 ? weights.full : weights.ramp;
+        blendTile(outData, tileData, x0, y0, blendW, blendH, blendScale, ax, ay);
 
         done++;
       }
@@ -208,11 +226,11 @@ async function processImage(payload: {
 
     postProgress(85, 'Postprocessing...');
 
-    const nativeImageData = new ImageData(outData, nativeW, nativeH);
-    let resultCanvas: OffscreenCanvas | HTMLCanvasElement = new OffscreenCanvas(nativeW, nativeH);
-    resultCanvas.getContext('2d')!.putImageData(nativeImageData, 0, 0);
+    const stitchedImageData = new ImageData(outData, blendW, blendH);
+    let resultCanvas: OffscreenCanvas | HTMLCanvasElement = new OffscreenCanvas(blendW, blendH);
+    resultCanvas.getContext('2d')!.putImageData(stitchedImageData, 0, 0);
 
-    if (outW !== nativeW || outH !== nativeH) {
+    if (outW !== blendW || outH !== blendH) {
       const scaledCanvas = new OffscreenCanvas(outW, outH);
       const scaledCtx = scaledCanvas.getContext('2d')!;
       scaledCtx.imageSmoothingEnabled = true;
@@ -312,6 +330,22 @@ async function runWithFallback(
 function extractTile(imageData: ImageData, x0: number, y0: number, out: Float32Array) {
   const { data, width, height } = imageData;
   const plane = TILE_SIZE * TILE_SIZE;
+  const inv = 1 / 255;
+
+  // Interior tiles never read outside the image, so skip the per-pixel clamp.
+  if (x0 + TILE_SIZE <= width && y0 + TILE_SIZE <= height) {
+    for (let ly = 0; ly < TILE_SIZE; ly++) {
+      let si = ((y0 + ly) * width + x0) * 4;
+      let di = ly * TILE_SIZE;
+      const diEnd = di + TILE_SIZE;
+      for (; di < diEnd; di++, si += 4) {
+        out[di] = data[si] * inv;
+        out[plane + di] = data[si + 1] * inv;
+        out[2 * plane + di] = data[si + 2] * inv;
+      }
+    }
+    return;
+  }
 
   for (let ly = 0; ly < TILE_SIZE; ly++) {
     const sy = Math.min(height - 1, Math.max(0, y0 + ly));
@@ -321,57 +355,98 @@ function extractTile(imageData: ImageData, x0: number, y0: number, out: Float32A
       const sx = Math.min(width - 1, Math.max(0, x0 + lx));
       const si = (rowBase + sx) * 4;
       const di = outRow + lx;
-      out[di] = data[si] / 255;
-      out[plane + di] = data[si + 1] / 255;
-      out[2 * plane + di] = data[si + 2] / 255;
+      out[di] = data[si] * inv;
+      out[plane + di] = data[si + 1] * inv;
+      out[2 * plane + di] = data[si + 2] * inv;
     }
   }
 }
 
 /**
+ * Precompute the per-axis blend weights once per job. Only two profiles exist:
+ * the first tile on an axis contributes fully (`full`), every later tile ramps
+ * linearly across the overlap (`ramp`). Both axes share the same profile.
+ */
+function buildBlendWeights(blendScale: number) {
+  const ow = TILE_SIZE * blendScale;
+  const overlap = TILE_OVERLAP * blendScale;
+  const full = new Float32Array(ow).fill(1);
+  const ramp = new Float32Array(ow);
+  for (let o = 0; o < ow; o++) {
+    ramp[o] = Math.min(1, o / overlap);
+  }
+  return { full, ramp };
+}
+
+/** Box-filter one tile's RGB planes from (ow×ow) down to (ow/factor)². */
+function downsampleTile(src: Float32Array, ow: number, factor: number): Float32Array {
+  const owT = ow / factor;
+  const planeSrc = ow * ow;
+  const planeDst = owT * owT;
+  const dst = new Float32Array(3 * planeDst);
+  const inv = 1 / (factor * factor);
+
+  for (let y = 0; y < owT; y++) {
+    const sy0 = y * factor;
+    for (let x = 0; x < owT; x++) {
+      const sx0 = x * factor;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      for (let dy = 0; dy < factor; dy++) {
+        let si = (sy0 + dy) * ow + sx0;
+        for (let dx = 0; dx < factor; dx++, si++) {
+          r += src[si];
+          g += src[planeSrc + si];
+          b += src[2 * planeSrc + si];
+        }
+      }
+      const di = y * owT + x;
+      dst[di] = r * inv;
+      dst[planeDst + di] = g * inv;
+      dst[2 * planeDst + di] = b * inv;
+    }
+  }
+  return dst;
+}
+
+/**
  * Blend a tile's network output into the final buffer. Where tiles overlap the
  * contribution is feathered back in (linear ramp across TILE_OVERLAP), the first
- * tile along each axis always contributing fully.
+ * tile along each axis always contributing fully. `ax`/`ay` are the precomputed
+ * per-axis weights; `blendScale` maps source pixels to the destination buffer,
+ * which is the native scale unless the output was downsampled first.
  */
 function blendTile(
   out: Uint8ClampedArray,
   tile: Float32Array,
   x0: number,
   y0: number,
-  nativeW: number,
-  nativeH: number,
-  scale: number,
-  tx: number,
-  ty: number,
+  destW: number,
+  destH: number,
+  blendScale: number,
+  ax: Float32Array,
+  ay: Float32Array,
 ) {
-  const ow = TILE_SIZE * scale;
+  const ow = TILE_SIZE * blendScale;
   const plane = ow * ow;
-  const baseX = x0 * scale;
-  const baseY = y0 * scale;
-
-  const ax = new Float32Array(ow);
-  for (let ox = 0; ox < ow; ox++) {
-    ax[ox] = tx === 0 ? 1 : Math.min(1, ox / scale / TILE_OVERLAP);
-  }
-  const ay = new Float32Array(ow);
-  for (let oy = 0; oy < ow; oy++) {
-    ay[oy] = ty === 0 ? 1 : Math.min(1, oy / scale / TILE_OVERLAP);
-  }
+  const baseX = x0 * blendScale;
+  const baseY = y0 * blendScale;
 
   for (let oy = 0; oy < ow; oy++) {
     const gy = baseY + oy;
-    if (gy >= nativeH) break;
+    if (gy >= destH) break;
     const aY = ay[oy];
     const tileRow = oy * ow;
     for (let ox = 0; ox < ow; ox++) {
       const gx = baseX + ox;
-      if (gx >= nativeW) break;
+      if (gx >= destW) break;
 
       const ti = tileRow + ox;
       const r = tile[ti] * 255;
       const g = tile[plane + ti] * 255;
       const b = tile[2 * plane + ti] * 255;
-      const di = (gy * nativeW + gx) * 4;
+      const di = (gy * destW + gx) * 4;
 
       const a = aY * ax[ox];
       if (a >= 1) {
