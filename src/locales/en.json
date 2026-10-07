@@ -55,7 +55,11 @@
     "failed": "Failed",
     "gpuFallback": "GPU acceleration failed, switched to CPU",
     "clickToCompare": "Click to compare",
-    "close": "Close"
+    "close": "Close",
+    "cancel": "Cancel",
+    "cancelling": "Cancelling...",
+    "cancelled": "Cancelled",
+    "stalled": "Processing stalled — the worker was restarted. Please try again."
   },
   "history": {
     "title": "History",

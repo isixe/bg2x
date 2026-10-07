@@ -103,103 +103,191 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   let resolveCurrent: (() => void) | null = null;
   let queueRunning = false;
   let batchAborted = false;
+  let userCancelled = false;
+  const STALL_TIMEOUT_MS = 10 * 60_000;
+  let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** which (model id, gpu) the worker session currently serves; gpu = value requested at load time */
   let loadedModelId: string | null = null;
   let loadedGpuWanted: boolean | null = null;
   let pendingGpuWanted: boolean | null = null;
 
+  function setupWorker() {
+    worker = new Worker(new URL('../workers/super-resolution.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    worker.onmessage = (e) => {
+      const { type, payload } = e.data as WorkerResponse;
+
+      switch (type) {
+        case 'progress':
+          state.value.progress = payload.progress;
+          state.value.status = payload.status;
+          armStallWatchdog();
+          break;
+
+        case 'complete': {
+          clearStallWatchdog();
+          state.value.progress = 100;
+          state.value.status = 'Complete';
+          const item = currentItem;
+          if (item && item.status === 'processing') {
+            item.status = 'done';
+            item.resultUrl = payload.resultUrl;
+            item.resultSize = payload.size;
+            activeId.value = item.id;
+            options.onResultReady?.({
+              file: item.file,
+              originalSize: item.originalSize!,
+              resultSize: payload.size,
+              resultUrl: payload.resultUrl,
+            });
+          }
+          currentItem = null;
+          resolveCurrent?.();
+          resolveCurrent = null;
+          break;
+        }
+
+        case 'error': {
+          clearStallWatchdog();
+          state.value.isLoadingModel = false;
+          state.value.error = payload.message;
+          state.value.status = 'Error';
+          const item = currentItem;
+          if (item) {
+            item.status = 'error';
+            item.error = payload.message;
+            currentItem = null;
+          } else {
+            batchAborted = true;
+            markRemainingFailed(payload.message);
+          }
+          resolveCurrent?.();
+          resolveCurrent = null;
+          break;
+        }
+
+        case 'aborted': {
+          clearStallWatchdog();
+          state.value.isProcessing = false;
+          state.value.isLoadingModel = false;
+          state.value.status = t('processing.cancelled');
+          state.value.error = null;
+          const item = currentItem;
+          if (item) {
+            item.status = 'error';
+            item.error = t('processing.cancelled');
+            currentItem = null;
+          }
+          batchAborted = true;
+          resolveCurrent?.();
+          resolveCurrent = null;
+          break;
+        }
+
+        case 'model-loaded':
+          state.value.isModelLoaded = true;
+          state.value.isLoadingModel = false;
+          state.value.status = 'Model loaded';
+          loadedModelId = payload?.modelId ?? options.model.value.id;
+          loadedGpuWanted = pendingGpuWanted;
+          pendingGpuWanted = null;
+          break;
+
+        case 'gpu-fallback':
+          gpuFallback.value = true;
+          options.gpu.value = false;
+          loadedGpuWanted = false;
+          state.value.status = t('processing.gpuFallback');
+          break;
+      }
+    };
+
+    worker.onerror = (e) => {
+      clearStallWatchdog();
+      state.value.isProcessing = false;
+      state.value.isLoadingModel = false;
+      state.value.error = e.message;
+      state.value.status = 'Worker error';
+      const item = currentItem;
+      if (item) {
+        item.status = 'error';
+        item.error = e.message;
+        currentItem = null;
+      } else {
+        batchAborted = true;
+        markRemainingFailed(e.message);
+      }
+      resolveCurrent?.();
+      resolveCurrent = null;
+    };
+    void preloadCachedModel();
+  }
+
+  function clearStallWatchdog() {
+    if (stallTimer) {
+      clearTimeout(stallTimer);
+      stallTimer = null;
+    }
+  }
+
+  function armStallWatchdog() {
+    clearStallWatchdog();
+    stallTimer = setTimeout(onWorkerStalled, STALL_TIMEOUT_MS);
+  }
+
+  function restartWorker() {
+    clearStallWatchdog();
+    if (worker) {
+      worker.terminate();
+      worker = null;
+    }
+    loadedModelId = null;
+    loadedGpuWanted = null;
+    pendingGpuWanted = null;
+    state.value.isModelLoaded = false;
+    setupWorker();
+  }
+
+  /**
+   * The worker stopped posting progress for longer than STALL_TIMEOUT_MS — most
+   * likely a wedged GPU/WASM inference. Fail the in-flight item and rebuild the
+   * worker so the queue does not stay stuck forever.
+   */
+  function onWorkerStalled() {
+    clearStallWatchdog();
+    const message = t('processing.stalled');
+    state.value.isProcessing = false;
+    state.value.isLoadingModel = false;
+    state.value.error = message;
+    state.value.status = 'Error';
+    const item = currentItem;
+    if (item) {
+      item.status = 'error';
+      item.error = message;
+      currentItem = null;
+    } else {
+      batchAborted = true;
+      markRemainingFailed(message);
+    }
+    resolveCurrent?.();
+    resolveCurrent = null;
+    restartWorker();
+  }
+
+  /** Ask the worker to stop the current inference (best-effort, checked between tiles). */
+  function cancelProcessing() {
+    if (!worker || !state.value.isProcessing) return;
+    userCancelled = true;
+    state.value.status = t('processing.cancelling');
+    worker.postMessage({ type: 'abort' });
+  }
+
   onMounted(() => {
     if (typeof Worker !== 'undefined') {
-      worker = new Worker(new URL('../workers/super-resolution.worker.ts', import.meta.url), {
-        type: 'module',
-      });
-
-      worker.onmessage = (e) => {
-        const { type, payload } = e.data as WorkerResponse;
-
-        switch (type) {
-          case 'progress':
-            state.value.progress = payload.progress;
-            state.value.status = payload.status;
-            break;
-
-          case 'complete': {
-            state.value.progress = 100;
-            state.value.status = 'Complete';
-            const item = currentItem;
-            if (item && item.status === 'processing') {
-              item.status = 'done';
-              item.resultUrl = payload.resultUrl;
-              item.resultSize = payload.size;
-              activeId.value = item.id;
-              options.onResultReady?.({
-                file: item.file,
-                originalSize: item.originalSize!,
-                resultSize: payload.size,
-                resultUrl: payload.resultUrl,
-              });
-            }
-            currentItem = null;
-            resolveCurrent?.();
-            resolveCurrent = null;
-            break;
-          }
-
-          case 'error': {
-            state.value.isLoadingModel = false;
-            state.value.error = payload.message;
-            state.value.status = 'Error';
-            const item = currentItem;
-            if (item) {
-              item.status = 'error';
-              item.error = payload.message;
-              currentItem = null;
-            } else {
-              batchAborted = true;
-              markRemainingFailed(payload.message);
-            }
-            resolveCurrent?.();
-            resolveCurrent = null;
-            break;
-          }
-
-          case 'model-loaded':
-            state.value.isModelLoaded = true;
-            state.value.isLoadingModel = false;
-            state.value.status = 'Model loaded';
-            loadedModelId = payload?.modelId ?? options.model.value.id;
-            loadedGpuWanted = pendingGpuWanted;
-            pendingGpuWanted = null;
-            break;
-
-          case 'gpu-fallback':
-            gpuFallback.value = true;
-            options.gpu.value = false;
-            loadedGpuWanted = false;
-            state.value.status = t('processing.gpuFallback');
-            break;
-        }
-      };
-
-      worker.onerror = (e) => {
-        state.value.isProcessing = false;
-        state.value.isLoadingModel = false;
-        state.value.error = e.message;
-        state.value.status = 'Worker error';
-        const item = currentItem;
-        if (item) {
-          item.status = 'error';
-          item.error = e.message;
-          currentItem = null;
-        } else {
-          batchAborted = true;
-          markRemainingFailed(e.message);
-        }
-        resolveCurrent?.();
-        resolveCurrent = null;
-      };
-      void preloadCachedModel();
+      setupWorker();
     }
 
     window.addEventListener('keydown', onGlobalKeydown);
@@ -448,6 +536,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (queueRunning) return;
     queueRunning = true;
     batchAborted = false;
+    userCancelled = false;
     state.value.isProcessing = true;
 
     try {
@@ -462,7 +551,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       }
 
       if (batchAborted) {
-        markRemainingFailed(state.value.error ?? 'Processing aborted');
+        markRemainingFailed(
+          userCancelled ? t('processing.cancelled') : (state.value.error ?? 'Processing aborted'),
+        );
       }
     } catch (err) {
       state.value.error = err instanceof Error ? err.message : 'Processing failed';
@@ -713,6 +804,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     gpuFallback,
     processBatch,
     reprocess,
+    cancelProcessing,
     removeItem,
     toggleSelect,
     toggleSelectAll,

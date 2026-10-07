@@ -14,24 +14,68 @@ console.log(
   `[worker] init numThreads=${ort.env.wasm.numThreads} electron=${isElectron} isolated=${typeof self !== 'undefined' && self.crossOriginIsolated}`,
 );
 
+// ── Tiling ────────────────────────────────────────────────────────────────────
+// The whole image used to go through a single tensor, which blows past the
+// wasm32 int32 tensor limits (SafeIntOnOverflow in safeint.h) for anything
+// bigger than ~0.5MP and pins the GPU with a huge allocation. We now run the
+// network over overlapping tiles and blend them back, so each inference stays
+// small and safe regardless of input size. TILE_SIZE is a multiple of 64 (the
+// granularity Swin2SR needs) so tiles stay aligned; the overlap is feathered so
+// the seams are invisible.
+const TILE_SIZE = 256;
+const TILE_OVERLAP = 32;
+const TILE_STEP = TILE_SIZE - TILE_OVERLAP;
+
+// Rebuild the session on CPU if a single tile's inference does not settle in
+// this window — guards against a dead GPU kernel / lost device that would
+// otherwise leave the promise pending forever.
+const INFER_TIMEOUT_MS = 300_000;
+
+// The stitched native output is one RGBA buffer plus a canvas. Beyond these
+// bounds browsers either refuse the canvas or OOM, so fail with a clear message
+// instead of a cryptic runtime crash.
+const MAX_OUTPUT_DIMENSION = 16_384;
+const MAX_OUTPUT_PIXELS = 200_000_000;
+
+class AbortError extends Error {
+  constructor() {
+    super('Processing aborted');
+    this.name = 'AbortError';
+  }
+}
+
 let session: ort.InferenceSession | null = null;
 let currentModelId: string | null = null;
 let currentGpu = false;
 /** Source used to build the current session; kept so we can rebuild it on CPU if GPU inference fails. */
 let currentSource: string | ArrayBuffer | null = null;
 
-self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
-  const { type, payload } = e.data;
+/** Set by an `abort` message; checked between tiles so cancellation is prompt. */
+let abortRequested = false;
 
-  switch (type) {
+self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+  const message = e.data;
+
+  switch (message.type) {
     case 'load-model':
-      await loadModel(payload.modelId, payload.modelData, payload.gpu ?? false);
+      await loadModel(
+        message.payload.modelId,
+        message.payload.modelData,
+        message.payload.gpu ?? false,
+      );
       break;
     case 'process':
-      await processImage(payload);
+      await processImage(message.payload);
+      break;
+    case 'abort':
+      abortRequested = true;
       break;
   }
 };
+
+function postProgress(progress: number, status: string) {
+  self.postMessage({ type: 'progress', payload: { progress, status } });
+}
 
 async function createSession(source: string | ArrayBuffer, gpu: boolean) {
   const executionProviders = gpu ? ['webgpu'] : ['wasm'];
@@ -55,10 +99,7 @@ async function loadModel(modelId: string, modelData: ArrayBuffer, gpu = false) {
       return;
     }
 
-    self.postMessage({
-      type: 'progress',
-      payload: { progress: 0, status: 'Loading model...' },
-    });
+    postProgress(0, 'Loading model...');
 
     const source = modelData;
     let effectiveGpu = gpu;
@@ -96,6 +137,15 @@ async function loadModel(modelId: string, modelData: ArrayBuffer, gpu = false) {
   }
 }
 
+function assertOutputSize(w: number, h: number) {
+  if (w > MAX_OUTPUT_DIMENSION || h > MAX_OUTPUT_DIMENSION || w * h > MAX_OUTPUT_PIXELS) {
+    throw new Error(
+      `Image too large: output would be ${w}×${h}px, exceeding the ` +
+        `${MAX_OUTPUT_DIMENSION}px / ${Math.round(MAX_OUTPUT_PIXELS / 1_000_000)}MP limit`,
+    );
+  }
+}
+
 async function processImage(payload: {
   imageData: ImageData;
   width: number;
@@ -111,82 +161,67 @@ async function processImage(payload: {
       throw new Error('Model not loaded');
     }
 
-    self.postMessage({
-      type: 'progress',
-      payload: { progress: 10, status: 'Preprocessing...' },
-    });
+    abortRequested = false;
 
-    const inputTensor = preprocessImage(imageData);
+    const nativeW = width * scale;
+    const nativeH = height * scale;
+    const outW = width * targetScale;
+    const outH = height * targetScale;
+    assertOutputSize(nativeW, nativeH);
+    assertOutputSize(outW, outH);
 
-    self.postMessage({
-      type: 'progress',
-      payload: { progress: 30, status: 'Running inference...' },
-    });
+    postProgress(5, 'Preprocessing...');
+
+    const outData = new Uint8ClampedArray(nativeW * nativeH * 4);
 
     const inputName = session.inputNames[0];
     const outputName = session.outputNames[0];
 
-    let outputTensor: ort.Tensor;
-    try {
-      const results = await session.run({ [inputName]: inputTensor });
-      outputTensor = results[outputName];
-    } catch (inferenceError) {
-      // WebGPU can fail at runtime (e.g. a kernel cannot allocate its output)
-      // even when the session was created successfully. Rebuild on WASM and
-      // retry the same inference once before surfacing a hard error.
-      if (!currentGpu || !currentSource) throw inferenceError;
+    const tilesX = Math.max(1, Math.ceil((width - TILE_OVERLAP) / TILE_STEP));
+    const tilesY = Math.max(1, Math.ceil((height - TILE_OVERLAP) / TILE_STEP));
+    const totalTiles = tilesX * tilesY;
+    // Reused across tiles: safe because we always await the run before refilling.
+    const tileBuffer = new Float32Array(3 * TILE_SIZE * TILE_SIZE);
 
-      self.postMessage({
-        type: 'gpu-fallback',
-        payload: { message: `GPU inference failed, falling back to CPU: ${inferenceError}` },
-      });
-      self.postMessage({
-        type: 'progress',
-        payload: { progress: 30, status: 'GPU failed, retrying on CPU...' },
-      });
+    let done = 0;
+    for (let ty = 0; ty < tilesY; ty++) {
+      for (let tx = 0; tx < tilesX; tx++) {
+        if (abortRequested) throw new AbortError();
 
-      session = await createSession(currentSource, false);
-      currentGpu = false;
+        const x0 = tx * TILE_STEP;
+        const y0 = ty * TILE_STEP;
 
-      const retryInput = preprocessImage(imageData);
-      const retryResults = await session.run({ [inputName]: retryInput });
-      outputTensor = retryResults[outputName];
+        postProgress(
+          10 + Math.round((done / totalTiles) * 70),
+          `Running inference... (${done + 1}/${totalTiles})`,
+        );
+
+        const refill = () => extractTile(imageData, x0, y0, tileBuffer);
+        refill();
+        const tileTensor = new ort.Tensor('float32', tileBuffer, [1, 3, TILE_SIZE, TILE_SIZE]);
+        const tileOut = await runWithFallback(inputName, outputName, tileTensor, refill);
+        blendTile(outData, tileOut, x0, y0, nativeW, nativeH, scale, tx, ty);
+
+        done++;
+      }
     }
 
-    self.postMessage({
-      type: 'progress',
-      payload: { progress: 70, status: 'Postprocessing...' },
-    });
+    postProgress(85, 'Postprocessing...');
 
-    const nativeW = width * scale;
-    const nativeH = height * scale;
-    const outputData = postprocessOutput(outputTensor, nativeW, nativeH);
+    const nativeImageData = new ImageData(outData, nativeW, nativeH);
+    let resultCanvas: OffscreenCanvas | HTMLCanvasElement = new OffscreenCanvas(nativeW, nativeH);
+    resultCanvas.getContext('2d')!.putImageData(nativeImageData, 0, 0);
 
-    self.postMessage({
-      type: 'progress',
-      payload: { progress: 90, status: 'Creating result...' },
-    });
-
-    const nativeCanvas = new OffscreenCanvas(nativeW, nativeH);
-    const nativeCtx = nativeCanvas.getContext('2d')!;
-    nativeCtx.putImageData(
-      new ImageData(new Uint8ClampedArray(outputData), nativeW, nativeH),
-      0,
-      0,
-    );
-
-    const outW = width * targetScale;
-    const outH = height * targetScale;
-
-    let resultCanvas: OffscreenCanvas | HTMLCanvasElement = nativeCanvas;
     if (outW !== nativeW || outH !== nativeH) {
       const scaledCanvas = new OffscreenCanvas(outW, outH);
       const scaledCtx = scaledCanvas.getContext('2d')!;
       scaledCtx.imageSmoothingEnabled = true;
       scaledCtx.imageSmoothingQuality = 'high';
-      scaledCtx.drawImage(nativeCanvas, 0, 0, outW, outH);
+      scaledCtx.drawImage(resultCanvas, 0, 0, outW, outH);
       resultCanvas = scaledCanvas;
     }
+
+    postProgress(92, 'Creating result...');
 
     const blob = await resultCanvas.convertToBlob({ type: 'image/png' });
     const resultUrl = URL.createObjectURL(blob);
@@ -199,41 +234,157 @@ async function processImage(payload: {
       },
     });
   } catch (error) {
-    self.postMessage({
-      type: 'error',
-      payload: { message: `Processing failed: ${error}` },
-    });
+    if (error instanceof AbortError) {
+      self.postMessage({ type: 'aborted', payload: { message: 'Processing cancelled' } });
+    } else {
+      self.postMessage({
+        type: 'error',
+        payload: { message: `Processing failed: ${error}` },
+      });
+    }
+  } finally {
+    abortRequested = false;
   }
 }
 
-function preprocessImage(imageData: ImageData): ort.Tensor {
-  const { data, width, height } = imageData;
-
-  const float32Data = new Float32Array(3 * height * width);
-
-  for (let i = 0; i < height * width; i++) {
-    float32Data[i] = data[i * 4] / 255.0;
-    float32Data[height * width + i] = data[i * 4 + 1] / 255.0;
-    float32Data[2 * height * width + i] = data[i * 4 + 2] / 255.0;
-  }
-
-  return new ort.Tensor('float32', float32Data, [1, 3, height, width]);
+/** Reject if `promise` does not settle within `ms` (used to fence dead GPU runs). */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`));
+    }, ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
 }
 
-function postprocessOutput(
+/**
+ * Run one tile. If the active session is on GPU and the run throws or fails to
+ * settle (lost device / stuck kernel), rebuild the session on WASM and retry the
+ * same tile once before surfacing a hard error.
+ */
+async function runWithFallback(
+  inputName: string,
+  outputName: string,
   tensor: ort.Tensor,
-  outputWidth: number,
-  outputHeight: number,
-): Uint8ClampedArray {
-  const data = tensor.data as Float32Array;
-  const output = new Uint8ClampedArray(outputWidth * outputHeight * 4);
+  refill: () => void,
+): Promise<Float32Array> {
+  try {
+    const results = await withTimeout(
+      session!.run({ [inputName]: tensor }),
+      INFER_TIMEOUT_MS,
+      'Inference',
+    );
+    return results[outputName].data as Float32Array;
+  } catch (error) {
+    if (abortRequested) throw new AbortError();
+    if (!currentGpu || !currentSource) throw error;
 
-  for (let i = 0; i < outputWidth * outputHeight; i++) {
-    output[i * 4] = Math.min(255, Math.max(0, data[i] * 255));
-    output[i * 4 + 1] = Math.min(255, Math.max(0, data[outputWidth * outputHeight + i] * 255));
-    output[i * 4 + 2] = Math.min(255, Math.max(0, data[2 * outputWidth * outputHeight + i] * 255));
-    output[i * 4 + 3] = 255;
+    self.postMessage({
+      type: 'gpu-fallback',
+      payload: { message: `GPU inference failed, falling back to CPU: ${error}` },
+    });
+    postProgress(10, 'GPU failed, retrying on CPU...');
+
+    session = await createSession(currentSource, false);
+    currentGpu = false;
+
+    // The aborted GPU run may have partially written to the shared buffer.
+    refill();
+    const retry = await withTimeout(
+      session.run({ [inputName]: tensor }),
+      INFER_TIMEOUT_MS,
+      'Inference',
+    );
+    return retry[outputName].data as Float32Array;
+  }
+}
+
+/** Copy the TILE_SIZE×TILE_SIZE window at (x0, y0) into `out`, replicating edge pixels. */
+function extractTile(imageData: ImageData, x0: number, y0: number, out: Float32Array) {
+  const { data, width, height } = imageData;
+  const plane = TILE_SIZE * TILE_SIZE;
+
+  for (let ly = 0; ly < TILE_SIZE; ly++) {
+    const sy = Math.min(height - 1, Math.max(0, y0 + ly));
+    const rowBase = sy * width;
+    const outRow = ly * TILE_SIZE;
+    for (let lx = 0; lx < TILE_SIZE; lx++) {
+      const sx = Math.min(width - 1, Math.max(0, x0 + lx));
+      const si = (rowBase + sx) * 4;
+      const di = outRow + lx;
+      out[di] = data[si] / 255;
+      out[plane + di] = data[si + 1] / 255;
+      out[2 * plane + di] = data[si + 2] / 255;
+    }
+  }
+}
+
+/**
+ * Blend a tile's network output into the final buffer. Where tiles overlap the
+ * contribution is feathered back in (linear ramp across TILE_OVERLAP), the first
+ * tile along each axis always contributing fully.
+ */
+function blendTile(
+  out: Uint8ClampedArray,
+  tile: Float32Array,
+  x0: number,
+  y0: number,
+  nativeW: number,
+  nativeH: number,
+  scale: number,
+  tx: number,
+  ty: number,
+) {
+  const ow = TILE_SIZE * scale;
+  const plane = ow * ow;
+  const baseX = x0 * scale;
+  const baseY = y0 * scale;
+
+  const ax = new Float32Array(ow);
+  for (let ox = 0; ox < ow; ox++) {
+    ax[ox] = tx === 0 ? 1 : Math.min(1, ox / scale / TILE_OVERLAP);
+  }
+  const ay = new Float32Array(ow);
+  for (let oy = 0; oy < ow; oy++) {
+    ay[oy] = ty === 0 ? 1 : Math.min(1, oy / scale / TILE_OVERLAP);
   }
 
-  return output;
+  for (let oy = 0; oy < ow; oy++) {
+    const gy = baseY + oy;
+    if (gy >= nativeH) break;
+    const aY = ay[oy];
+    const tileRow = oy * ow;
+    for (let ox = 0; ox < ow; ox++) {
+      const gx = baseX + ox;
+      if (gx >= nativeW) break;
+
+      const ti = tileRow + ox;
+      const r = tile[ti] * 255;
+      const g = tile[plane + ti] * 255;
+      const b = tile[2 * plane + ti] * 255;
+      const di = (gy * nativeW + gx) * 4;
+
+      const a = aY * ax[ox];
+      if (a >= 1) {
+        out[di] = r;
+        out[di + 1] = g;
+        out[di + 2] = b;
+      } else {
+        const inv = 1 - a;
+        out[di] = out[di] * inv + r * a;
+        out[di + 1] = out[di + 1] * inv + g * a;
+        out[di + 2] = out[di + 2] * inv + b * a;
+      }
+      out[di + 3] = 255;
+    }
+  }
 }

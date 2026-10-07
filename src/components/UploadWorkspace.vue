@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ImagePlus, Trash2 } from 'lucide-vue-next';
+import { ImagePlus, Trash2, X } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
 import QueueList from './QueueList.vue';
 import OpsPanel from './OpsPanel.vue';
@@ -36,6 +36,7 @@ const {
   gpuFallback,
   processBatch,
   reprocess,
+  cancelProcessing,
   removeItem,
   toggleSelect,
   toggleSelectAll,
@@ -174,9 +175,20 @@ onUnmounted(() => {
             <span class="status-dot" />
             {{ state.status }}
           </span>
-          <span v-if="state.progress > 0 && !state.isLoadingModel" class="status-pct">
-            {{ state.progress }}%
-          </span>
+          <div class="status-actions">
+            <span v-if="state.progress > 0 && !state.isLoadingModel" class="status-pct">
+              {{ state.progress }}%
+            </span>
+            <button
+              v-if="state.isProcessing"
+              type="button"
+              class="status-cancel"
+              @click="cancelProcessing"
+            >
+              <X />
+              {{ t('processing.cancel') }}
+            </button>
+          </div>
         </div>
         <div class="progress-track">
           <div
@@ -349,6 +361,34 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--color-gray-dark);
   font-variant-numeric: tabular-nums;
+}
+
+.status-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.status-cancel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray-dark);
+  background: var(--color-gray);
+  border-radius: var(--radius-md);
+}
+
+.status-cancel:hover {
+  color: #dc2626;
+}
+
+.status-cancel svg {
+  width: 14px;
+  height: 14px;
 }
 
 .progress-track {

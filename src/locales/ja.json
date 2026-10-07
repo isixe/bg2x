@@ -55,7 +55,11 @@
     "failed": "失敗",
     "gpuFallback": "GPU アクセラレーションに失敗したため、CPU に切り替えました",
     "clickToCompare": "クリックで比較",
-    "close": "閉じる"
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "cancelling": "キャンセル中...",
+    "cancelled": "キャンセルしました",
+    "stalled": "処理が停止しました — ワーカーを再起動しました。もう一度お試しください。"
   },
   "history": {
     "title": "履歴",
