@@ -224,6 +224,8 @@ async function processImage(payload: {
       }
     }
 
+    if (abortRequested) throw new AbortError();
+
     postProgress(85, 'Postprocessing...');
 
     const stitchedImageData = new ImageData(outData, blendW, blendH);

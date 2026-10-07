@@ -75,6 +75,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const gpuSupported = typeof navigator !== 'undefined' && 'gpu' in navigator;
   const gpuFallback = ref(false);
 
+  const modelPhase = ref<'downloading' | 'loading' | null>(null);
+
   /** copy button feedback: show a check icon for a short while after a successful copy */
   const copiedId = ref<number | null>(null);
   const COPIED_DURATION = 1800;
@@ -104,6 +106,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   let queueRunning = false;
   let batchAborted = false;
   let userCancelled = false;
+  /** which cancellation is in flight; lets the 'aborted' reply distinguish item vs batch */
+  let abortScope: 'none' | 'item' | 'all' = 'none';
   const STALL_TIMEOUT_MS = 10 * 60_000;
   let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -171,17 +175,22 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
         case 'aborted': {
           clearStallWatchdog();
-          state.value.isProcessing = false;
           state.value.isLoadingModel = false;
-          state.value.status = t('processing.cancelled');
-          state.value.error = null;
           const item = currentItem;
           if (item) {
-            item.status = 'error';
-            item.error = t('processing.cancelled');
+            markItemCancelled(item);
             currentItem = null;
           }
-          batchAborted = true;
+          if (abortScope === 'item') {
+            abortScope = 'none';
+          } else {
+            state.value.isProcessing = false;
+            state.value.error = null;
+            state.value.status = t('processing.cancelled');
+            batchAborted = true;
+            userCancelled = true;
+            markRemainingFailed(t('processing.cancelled'));
+          }
           resolveCurrent?.();
           resolveCurrent = null;
           break;
@@ -190,6 +199,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         case 'model-loaded':
           state.value.isModelLoaded = true;
           state.value.isLoadingModel = false;
+          modelPhase.value = null;
           state.value.status = 'Model loaded';
           loadedModelId = payload?.modelId ?? options.model.value.id;
           loadedGpuWanted = pendingGpuWanted;
@@ -277,12 +287,45 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     restartWorker();
   }
 
-  /** Ask the worker to stop the current inference (best-effort, checked between tiles). */
+  function markItemCancelled(item: BatchItem) {
+    item.status = 'error';
+    item.error = t('processing.cancelled');
+  }
+
+  /** Fail one item but keep the queue running (unlike cancelProcessing). */
+  function cancelItem(id: number) {
+    const item = state.value.items.find((i) => i.id === id);
+    if (!item) return;
+    if (item.status === 'pending') {
+      markItemCancelled(item);
+      return;
+    }
+    if (item.status !== 'processing') return;
+    abortScope = 'item';
+    markItemCancelled(item);
+    if (currentItem?.id === id) {
+      currentItem = null;
+      worker?.postMessage({ type: 'abort' });
+    }
+  }
+
+  /** Cancel the whole batch: fail every unfinished item and stop the queue. */
   function cancelProcessing() {
-    if (!worker || !state.value.isProcessing) return;
+    if (!worker) return;
+    const hasActive = state.value.items.some(
+      (i) => i.status === 'pending' || i.status === 'processing',
+    );
+    if (!hasActive) return;
+    abortScope = 'all';
+    const hadCurrent = currentItem !== null;
+    state.value.items.forEach((i) => {
+      if (i.status === 'pending' || i.status === 'processing') markItemCancelled(i);
+    });
+    currentItem = null;
+    batchAborted = true;
+    state.value.error = null;
     userCancelled = true;
-    state.value.status = t('processing.cancelling');
-    worker.postMessage({ type: 'abort' });
+    if (hadCurrent) worker.postMessage({ type: 'abort' });
   }
 
   onMounted(() => {
@@ -425,15 +468,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           throw new Error(`Unknown model: ${modelId}`);
         }
         state.value.status = 'Downloading model...';
+        modelPhase.value = 'downloading';
         modelData = await fetchModelBytes(model);
         await cacheModel(modelId, modelData);
         modelCacheStore.setCached(modelId, true);
       }
 
+      modelPhase.value = 'loading';
       await loadModel(modelId, modelData);
       await waitForModelLoaded();
       return true;
     } catch (err) {
+      modelPhase.value = null;
       state.value.isLoadingModel = false;
       state.value.error = err instanceof Error ? err.message : 'Failed to load model';
       state.value.status = 'Error';
@@ -469,6 +515,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       return 'abort';
     }
 
+    // the item may have been cancelled (or the batch aborted) while the model
+    // was loading; bail out so a cancelled item is not resurrected here
+    if (batchAborted || item.status !== 'pending') {
+      return 'error';
+    }
+
+    abortScope = 'none';
     state.value.isProcessing = true;
     state.value.progress = 0;
     state.value.status = 'Loading image...';
@@ -537,6 +590,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     queueRunning = true;
     batchAborted = false;
     userCancelled = false;
+    abortScope = 'none';
     state.value.isProcessing = true;
 
     try {
@@ -805,6 +859,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     processBatch,
     reprocess,
     cancelProcessing,
+    cancelItem,
+    modelPhase,
     removeItem,
     toggleSelect,
     toggleSelectAll,

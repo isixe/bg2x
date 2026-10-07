@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, Download, Layers, RotateCcw, Trash2 } from 'lucide-vue-next';
+import { Check, Copy, Download, Layers, RotateCcw, Trash2, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import type { BatchItem } from '../type';
 
@@ -11,6 +11,7 @@ defineProps<{
   activeId: number | null;
   copiedId: number | null;
   isProcessing: boolean;
+  progress: number;
 }>();
 
 const emit = defineEmits<{
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   (e: 'download', item: BatchItem): void;
   (e: 'copy', item: BatchItem): void;
   (e: 'batch', action: 'download' | 'copy' | 'reprocess'): void;
+  (e: 'cancel-item', id: number): void;
   (e: 'remove', id: number): void;
 }>();
 </script>
@@ -27,18 +29,49 @@ const emit = defineEmits<{
 <template>
   <section class="queue-panel">
     <div class="queue-header">
-      <label class="queue-select-all">
-        <input
-          type="checkbox"
-          :checked="items.length > 0 && selectedIds.length === items.length"
-          :disabled="items.length === 0"
-          @change="emit('select-all')"
-        />
-        <span class="queue-title">{{ t('queue.title') }}</span>
-      </label>
-      <span v-if="selectedIds.length > 0" class="queue-selected">
-        {{ t('queue.selected', { count: selectedIds.length }) }}
-      </span>
+      <div class="queue-header-left">
+        <label class="queue-select-all">
+          <input
+            type="checkbox"
+            :checked="items.length > 0 && selectedIds.length === items.length"
+            :disabled="items.length === 0"
+            @change="emit('select-all')"
+          />
+          <span class="queue-title">{{ t('queue.title') }}</span>
+        </label>
+        <span v-if="selectedIds.length > 0" class="queue-selected">
+          {{ t('queue.selected', { count: selectedIds.length }) }}
+        </span>
+      </div>
+      <div v-if="selectedIds.length > 0" class="queue-batch">
+        <button
+          class="batch-btn"
+          :title="t('queue.download')"
+          :disabled="isProcessing"
+          @click="emit('batch', 'download')"
+        >
+          <Download :size="14" />
+          <span>{{ t('queue.download') }}</span>
+        </button>
+        <button
+          class="batch-btn"
+          :title="t('queue.copy')"
+          :disabled="isProcessing"
+          @click="emit('batch', 'copy')"
+        >
+          <Copy :size="14" />
+          <span>{{ t('queue.copy') }}</span>
+        </button>
+        <button
+          class="batch-btn"
+          :title="t('queue.reprocess')"
+          :disabled="isProcessing"
+          @click="emit('batch', 'reprocess')"
+        >
+          <RotateCcw :size="14" />
+          <span>{{ t('queue.reprocess') }}</span>
+        </button>
+      </div>
     </div>
 
     <div v-if="items.length === 0" class="queue-empty">
@@ -79,24 +112,27 @@ const emit = defineEmits<{
         />
         <div class="queue-info">
           <span class="queue-name" :title="item.name">{{ item.name }}</span>
-          <span class="queue-meta">
+          <span
+            class="queue-meta"
+            :title="item.status === 'error' ? (item.error ?? '') : undefined"
+          >
             <template v-if="item.status === 'pending'">{{ t('processing.pending') }}</template>
             <template v-else-if="item.status === 'processing'">
               {{ t('processing.itemProcessing') }}
             </template>
-            <template v-else-if="item.status === 'error'">{{ t('processing.failed') }}</template>
+            <template v-else-if="item.status === 'error'">
+              {{ item.error || t('processing.failed') }}
+            </template>
             <template v-else-if="item.resultSize">
               {{ item.resultSize.width }}×{{ item.resultSize.height }}
             </template>
           </span>
         </div>
-        <span v-if="item.status === 'processing'" class="queue-spinner" aria-hidden="true" />
+        <div v-if="item.status === 'processing'" class="queue-ring" :style="{ '--p': progress }">
+          <span class="queue-ring-label">{{ progress }}%</span>
+        </div>
         <Check v-else-if="item.status === 'done'" class="queue-done-icon" :size="16" />
-        <span
-          v-else-if="item.status === 'error'"
-          class="queue-error-dot"
-          :title="item.error ?? ''"
-        />
+        <span v-else-if="item.status === 'error'" class="queue-error-dot" :title="item.error ?? ''" />
         <div v-if="item.status === 'done'" class="queue-actions">
           <button
             class="queue-action"
@@ -116,7 +152,15 @@ const emit = defineEmits<{
           </button>
         </div>
         <button
-          v-if="item.status !== 'processing'"
+          v-if="item.status === 'processing'"
+          class="queue-cancel"
+          :title="t('processing.cancel')"
+          @click.stop="emit('cancel-item', item.id)"
+        >
+          <X :size="14" />
+        </button>
+        <button
+          v-else
           class="queue-remove"
           :title="t('queue.remove')"
           @click.stop="emit('remove', item.id)"
@@ -124,36 +168,6 @@ const emit = defineEmits<{
           <Trash2 :size="14" />
         </button>
       </div>
-    </div>
-
-    <div v-if="selectedIds.length > 0" class="queue-batch">
-      <button
-        class="batch-btn"
-        :title="t('queue.download')"
-        :disabled="isProcessing"
-        @click="emit('batch', 'download')"
-      >
-        <Download :size="14" />
-        <span>{{ t('queue.download') }}</span>
-      </button>
-      <button
-        class="batch-btn"
-        :title="t('queue.copy')"
-        :disabled="isProcessing"
-        @click="emit('batch', 'copy')"
-      >
-        <Copy :size="14" />
-        <span>{{ t('queue.copy') }}</span>
-      </button>
-      <button
-        class="batch-btn"
-        :title="t('queue.reprocess')"
-        :disabled="isProcessing"
-        @click="emit('batch', 'reprocess')"
-      >
-        <RotateCcw :size="14" />
-        <span>{{ t('queue.reprocess') }}</span>
-      </button>
     </div>
   </section>
 </template>
@@ -175,6 +189,16 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  flex-wrap: nowrap;
+  min-height: 2rem;
+}
+
+.queue-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  flex: 1;
 }
 
 .queue-select-all {
@@ -201,6 +225,8 @@ const emit = defineEmits<{
   font-weight: 500;
   color: var(--color-primary);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .queue-empty {
@@ -297,26 +323,45 @@ const emit = defineEmits<{
 .queue-meta {
   font-size: 0.6875rem;
   color: var(--color-gray-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .queue-item.error .queue-meta {
   color: #dc2626;
 }
 
-.queue-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: queue-spin 0.7s linear infinite;
+.queue-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
 }
 
-@keyframes queue-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.queue-ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--color-primary) calc(var(--p, 0) * 1%),
+    var(--color-border) 0
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+}
+
+.queue-ring-label {
+  position: relative;
+  font-size: 0.5rem;
+  font-weight: 600;
+  color: var(--color-gray-dark);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .queue-done-icon {
@@ -368,6 +413,28 @@ const emit = defineEmits<{
   color: #fff;
 }
 
+.queue-cancel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray);
+  color: var(--color-gray-dark);
+  flex-shrink: 0;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.queue-cancel:hover {
+  background: #dc2626;
+  color: #fff;
+}
+
 .queue-remove {
   display: flex;
   align-items: center;
@@ -401,19 +468,16 @@ const emit = defineEmits<{
 .queue-batch {
   display: flex;
   gap: 0.375rem;
-  padding-top: 0.75rem;
-  border-top: var(--border-thin);
-  flex-wrap: wrap;
+  margin-left: auto;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 .batch-btn {
   display: flex;
   align-items: center;
   gap: 0.3rem;
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
-  padding: 0.5rem 0.375rem;
+  padding: 0.375rem 0.5rem;
   font-size: 0.6875rem;
   font-weight: 600;
   background: var(--color-gray);

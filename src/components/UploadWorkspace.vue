@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ImagePlus, Trash2, X } from 'lucide-vue-next';
+import { Ban, ImagePlus, Trash2 } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
 import QueueList from './QueueList.vue';
 import OpsPanel from './OpsPanel.vue';
@@ -37,6 +37,8 @@ const {
   processBatch,
   reprocess,
   cancelProcessing,
+  cancelItem,
+  modelPhase,
   removeItem,
   toggleSelect,
   toggleSelectAll,
@@ -88,16 +90,9 @@ function onBatch(action: 'download' | 'copy' | 'reprocess') {
   }
 }
 
-const showStatus = computed(
-  () => state.value.items.length > 0 || state.value.isLoadingModel || state.value.isProcessing,
+const hasActiveItems = computed(() =>
+  state.value.items.some((i) => i.status === 'pending' || i.status === 'processing'),
 );
-
-const statusClass = computed(() => {
-  if (state.value.error) return 'error';
-  if (state.value.isProcessing || state.value.isLoadingModel) return 'active';
-  if (state.value.status === 'Complete') return 'done';
-  return '';
-});
 
 // Above 1024px the actions panel docks to the right of the workspace; below
 // that it stacks under the main column so it is always reachable inline.
@@ -145,11 +140,33 @@ onUnmounted(() => {
             <Trash2 :size="15" />
             <span>{{ t('queue.clear') }}</span>
           </button>
+          <button
+            v-if="hasActiveItems"
+            type="button"
+            class="toolbar-btn"
+            @click="cancelProcessing"
+          >
+            <Ban :size="15" />
+            <span>{{ t('queue.cancelAll') }}</span>
+          </button>
           <button type="button" class="toolbar-btn" @click="openFilePicker">
             <ImagePlus :size="15" />
             <span>{{ t('ops.processNew') }}</span>
           </button>
         </div>
+      </div>
+
+      <div v-if="modelPhase && state.items.length > 0" class="model-loading">
+        <span class="model-loading-spinner" aria-hidden="true" />
+        <span>
+          {{
+            t(
+              modelPhase === 'downloading'
+                ? 'processing.downloadingModel'
+                : 'processing.loadingModel',
+            )
+          }}
+        </span>
       </div>
 
       <ImageUploader v-if="state.items.length === 0" @files-selected="processBatch" />
@@ -160,47 +177,18 @@ onUnmounted(() => {
         :active-id="activeId"
         :copied-id="copiedId"
         :is-processing="state.isProcessing"
+        :progress="state.progress"
         @toggle="toggleSelect"
         @select-all="toggleSelectAll"
         @preview="selectItem"
         @download="downloadItem"
         @copy="(item: BatchItem) => copyBatch([item])"
         @batch="onBatch"
+        @cancel-item="cancelItem"
         @remove="removeItem"
       />
 
-      <div v-if="showStatus" class="status-card">
-        <div class="status-row">
-          <span class="status-badge" :class="statusClass">
-            <span class="status-dot" />
-            {{ state.status }}
-          </span>
-          <div class="status-actions">
-            <span v-if="state.progress > 0 && !state.isLoadingModel" class="status-pct">
-              {{ state.progress }}%
-            </span>
-            <button
-              v-if="state.isProcessing"
-              type="button"
-              class="status-cancel"
-              @click="cancelProcessing"
-            >
-              <X />
-              {{ t('processing.cancel') }}
-            </button>
-          </div>
-        </div>
-        <div class="progress-track">
-          <div
-            class="progress-bar"
-            :class="{ indeterminate: state.isLoadingModel }"
-            :style="state.isLoadingModel ? undefined : { width: `${state.progress}%` }"
-          />
-        </div>
-        <p v-if="state.error" class="status-error">{{ state.error }}</p>
-      </div>
-
-      <p v-else-if="state.items.length === 0" class="center-hint">
+      <p v-if="state.items.length === 0" class="center-hint">
         {{ state.isModelLoaded ? t('processing.uploadToStart') : t('processing.modelNotLoaded') }}
       </p>
 
@@ -311,119 +299,33 @@ onUnmounted(() => {
   top: auto;
 }
 
-.status-card {
-  background: var(--color-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 1rem 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.625rem;
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.status-badge {
+.model-loading {
   display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-gray-dark);
-}
-
-.status-badge.active {
-  color: var(--color-primary);
-}
-
-.status-badge.done {
-  color: #16a34a;
-}
-
-.status-badge.error {
-  color: #dc2626;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.status-pct {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-gray-dark);
-  font-variant-numeric: tabular-nums;
-}
-
-.status-actions {
-  display: flex;
-  align-items: center;
   gap: 0.5rem;
-  margin-left: auto;
-}
-
-.status-cancel {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-gray-dark);
+  align-self: center;
+  padding: 0.375rem 0.875rem;
+  border-radius: 999px;
   background: var(--color-gray);
-  border-radius: var(--radius-md);
+  color: var(--color-gray-dark);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
-.status-cancel:hover {
-  color: #dc2626;
-}
-
-.status-cancel svg {
+.model-loading-spinner {
   width: 14px;
   height: 14px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: model-loading-spin 0.7s linear infinite;
+  flex-shrink: 0;
 }
 
-.progress-track {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--color-gray);
-  overflow: hidden;
-}
-
-.progress-bar {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--color-primary);
-  transition: width 0.2s ease;
-}
-
-.progress-bar.indeterminate {
-  width: 40%;
-  animation: status-indeterminate 1.2s ease-in-out infinite;
-}
-
-@keyframes status-indeterminate {
-  0% {
-    transform: translateX(-100%);
+@keyframes model-loading-spin {
+  to {
+    transform: rotate(360deg);
   }
-  100% {
-    transform: translateX(350%);
-  }
-}
-
-.status-error {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #dc2626;
-  word-break: break-word;
 }
 
 .center-hint {
