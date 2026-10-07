@@ -58,8 +58,8 @@ function handleFileInput(e: Event) {
         <Upload class="upload-icon" />
         <p class="drop-text">{{ t('upload.dragDrop') }}</p>
         <p class="drop-subtext">{{ t('upload.orClick') }}</p>
-        <input type="file" class="file-input" accept="image/*" multiple @change="handleFileInput" />
       </div>
+      <input type="file" class="file-input" accept="image/*" multiple @change="handleFileInput" />
     </div>
   </div>
 </template>
@@ -128,12 +128,14 @@ function handleFileInput(e: Event) {
   color: var(--color-gray-dark);
 }
 
+/* Cover the whole drop zone (not just the centered text) so a click anywhere
+   opens the picker. Sits above .drop-zone-content to catch the clicks. */
 .file-input {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  top: 0;
-  left: 0;
+  z-index: 2;
   opacity: 0;
   cursor: pointer;
 }
