@@ -96,7 +96,9 @@
     "empty": "No images yet",
     "download": "Download",
     "copy": "Copy",
-    "reprocess": "Reprocess"
+    "reprocess": "Reprocess",
+    "clear": "Clear queue",
+    "remove": "Remove"
   },
   "ops": {
     "title": "Actions",

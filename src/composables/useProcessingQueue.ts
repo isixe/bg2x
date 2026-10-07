@@ -450,22 +450,31 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     batchAborted = false;
     state.value.isProcessing = true;
 
-    while (!batchAborted) {
-      const item = state.value.items.find((i) => i.status === 'pending');
-      if (!item) break;
+    try {
+      while (!batchAborted) {
+        const item = state.value.items.find((i) => i.status === 'pending');
+        if (!item) break;
 
-      const result = await processItem(item);
-      if (result === 'abort') {
-        batchAborted = true;
+        const result = await processItem(item);
+        if (result === 'abort') {
+          batchAborted = true;
+        }
       }
-    }
 
-    if (batchAborted) {
-      markRemainingFailed(state.value.error ?? 'Processing aborted');
+      if (batchAborted) {
+        markRemainingFailed(state.value.error ?? 'Processing aborted');
+      }
+    } catch (err) {
+      state.value.error = err instanceof Error ? err.message : 'Processing failed';
+      state.value.status = 'Error';
+      currentItem = null;
+      resolveCurrent?.();
+      resolveCurrent = null;
+      markRemainingFailed(state.value.error);
+    } finally {
+      state.value.isProcessing = false;
+      queueRunning = false;
     }
-
-    state.value.isProcessing = false;
-    queueRunning = false;
   }
 
   function processBatch(files: File[]) {
@@ -663,6 +672,22 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
   }
 
+  function removeItem(id: number): boolean {
+    const item = state.value.items.find((i) => i.id === id);
+    if (!item || item.status === 'processing') return false;
+
+    state.value.items = state.value.items.filter((i) => i.id !== id);
+    URL.revokeObjectURL(item.originalUrl);
+    if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+
+    const selIdx = selectedIds.value.indexOf(id);
+    if (selIdx >= 0) selectedIds.value.splice(selIdx, 1);
+    if (activeId.value === id) activeId.value = null;
+    if (previewId.value === id) previewId.value = null;
+
+    return true;
+  }
+
   function clearQueue() {
     if (state.value.isProcessing) return;
     revokeAllOriginalUrls();
@@ -688,6 +713,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     gpuFallback,
     processBatch,
     reprocess,
+    removeItem,
     toggleSelect,
     toggleSelectAll,
     clearSelection,

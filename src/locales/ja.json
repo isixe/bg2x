@@ -96,7 +96,9 @@
     "empty": "画像はまだありません",
     "download": "ダウンロード",
     "copy": "コピー",
-    "reprocess": "再処理"
+    "reprocess": "再処理",
+    "clear": "キューをクリア",
+    "remove": "削除"
   },
   "ops": {
     "title": "操作",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, Download, Layers, RotateCcw } from 'lucide-vue-next';
+import { Check, Copy, Download, Layers, RotateCcw, Trash2 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import type { BatchItem } from '../type';
 
@@ -20,6 +20,7 @@ const emit = defineEmits<{
   (e: 'download', item: BatchItem): void;
   (e: 'copy', item: BatchItem): void;
   (e: 'batch', action: 'download' | 'copy' | 'reprocess'): void;
+  (e: 'remove', id: number): void;
 }>();
 </script>
 
@@ -114,6 +115,14 @@ const emit = defineEmits<{
             <Copy v-else :size="14" />
           </button>
         </div>
+        <button
+          v-if="item.status !== 'processing'"
+          class="queue-remove"
+          :title="t('queue.remove')"
+          @click.stop="emit('remove', item.id)"
+        >
+          <Trash2 :size="14" />
+        </button>
       </div>
     </div>
 
@@ -356,6 +365,36 @@ const emit = defineEmits<{
 
 .queue-action.copied {
   background: #16a34a;
+  color: #fff;
+}
+
+.queue-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray);
+  color: var(--color-gray-dark);
+  flex-shrink: 0;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.queue-item:hover .queue-remove,
+.queue-item.active .queue-remove,
+.queue-item.error .queue-remove {
+  opacity: 1;
+}
+
+.queue-remove:hover {
+  background: #dc2626;
   color: #fff;
 }
 

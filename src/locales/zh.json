@@ -96,7 +96,9 @@
     "empty": "暂无图片",
     "download": "下载",
     "copy": "复制",
-    "reprocess": "重新处理"
+    "reprocess": "重新处理",
+    "clear": "清空队列",
+    "remove": "移除"
   },
   "ops": {
     "title": "操作",

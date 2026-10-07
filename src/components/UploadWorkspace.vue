@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ImagePlus } from 'lucide-vue-next';
+import { ImagePlus, Trash2 } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
 import QueueList from './QueueList.vue';
 import OpsPanel from './OpsPanel.vue';
@@ -36,6 +36,7 @@ const {
   gpuFallback,
   processBatch,
   reprocess,
+  removeItem,
   toggleSelect,
   toggleSelectAll,
   selectItem,
@@ -43,6 +44,7 @@ const {
   downloadItem,
   downloadBatch,
   copyBatch,
+  clearQueue,
 } = useProcessingQueue({
   model,
   targetScale,
@@ -133,6 +135,15 @@ onUnmounted(() => {
           <span class="toolbar-count">{{ t('upload.images', { count: state.items.length }) }}</span>
         </div>
         <div class="toolbar-right">
+          <button
+            type="button"
+            class="toolbar-btn"
+            :disabled="state.isProcessing"
+            @click="clearQueue"
+          >
+            <Trash2 :size="15" />
+            <span>{{ t('queue.clear') }}</span>
+          </button>
           <button type="button" class="toolbar-btn" @click="openFilePicker">
             <ImagePlus :size="15" />
             <span>{{ t('ops.processNew') }}</span>
@@ -154,6 +165,7 @@ onUnmounted(() => {
         @download="downloadItem"
         @copy="(item: BatchItem) => copyBatch([item])"
         @batch="onBatch"
+        @remove="removeItem"
       />
 
       <div v-if="showStatus" class="status-card">
@@ -260,9 +272,14 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
 }
 
-.toolbar-btn:hover {
+.toolbar-btn:hover:not(:disabled) {
   background: var(--color-primary);
   color: #fff;
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .ops-dock {
