@@ -1,6 +1,6 @@
 {
   "name": "bg2x",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Browser-based AI image super-resolution with fully client-side inference.",
   "type": "module",
   "main": "electron/main.cjs",
