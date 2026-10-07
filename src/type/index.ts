@@ -100,12 +100,25 @@ export type AbortMessage = {
 export type WorkerMessage = LoadModelMessage | ProcessMessage | AbortMessage;
 
 export type WorkerResponse =
-  | { type: 'progress'; payload: { progress: number; status: string; jobId?: number | null } }
+  | {
+      type: 'progress';
+      payload: {
+        progress: number;
+        status: string;
+        jobId?: number | null;
+        /** Tiles completed so far / total — lets the main thread interpolate between reports at the real rate. */
+        tile?: { done: number; total: number };
+      };
+    }
   | { type: 'model-loaded'; payload?: { modelId: string; gpu?: boolean } }
   | { type: 'gpu-fallback'; payload: { message: string } }
   | {
       type: 'complete';
-      payload: { resultUrl: string; size: { width: number; height: number }; jobId?: number | null };
+      payload: {
+        resultUrl: string;
+        size: { width: number; height: number };
+        jobId?: number | null;
+      };
     }
   | { type: 'aborted'; payload: { message: string; jobId?: number | null } }
   | { type: 'error'; payload: { message: string; jobId?: number | null } };

@@ -132,7 +132,11 @@ const emit = defineEmits<{
           <span class="queue-ring-label">{{ progress }}%</span>
         </div>
         <Check v-else-if="item.status === 'done'" class="queue-done-icon" :size="16" />
-        <span v-else-if="item.status === 'error'" class="queue-error-dot" :title="item.error ?? ''" />
+        <span
+          v-else-if="item.status === 'error'"
+          class="queue-error-dot"
+          :title="item.error ?? ''"
+        />
         <div v-if="item.status === 'done'" class="queue-actions">
           <button
             class="queue-action"
@@ -332,6 +336,12 @@ const emit = defineEmits<{
   color: #dc2626;
 }
 
+@property --p {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
 .queue-ring {
   position: relative;
   display: flex;
@@ -340,6 +350,7 @@ const emit = defineEmits<{
   width: 30px;
   height: 30px;
   flex-shrink: 0;
+  transition: --p 0.2s linear;
 }
 
 .queue-ring::before {
@@ -347,10 +358,7 @@ const emit = defineEmits<{
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(
-    var(--color-primary) calc(var(--p, 0) * 1%),
-    var(--color-border) 0
-  );
+  background: conic-gradient(var(--color-primary) calc(var(--p, 0) * 1%), var(--color-border) 0);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
   mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
 }

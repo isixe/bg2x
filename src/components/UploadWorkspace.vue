@@ -32,6 +32,7 @@ const {
   selectedItems,
   hasReprocessable,
   hasDownloadable,
+  overallProgress,
   gpuSupported,
   gpuFallback,
   processBatch,
@@ -94,6 +95,10 @@ const hasActiveItems = computed(() =>
   state.value.items.some((i) => i.status === 'pending' || i.status === 'processing'),
 );
 
+const settledCount = computed(
+  () => state.value.items.filter((i) => i.status === 'done' || i.status === 'error').length,
+);
+
 // Above 1024px the actions panel docks to the right of the workspace; below
 // that it stacks under the main column so it is always reachable inline.
 // Initialise synchronously so the correct shell renders on the very first
@@ -129,6 +134,21 @@ onUnmounted(() => {
       <div v-if="state.items.length > 0" class="workspace-toolbar">
         <div class="toolbar-left">
           <span class="toolbar-count">{{ t('upload.images', { count: state.items.length }) }}</span>
+          <div
+            v-if="state.items.length > 1 && state.isProcessing"
+            class="batch-progress"
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="overallProgress"
+          >
+            <div class="batch-progress-track">
+              <div class="batch-progress-bar" :style="{ width: overallProgress + '%' }" />
+            </div>
+            <span class="batch-progress-label">
+              {{ settledCount }}/{{ state.items.length }} · {{ overallProgress }}%
+            </span>
+          </div>
         </div>
         <div class="toolbar-right">
           <button
@@ -140,12 +160,7 @@ onUnmounted(() => {
             <Trash2 :size="15" />
             <span>{{ t('queue.clear') }}</span>
           </button>
-          <button
-            v-if="hasActiveItems"
-            type="button"
-            class="toolbar-btn"
-            @click="cancelProcessing"
-          >
+          <button v-if="hasActiveItems" type="button" class="toolbar-btn" @click="cancelProcessing">
             <Ban :size="15" />
             <span>{{ t('queue.cancelAll') }}</span>
           </button>
@@ -251,6 +266,47 @@ onUnmounted(() => {
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--color-gray-dark);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.batch-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+  max-width: 20rem;
+}
+
+.batch-progress-track {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.batch-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+  transition: width 0.15s linear;
+}
+
+.batch-progress-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-gray-dark);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .toolbar-right {

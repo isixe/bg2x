@@ -85,8 +85,8 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   }
 };
 
-function postProgress(progress: number, status: string) {
-  self.postMessage({ type: 'progress', payload: { progress, status, jobId: currentJobId } });
+function postProgress(progress: number, status: string, tile?: { done: number; total: number }) {
+  self.postMessage({ type: 'progress', payload: { progress, status, jobId: currentJobId, tile } });
 }
 
 async function createSession(source: string | ArrayBuffer, gpu: boolean) {
@@ -219,6 +219,7 @@ async function processImage(payload: {
         postProgress(
           10 + Math.round((done / totalTiles) * 70),
           `Running inference... (${done + 1}/${totalTiles})`,
+          { done, total: totalTiles },
         );
 
         const refill = () => extractTile(imageData, x0, y0, tileBuffer);

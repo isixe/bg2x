@@ -72,6 +72,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   );
   const hasDownloadable = computed(() => state.value.items.some((i) => i.status === 'done'));
 
+  // batch-wide progress: settled items count fully, the active item contributes its fraction
+  const overallProgress = computed(() => {
+    const items = state.value.items;
+    if (items.length === 0) return 0;
+    let sum = 0;
+    for (const item of items) {
+      if (item.status === 'done' || item.status === 'error') sum += 1;
+      else if (item.status === 'processing') sum += state.value.progress / 100;
+    }
+    return Math.round((sum / items.length) * 100);
+  });
+
   const gpuSupported = typeof navigator !== 'undefined' && 'gpu' in navigator;
   const gpuFallback = ref(false);
 
@@ -111,6 +123,24 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const STALL_TIMEOUT_MS = 10 * 60_000;
   let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // The worker only reports at tile boundaries, so a naive bar freezes during a
+  // long tile run (notably the first, which pays one-time init cost). Ground the
+  // display in real data only: snap to each report, and between reports advance
+  // at the measured per-tile rate, capped one tile's worth short of the next
+  // report. With no baseline yet we hold honestly — the status text carries it.
+  const SMOOTH_INTERVAL_MS = 100;
+  const TILE_PROGRESS_SPAN = 70; // worker spreads tile reports across 10..80
+  const INFERENCE_MIN = 10;
+  const INFERENCE_MAX = 84; // below the real Postprocessing report (85)
+  let smoothTimer: ReturnType<typeof setInterval> | null = null;
+  let rawProgress = 0;
+  let displayProgress = 0;
+  let lastReportAt = 0;
+  let lastReportInference = false;
+  let skipWarmupDelta = false;
+  let measuredTileMs: number | null = null;
+  let tileTotal: number | null = null;
+
   /** which (model id, gpu) the worker session currently serves; gpu = value requested at load time */
   let loadedModelId: string | null = null;
   let loadedGpuWanted: boolean | null = null;
@@ -127,7 +157,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       switch (type) {
         case 'progress':
           if (payload.jobId != null && payload.jobId !== currentJobId) break;
-          state.value.progress = payload.progress;
+          noteProgressReport(payload.progress, payload.tile);
+          rawProgress = payload.progress;
+          stepProgressSmoothing();
           state.value.status = payload.status;
           armStallWatchdog();
           break;
@@ -138,7 +170,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             break;
           }
           clearStallWatchdog();
-          state.value.progress = 100;
+          setProgress(100);
           state.value.status = 'Complete';
           const item = currentItem;
           if (item && item.status === 'processing') {
@@ -249,6 +281,98 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     stallTimer = setTimeout(onWorkerStalled, STALL_TIMEOUT_MS);
   }
 
+  function startProgressSmoothing() {
+    if (smoothTimer) return;
+    smoothTimer = setInterval(stepProgressSmoothing, SMOOTH_INTERVAL_MS);
+  }
+
+  function stopProgressSmoothing() {
+    if (smoothTimer) {
+      clearInterval(smoothTimer);
+      smoothTimer = null;
+    }
+    rawProgress = 0;
+    lastReportAt = 0;
+    lastReportInference = false;
+    skipWarmupDelta = false;
+    tileTotal = null;
+    measuredTileMs = null;
+  }
+
+  function resetProgress() {
+    rawProgress = 0;
+    displayProgress = 0;
+    state.value.progress = 0;
+    lastReportAt = 0;
+    lastReportInference = false;
+    skipWarmupDelta = false;
+    tileTotal = null;
+    // measuredTileMs is kept: later items in the same run reuse the warm baseline.
+  }
+
+  /**
+   * Record the worker's reported value; `complete` (100) snaps the bar to the end.
+   */
+  function setProgress(value: number) {
+    rawProgress = value;
+    if (value >= 100) {
+      displayProgress = 100;
+      state.value.progress = 100;
+    }
+  }
+
+  /**
+   * Track report arrival times so the gap between two tile reports can be
+   * measured. The interval after the pre-tile-1 report includes one-time model
+   * init, so it is skipped instead of poisoning the baseline.
+   */
+  function noteProgressReport(progress: number, tile?: { done: number; total: number }) {
+    const now = performance.now();
+    const inInference = progress >= INFERENCE_MIN && progress <= INFERENCE_MAX;
+    if (inInference && lastReportInference && lastReportAt > 0 && !skipWarmupDelta) {
+      const delta = now - lastReportAt;
+      if (delta > 0) {
+        measuredTileMs = measuredTileMs === null ? delta : measuredTileMs * 0.3 + delta * 0.7;
+      }
+    }
+    skipWarmupDelta = inInference && (tile?.done ?? 1) === 0;
+    if (tile) tileTotal = tile.total;
+    lastReportAt = now;
+    lastReportInference = inInference;
+  }
+
+  /**
+   * Display = latest real report, plus a bounded lead: between two tile reports
+   * the bar advances at the measured per-tile rate but never more than one
+   * tile's worth (so it cannot outrun the next anchor). Without a measured
+   * baseline the bar holds; `complete` (100) snaps. Monotonic within an item —
+   * transient lower reports never move the bar backwards.
+   */
+  function stepProgressSmoothing() {
+    if (rawProgress >= 100) {
+      displayProgress = 100;
+    } else if (displayProgress < rawProgress) {
+      displayProgress = rawProgress;
+    } else if (
+      measuredTileMs !== null &&
+      tileTotal !== null &&
+      lastReportAt > 0 &&
+      rawProgress >= INFERENCE_MIN &&
+      rawProgress <= INFERENCE_MAX
+    ) {
+      const gap = TILE_PROGRESS_SPAN / tileTotal;
+      const lead = Math.min(gap, gap * ((performance.now() - lastReportAt) / measuredTileMs));
+      const ceiling = Math.min(rawProgress + lead, INFERENCE_MAX);
+      if (displayProgress < ceiling) {
+        displayProgress = ceiling;
+      }
+    }
+    const rounded = Math.round(displayProgress);
+    if (rounded !== state.value.progress) {
+      state.value.progress = rounded;
+    }
+  }
+
   function restartWorker() {
     clearStallWatchdog();
     if (worker) {
@@ -352,6 +476,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   onUnmounted(() => {
     window.removeEventListener('keydown', onGlobalKeydown);
     document.body.style.overflow = '';
+    stopProgressSmoothing();
     resetCopied();
     if (worker) {
       worker.terminate();
@@ -533,7 +658,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     const jobId = ++jobIdSeq;
     currentJobId = jobId;
     state.value.isProcessing = true;
-    state.value.progress = 0;
+    resetProgress();
     state.value.status = 'Loading image...';
     state.value.error = null;
     item.status = 'processing';
@@ -604,6 +729,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     userCancelled = false;
     currentJobId = null;
     state.value.isProcessing = true;
+    startProgressSmoothing();
 
     try {
       while (!batchAborted) {
@@ -631,6 +757,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     } finally {
       state.value.isProcessing = false;
       queueRunning = false;
+      stopProgressSmoothing();
     }
   }
 
@@ -848,7 +975,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   function clearQueue() {
     if (state.value.isProcessing) return;
     revokeAllOriginalUrls();
-    state.value.progress = 0;
+    resetProgress();
     state.value.status = 'Ready';
     state.value.error = null;
   }
@@ -866,6 +993,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     allSelected,
     hasReprocessable,
     hasDownloadable,
+    overallProgress,
     gpuSupported,
     gpuFallback,
     processBatch,
