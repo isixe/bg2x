@@ -56,6 +56,12 @@ let currentSource: string | ArrayBuffer | null = null;
 /** Set by an `abort` message; checked between tiles so cancellation is prompt. */
 let abortRequested = false;
 
+/** Id of the job in flight, echoed in every reply so stale results can be dropped. */
+let currentJobId: number | null = null;
+
+/** Serialises inference so a replacement job never runs while the cancelled one unwinds. */
+let jobChain: Promise<void> = Promise.resolve();
+
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   const message = e.data;
 
@@ -67,9 +73,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         message.payload.gpu ?? false,
       );
       break;
-    case 'process':
-      await processImage(message.payload);
+    case 'process': {
+      const payload = message.payload;
+      jobChain = jobChain.then(() => processImage(payload));
+      await jobChain;
       break;
+    }
     case 'abort':
       abortRequested = true;
       break;
@@ -77,7 +86,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 };
 
 function postProgress(progress: number, status: string) {
-  self.postMessage({ type: 'progress', payload: { progress, status } });
+  self.postMessage({ type: 'progress', payload: { progress, status, jobId: currentJobId } });
 }
 
 async function createSession(source: string | ArrayBuffer, gpu: boolean) {
@@ -150,6 +159,7 @@ function assertOutputSize(w: number, h: number) {
 }
 
 async function processImage(payload: {
+  jobId: number;
   imageData: ImageData;
   width: number;
   height: number;
@@ -164,6 +174,7 @@ async function processImage(payload: {
       throw new Error('Model not loaded');
     }
 
+    currentJobId = payload.jobId;
     abortRequested = false;
 
     // When the requested output is smaller than the model's native scale, shrink
@@ -251,15 +262,19 @@ async function processImage(payload: {
       payload: {
         resultUrl,
         size: { width: outW, height: outH },
+        jobId: currentJobId,
       },
     });
   } catch (error) {
     if (error instanceof AbortError) {
-      self.postMessage({ type: 'aborted', payload: { message: 'Processing cancelled' } });
+      self.postMessage({
+        type: 'aborted',
+        payload: { message: 'Processing cancelled', jobId: currentJobId },
+      });
     } else {
       self.postMessage({
         type: 'error',
-        payload: { message: `Processing failed: ${error}` },
+        payload: { message: `Processing failed: ${error}`, jobId: currentJobId },
       });
     }
   } finally {

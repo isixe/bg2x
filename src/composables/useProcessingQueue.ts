@@ -100,14 +100,14 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   }
 
   let itemIdSeq = 0;
+  let jobIdSeq = 0;
   let worker: Worker | null = null;
   let currentItem: BatchItem | null = null;
+  let currentJobId: number | null = null;
   let resolveCurrent: (() => void) | null = null;
   let queueRunning = false;
   let batchAborted = false;
   let userCancelled = false;
-  /** which cancellation is in flight; lets the 'aborted' reply distinguish item vs batch */
-  let abortScope: 'none' | 'item' | 'all' = 'none';
   const STALL_TIMEOUT_MS = 10 * 60_000;
   let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -126,12 +126,17 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
       switch (type) {
         case 'progress':
+          if (payload.jobId != null && payload.jobId !== currentJobId) break;
           state.value.progress = payload.progress;
           state.value.status = payload.status;
           armStallWatchdog();
           break;
 
         case 'complete': {
+          if (payload.jobId != null && payload.jobId !== currentJobId) {
+            URL.revokeObjectURL(payload.resultUrl);
+            break;
+          }
           clearStallWatchdog();
           state.value.progress = 100;
           state.value.status = 'Complete';
@@ -149,12 +154,14 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             });
           }
           currentItem = null;
+          currentJobId = null;
           resolveCurrent?.();
           resolveCurrent = null;
           break;
         }
 
         case 'error': {
+          if (payload.jobId != null && payload.jobId !== currentJobId) break;
           clearStallWatchdog();
           state.value.isLoadingModel = false;
           state.value.error = payload.message;
@@ -168,6 +175,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             batchAborted = true;
             markRemainingFailed(payload.message);
           }
+          currentJobId = null;
           resolveCurrent?.();
           resolveCurrent = null;
           break;
@@ -175,22 +183,14 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
         case 'aborted': {
           clearStallWatchdog();
+          if (payload.jobId != null && payload.jobId !== currentJobId) break;
           state.value.isLoadingModel = false;
           const item = currentItem;
           if (item) {
             markItemCancelled(item);
             currentItem = null;
           }
-          if (abortScope === 'item') {
-            abortScope = 'none';
-          } else {
-            state.value.isProcessing = false;
-            state.value.error = null;
-            state.value.status = t('processing.cancelled');
-            batchAborted = true;
-            userCancelled = true;
-            markRemainingFailed(t('processing.cancelled'));
-          }
+          currentJobId = null;
           resolveCurrent?.();
           resolveCurrent = null;
           break;
@@ -230,6 +230,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         batchAborted = true;
         markRemainingFailed(e.message);
       }
+      currentJobId = null;
       resolveCurrent?.();
       resolveCurrent = null;
     };
@@ -257,6 +258,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     loadedModelId = null;
     loadedGpuWanted = null;
     pendingGpuWanted = null;
+    currentJobId = null;
     state.value.isModelLoaded = false;
     setupWorker();
   }
@@ -282,6 +284,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       batchAborted = true;
       markRemainingFailed(message);
     }
+    currentJobId = null;
     resolveCurrent?.();
     resolveCurrent = null;
     restartWorker();
@@ -301,10 +304,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       return;
     }
     if (item.status !== 'processing') return;
-    abortScope = 'item';
+    const cancellingCurrent = currentItem?.id === id;
     markItemCancelled(item);
-    if (currentItem?.id === id) {
+    if (cancellingCurrent) {
       currentItem = null;
+      currentJobId = null;
+      resolveCurrent?.();
+      resolveCurrent = null;
       worker?.postMessage({ type: 'abort' });
     }
   }
@@ -316,15 +322,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       (i) => i.status === 'pending' || i.status === 'processing',
     );
     if (!hasActive) return;
-    abortScope = 'all';
     const hadCurrent = currentItem !== null;
     state.value.items.forEach((i) => {
       if (i.status === 'pending' || i.status === 'processing') markItemCancelled(i);
     });
     currentItem = null;
+    currentJobId = null;
     batchAborted = true;
     state.value.error = null;
     userCancelled = true;
+    state.value.isProcessing = false;
+    resolveCurrent?.();
+    resolveCurrent = null;
     if (hadCurrent) worker.postMessage({ type: 'abort' });
   }
 
@@ -521,7 +530,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       return 'error';
     }
 
-    abortScope = 'none';
+    const jobId = ++jobIdSeq;
+    currentJobId = jobId;
     state.value.isProcessing = true;
     state.value.progress = 0;
     state.value.status = 'Loading image...';
@@ -539,6 +549,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.status = 'Error';
       state.value.error = item.error;
       currentItem = null;
+      currentJobId = null;
       return 'error';
     }
 
@@ -547,6 +558,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     worker.postMessage({
       type: 'process',
       payload: {
+        jobId,
         imageData,
         width: img.width,
         height: img.height,
@@ -590,7 +602,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     queueRunning = true;
     batchAborted = false;
     userCancelled = false;
-    abortScope = 'none';
+    currentJobId = null;
     state.value.isProcessing = true;
 
     try {

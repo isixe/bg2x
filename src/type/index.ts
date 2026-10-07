@@ -82,6 +82,7 @@ export type LoadModelMessage = {
 export type ProcessMessage = {
   type: 'process';
   payload: {
+    jobId: number;
     imageData: ImageData;
     width: number;
     height: number;
@@ -99,9 +100,12 @@ export type AbortMessage = {
 export type WorkerMessage = LoadModelMessage | ProcessMessage | AbortMessage;
 
 export type WorkerResponse =
-  | { type: 'progress'; payload: { progress: number; status: string } }
+  | { type: 'progress'; payload: { progress: number; status: string; jobId?: number | null } }
   | { type: 'model-loaded'; payload?: { modelId: string; gpu?: boolean } }
   | { type: 'gpu-fallback'; payload: { message: string } }
-  | { type: 'complete'; payload: { resultUrl: string; size: { width: number; height: number } } }
-  | { type: 'aborted'; payload: { message: string } }
-  | { type: 'error'; payload: { message: string } };
+  | {
+      type: 'complete';
+      payload: { resultUrl: string; size: { width: number; height: number }; jobId?: number | null };
+    }
+  | { type: 'aborted'; payload: { message: string; jobId?: number | null } }
+  | { type: 'error'; payload: { message: string; jobId?: number | null } };
