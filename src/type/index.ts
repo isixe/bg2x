@@ -24,6 +24,8 @@ export interface HistoryRecord {
   originalDataUrl: string;
   resultDataUrl: string;
   resultBlobUrl?: string;
+  /** True when full-resolution blobs are available in the history IndexedDB cache. */
+  hasCache?: boolean;
 }
 
 export interface FetchModelBytesOptions {

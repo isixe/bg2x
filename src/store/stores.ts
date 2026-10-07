@@ -4,6 +4,11 @@ import { i18n } from '../locales/i18n';
 import type { HistoryRecord } from '../type';
 import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import { isModelCached } from '../composables/useModelCache';
+import {
+  putHistoryImages,
+  deleteHistoryImages,
+  clearAllHistoryImages,
+} from '../composables/useHistoryCache';
 
 export type LocaleCode = 'en' | 'zh' | 'ja';
 export type ThemeMode = 'light' | 'dark';
@@ -168,12 +173,23 @@ export const useHistoryStore = defineStore(
         modelName: params.modelName,
         originalDataUrl: originalThumb,
         resultDataUrl: resultThumb,
-        resultBlobUrl: params.resultUrl,
       };
+
+      // Keep the full-resolution original/result in IndexedDB so the history
+      // compare view stays sharp; the thumbs above stay as the fast fallback.
+      try {
+        const resultBlob = await (await fetch(params.resultUrl)).blob();
+        await putHistoryImages(record.id, { original: params.file, result: resultBlob });
+        record.hasCache = true;
+      } catch {
+        record.hasCache = false;
+      }
 
       records.value.unshift(record);
       if (records.value.length > MAX_RECORDS) {
+        const dropped = records.value.slice(MAX_RECORDS);
         records.value = records.value.slice(0, MAX_RECORDS);
+        dropped.forEach((r) => void deleteHistoryImages(r.id));
       }
 
       return record;
@@ -181,10 +197,12 @@ export const useHistoryStore = defineStore(
 
     function removeRecord(id: string) {
       records.value = records.value.filter((r) => r.id !== id);
+      void deleteHistoryImages(id);
     }
 
     function clearHistory() {
       records.value = [];
+      void clearAllHistoryImages();
     }
 
     function formatTimestamp(ts: number): string {

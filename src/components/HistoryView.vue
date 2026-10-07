@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import { Clock, Download, Trash2, X } from 'lucide-vue-next';
 import PreviewDialog from './PreviewDialog.vue';
 import { useHistoryStore } from '../store/stores';
+import { getHistoryImages } from '../composables/useHistoryCache';
 import type { HistoryRecord, PreviewItem } from '../type';
 
 const { t } = useI18n();
@@ -14,16 +15,80 @@ const { removeRecord, clearHistory } = historyStore;
 
 const historyPreview = ref<PreviewItem | null>(null);
 
-function openHistoryPreview(record: HistoryRecord) {
+let createdUrls: string[] = [];
+let previewToken = 0;
+
+function revokeCreatedUrls() {
+  createdUrls.forEach((url) => URL.revokeObjectURL(url));
+  createdUrls = [];
+}
+
+function closePreview() {
+  previewToken += 1;
+  revokeCreatedUrls();
+  historyPreview.value = null;
+}
+
+async function openHistoryPreview(record: HistoryRecord) {
+  const token = (previewToken += 1);
+  revokeCreatedUrls();
+
+  let originalUrl = record.originalDataUrl;
+  let resultUrl = record.resultDataUrl;
+
+  if (record.hasCache) {
+    const images = await getHistoryImages(record.id);
+    if (token !== previewToken) return;
+    if (images?.original) {
+      const url = URL.createObjectURL(images.original);
+      createdUrls.push(url);
+      originalUrl = url;
+    }
+    if (images?.result) {
+      const url = URL.createObjectURL(images.result);
+      createdUrls.push(url);
+      resultUrl = url;
+    }
+  }
+
+  if (token !== previewToken) return;
+
   historyPreview.value = {
     id: record.id,
     name: record.originalFileName,
-    originalUrl: record.originalDataUrl,
-    resultUrl: record.resultBlobUrl ?? record.resultDataUrl,
+    originalUrl,
+    resultUrl,
     originalSize: record.originalSize,
     resultSize: record.resultSize,
   };
 }
+
+async function downloadRecord(record: HistoryRecord) {
+  let url = record.resultDataUrl;
+  let tempUrl: string | null = null;
+
+  if (record.hasCache) {
+    const images = await getHistoryImages(record.id);
+    if (images?.result) {
+      tempUrl = URL.createObjectURL(images.result);
+      url = tempUrl;
+    }
+  }
+
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = record.originalFileName.replace(/(\.\w+)$/, '-upscaled$1');
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+
+  if (tempUrl) {
+    const toRevoke = tempUrl;
+    setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
+  }
+}
+
+onUnmounted(revokeCreatedUrls);
 </script>
 
 <template>
@@ -62,16 +127,15 @@ function openHistoryPreview(record: HistoryRecord) {
             </span>
             <span class="history-meta">{{ record.modelName }}</span>
           </div>
-          <a
+          <button
             v-if="record.resultDataUrl"
-            :href="record.resultDataUrl"
-            :download="record.originalFileName.replace(/(\.\w+)$/, '-upscaled$1')"
+            type="button"
             class="history-download"
             :title="t('history.download')"
-            @click.stop
+            @click.stop="downloadRecord(record)"
           >
             <Download :size="16" />
-          </a>
+          </button>
           <button
             class="history-delete"
             :title="t('history.delete')"
@@ -83,7 +147,7 @@ function openHistoryPreview(record: HistoryRecord) {
       </div>
     </div>
 
-    <PreviewDialog v-if="historyPreview" :item="historyPreview" @close="historyPreview = null" />
+    <PreviewDialog v-if="historyPreview" :item="historyPreview" @close="closePreview" />
   </div>
 </template>
 
@@ -218,6 +282,11 @@ function openHistoryPreview(record: HistoryRecord) {
   justify-content: center;
   width: 32px;
   height: 32px;
+  padding: 0;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   border-radius: var(--radius-md);
   color: var(--color-gray-dark);
   text-decoration: none;
