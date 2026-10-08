@@ -3,7 +3,7 @@ import type { FetchModelBytesOptions, ModelEntry } from '../type';
 // Inactivity budget, not a cap on the total download time: the timer resets
 // every time new bytes arrive, so a slow-but-alive connection is never killed
 // just for taking a while. It only fires when the stream truly stalls.
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 100_000;
 
 export async function fetchModelBytes(
   model: ModelEntry,
