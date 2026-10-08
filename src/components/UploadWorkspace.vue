@@ -430,5 +430,25 @@ onUnmounted(() => {
   .upload-workspace {
     padding: 1rem;
   }
+
+  /* The count and the action labels don't fit on one phone-width row, so stack
+     them: the count on top, the wrapped action buttons on their own row. */
+  .workspace-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+  }
+
+  .toolbar-right {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+    gap: 0.5rem;
+  }
+
+  .toolbar-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    white-space: nowrap;
+  }
 }
 </style>
