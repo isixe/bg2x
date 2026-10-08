@@ -328,14 +328,14 @@ function goToModels() {
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem;
-  /* reserve the top-right corner for the favorite + remove buttons */
-  padding-right: 5.25rem;
   gap: 1.5rem;
 }
 
 .model-info {
   flex: 1;
   min-width: 0;
+  /* reserve the top-right corner for the favorite + remove buttons */
+  padding-right: 4rem;
 }
 
 .model-name-row {
@@ -401,6 +401,8 @@ function goToModels() {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+  /* pin the download/cancel button to the card's bottom-right corner */
+  align-self: flex-end;
 }
 
 .model-corner-actions {
