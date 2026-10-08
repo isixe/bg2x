@@ -551,17 +551,19 @@ function goToModels() {
   .model-card-main {
     flex-wrap: wrap;
     align-items: flex-start;
-    /* reserve the right band for the favorite + remove buttons */
-    padding: 1rem 5.25rem 1rem 1rem;
+    padding: 1rem;
     gap: 0.75rem;
   }
 
   .model-info {
     flex: 1 1 100%;
     min-width: 0;
+    /* keep the text clear of the favorite + remove buttons in the top-right corner */
+    padding-right: 4.25rem;
   }
 
-  /* Move the action row below the info so it never squeezes the text. */
+  /* Move the action row below the info so it never squeezes the text, and let
+     it reach the card's right edge instead of stopping at the reserved corner band. */
   .model-actions {
     flex: 1 1 100%;
     justify-content: flex-end;
