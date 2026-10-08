@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Ban, ImagePlus, Trash2 } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
@@ -13,6 +13,11 @@ import type { BatchItem } from '../type';
 import { useHistoryStore, useModelStore } from '../store/stores';
 
 const { t } = useI18n();
+
+// Explicit name so <KeepAlive include="UploadWorkspace"> matches this route
+// component even if the file is ever renamed.
+defineOptions({ name: 'UploadWorkspace' });
+
 const modelStore = useModelStore();
 const historyStore = useHistoryStore();
 
@@ -121,6 +126,17 @@ onMounted(() => {
   wideMq = window.matchMedia(WIDE_QUERY);
   isWide.value = wideMq.matches;
   wideMq.addEventListener('change', handleWideChange);
+});
+
+// This page is kept alive by <KeepAlive> so an in-flight batch keeps running in
+// the worker while the user browses other routes. The preview dialog locks
+// body scrolling; that lock must not follow us to other pages.
+onActivated(() => {
+  if (previewItem.value) document.body.style.overflow = 'hidden';
+});
+
+onDeactivated(() => {
+  document.body.style.overflow = '';
 });
 
 onUnmounted(() => {

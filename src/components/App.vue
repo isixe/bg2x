@@ -11,7 +11,13 @@ themeStore.applyToDocument();
   <div class="app-layout">
     <AppHeader />
     <main class="main-content">
-      <RouterView />
+      <!-- Keep the upload workspace alive across route changes so an in-flight
+           batch keeps processing in its Web Worker and restores exactly as left. -->
+      <RouterView v-slot="{ Component }">
+        <KeepAlive include="UploadWorkspace">
+          <component :is="Component" />
+        </KeepAlive>
+      </RouterView>
     </main>
   </div>
 </template>
