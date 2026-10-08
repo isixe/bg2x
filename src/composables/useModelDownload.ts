@@ -1,6 +1,9 @@
 import type { FetchModelBytesOptions, ModelEntry } from '../type';
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+// Inactivity budget, not a cap on the total download time: the timer resets
+// every time new bytes arrive, so a slow-but-alive connection is never killed
+// just for taking a while. It only fires when the stream truly stalls.
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 export async function fetchModelBytes(
   model: ModelEntry,
@@ -29,7 +32,12 @@ async function fetchBytesFromUrl(
   const controller = new AbortController();
   const onExternalAbort = () => controller.abort();
   opts.signal?.addEventListener('abort', onExternalAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+
+  let timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+  const resetTimer = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+  };
 
   try {
     const resp = await fetch(url, { signal: controller.signal });
@@ -43,6 +51,7 @@ async function fetchBytesFromUrl(
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetTimer();
       chunks.push(value);
       received += value.length;
       if (contentLength > 0 && opts.onProgress) {
