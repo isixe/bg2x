@@ -533,6 +533,7 @@ function goToModels() {
   padding: 0.5rem 1.25rem 0.75rem;
   font-size: 0.8125rem;
   color: #dc2626;
+  word-break: break-all;
 }
 
 @media (max-width: 560px) {
