@@ -1,17 +1,23 @@
 ---
 import '../styles/globals.css';
+import { APP_NAME, HOMEPAGE_URL } from '../config/app';
 
 interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  keywords?: string;
 }
 
 const {
   title,
   description = 'bg2x - AI-powered image super resolution tool',
   ogImage = '/images/en/hero.jpg',
+  keywords = 'AI image upscaling, image super resolution, upscale image, image enhancer, Real-ESRGAN, Swin2SR, Real-CUGAN, ONNX Runtime, WebGPU, browser-based AI, 4x upscale, photo enhancer, anime upscaling, 图片放大, 超分辨率, 图片修复',
 } = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, HOMEPAGE_URL).toString();
+const ogImageUrl = new URL(ogImage, HOMEPAGE_URL).toString();
 ---
 
 <!doctype html>
@@ -19,20 +25,24 @@ const {
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
+    <meta name="keywords" content={keywords} />
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="canonical" href={canonical} />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={APP_NAME} />
+    <meta property="og:url" content={HOMEPAGE_URL} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
+    <meta property="og:image" content={ogImageUrl} />
     <meta property="og:image:width" content="3344" />
     <meta property="og:image:height" content="1882" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image" content={ogImageUrl} />
     <script is:inline>
       (function () {
         try {
