@@ -14,10 +14,12 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { Check, ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     showMore?: boolean;
     showFavorites?: boolean;
+    /** Jump to the upscale page when an already-downloaded model is picked. */
+    openUploadWhenCached?: boolean;
   }>(),
   {
     showFavorites: true,
@@ -60,8 +62,12 @@ async function removeModel(model: ModelEntry) {
 function selectModel(model: ModelEntry) {
   const state = modelStates[model.id];
   if (state?.downloading) return;
-  if (state?.cached) modelStore.setDefaultModel(model.id);
-  else startDownload(model);
+  if (!state?.cached) {
+    startDownload(model);
+    return;
+  }
+  modelStore.setDefaultModel(model.id);
+  if (props.openUploadWhenCached) router.push({ name: 'upload' });
 }
 
 function toggleFavorite(model: ModelEntry) {

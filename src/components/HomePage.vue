@@ -29,7 +29,7 @@ function goToUpload() {
       </div>
 
       <!-- Models Section -->
-      <ModelsSection show-more :show-favorites="false" />
+      <ModelsSection show-more :show-favorites="false" open-upload-when-cached />
     </div>
   </div>
 </template>
