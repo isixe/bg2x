@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { Check, Copy, Download, Layers, RotateCcw, Trash2, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import type { BatchItem } from '../type';
 
 const { t } = useI18n();
 
-defineProps<{
+const props = defineProps<{
   items: BatchItem[];
   selectedIds: number[];
   activeId: number | null;
@@ -13,6 +14,46 @@ defineProps<{
   isProcessing: boolean;
   progress: number;
 }>();
+
+const now = ref(Date.now());
+const hasRunningItem = computed(() => props.items.some((item) => item.status === 'processing'));
+let ticker: ReturnType<typeof setInterval> | null = null;
+
+watch(
+  hasRunningItem,
+  (running) => {
+    if (running && !ticker) {
+      now.value = Date.now();
+      ticker = setInterval(() => {
+        now.value = Date.now();
+      }, 1000);
+    } else if (!running && ticker) {
+      clearInterval(ticker);
+      ticker = null;
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  if (ticker) clearInterval(ticker);
+});
+
+function itemDuration(item: BatchItem): number | null {
+  if (item.status === 'processing' && item.startedAt != null) {
+    return now.value - item.startedAt;
+  }
+  return item.durationMs;
+}
+
+function formatDuration(ms: number | null): string {
+  if (ms == null) return '';
+  const totalSeconds = Math.max(0, ms) / 1000;
+  if (totalSeconds < 60) return `${Math.floor(totalSeconds)}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
 
 const emit = defineEmits<{
   (e: 'toggle', id: number): void;
@@ -118,13 +159,16 @@ const emit = defineEmits<{
           >
             <template v-if="item.status === 'pending'">{{ t('processing.pending') }}</template>
             <template v-else-if="item.status === 'processing'">
-              {{ t('processing.itemProcessing') }}
+              {{ t('processing.itemProcessing') }} · {{ formatDuration(itemDuration(item)) }}
             </template>
             <template v-else-if="item.status === 'error'">
               {{ item.error || t('processing.failed') }}
             </template>
             <template v-else-if="item.resultSize">
               {{ item.resultSize.width }}×{{ item.resultSize.height }}
+              <template v-if="item.durationMs != null">
+                · {{ formatDuration(item.durationMs) }}
+              </template>
             </template>
           </span>
         </div>
@@ -330,6 +374,7 @@ const emit = defineEmits<{
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .queue-item.error .queue-meta {

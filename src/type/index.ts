@@ -72,6 +72,10 @@ export interface BatchItem {
   originalSize: { width: number; height: number } | null;
   resultSize: { width: number; height: number } | null;
   error: string | null;
+  /** Epoch ms when this item started processing; null when not running. */
+  startedAt: number | null;
+  /** Total processing time in ms, set once the item settles (done or error). */
+  durationMs: number | null;
 }
 
 export type LoadModelMessage = {

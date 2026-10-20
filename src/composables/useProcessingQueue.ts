@@ -174,6 +174,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           state.value.status = 'Complete';
           const item = currentItem;
           if (item && item.status === 'processing') {
+            stopItemTimer(item);
             item.status = 'done';
             item.resultUrl = payload.resultUrl;
             item.resultSize = payload.size;
@@ -200,6 +201,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           state.value.status = 'Error';
           const item = currentItem;
           if (item) {
+            stopItemTimer(item);
             item.status = 'error';
             item.error = payload.message;
             currentItem = null;
@@ -255,6 +257,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.status = 'Worker error';
       const item = currentItem;
       if (item) {
+        stopItemTimer(item);
         item.status = 'error';
         item.error = e.message;
         currentItem = null;
@@ -401,6 +404,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     state.value.status = 'Error';
     const item = currentItem;
     if (item) {
+      stopItemTimer(item);
       item.status = 'error';
       item.error = message;
       currentItem = null;
@@ -415,8 +419,16 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   }
 
   function markItemCancelled(item: BatchItem) {
+    stopItemTimer(item);
     item.status = 'error';
     item.error = t('processing.cancelled');
+  }
+
+  function stopItemTimer(item: BatchItem) {
+    if (item.startedAt != null) {
+      item.durationMs = Date.now() - item.startedAt;
+      item.startedAt = null;
+    }
   }
 
   /** Fail one item but keep the queue running (unlike cancelProcessing). */
@@ -509,6 +521,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   function markRemainingFailed(message: string) {
     state.value.items.forEach((item) => {
       if (item.status === 'pending' || item.status === 'processing') {
+        stopItemTimer(item);
         item.status = 'error';
         item.error = message;
       }
@@ -662,6 +675,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     state.value.status = 'Loading image...';
     state.value.error = null;
     item.status = 'processing';
+    item.startedAt = Date.now();
+    item.durationMs = null;
     currentItem = item;
 
     let img: HTMLImageElement;
@@ -669,6 +684,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       img = await loadImage(item.originalUrl);
       item.originalSize = { width: img.width, height: img.height };
     } catch (err) {
+      stopItemTimer(item);
       item.status = 'error';
       item.error = err instanceof Error ? err.message : 'Failed to load image';
       state.value.status = 'Error';
@@ -780,6 +796,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       originalSize: null,
       resultSize: null,
       error: null,
+      startedAt: null,
+      durationMs: null,
     }));
     state.value.items.push(...newItems);
 
@@ -797,6 +815,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         item.error = null;
         item.resultUrl = null;
         item.resultSize = null;
+        item.startedAt = null;
+        item.durationMs = null;
         any = true;
       }
     }
