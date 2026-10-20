@@ -26,7 +26,7 @@ const selectedModelId = ref(initialModel.id);
 
 const model = computed(() => getModelById(selectedModelId.value) ?? MODEL_REGISTRY[0]);
 const targetScale = ref(2);
-const gpu = ref(false);
+const gpu = ref(typeof navigator !== 'undefined' && 'gpu' in navigator);
 
 const {
   state,
