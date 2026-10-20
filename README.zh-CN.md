@@ -75,7 +75,7 @@ cd bg2x
 pnpm install
 ```
 
-> 本仓库同时包含 `package-lock.json` 和 `pnpm-lock.yaml`。请与团队使用相同的包管理器，不要混用。
+> 本项目使用 **pnpm**，`pnpm-lock.yaml` 是唯一的锁文件。`package.json` 里的 `packageManager` 字段固定了版本，`package-lock.json` 已被 git 忽略，请不要执行 `npm install`。
 
 ### 启动开发服务器
 

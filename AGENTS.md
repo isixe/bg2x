@@ -4,14 +4,14 @@
 `bg2x` — browser-based AI image super-resolution (upscaling). **All inference runs client-side** via ONNX Runtime Web (WASM/WebGPU) inside a Web Worker. There is no backend.
 
 ## Commands
-- `npm run dev` — dev server bound to `0.0.0.0`
-- `npm run build` — static Astro build → `dist/`
-- `npm run preview` — serve the build
-- `npm run lint` / `npm run lint:fix` — ESLint over `src/` (ignores all `*.astro`)
-- `npm run format` / `npm run format:check` — Prettier over `src/`
-- `npm run typecheck` — `astro check`
+- `pnpm run dev` — dev server bound to `0.0.0.0`
+- `pnpm run build` — static Astro build → `dist/`
+- `pnpm run preview` — serve the build
+- `pnpm run lint` / `pnpm run lint:fix` — ESLint over `src/` (ignores all `*.astro`)
+- `pnpm run format` / `pnpm run format:check` — Prettier over `src/`
+- `pnpm run typecheck` — `astro check`
 - Verify in order: `lint` → `typecheck` → `build`. **There are no tests and no test framework.**
-- Package manager is ambiguous: both `package-lock.json` and `pnpm-lock.yaml` (plus `pnpm-workspace.yaml`) are committed. Confirm which one the team uses before installing; do not mix.
+- Package manager is **pnpm**: `pnpm-lock.yaml` + `pnpm-workspace.yaml` are the source of truth and `packageManager` in `package.json` pins the version. `package-lock.json` is git-ignored — never run `npm install`, and run scripts with `pnpm run <script>`.
 
 ## Architecture
 - Astro 5 renders only static shells. `src/pages/index.astro` and `src/pages/[...view].astro` mount `App.vue` with `client:only="vue"`; everything after that is a Vue 3 SPA.
@@ -37,7 +37,7 @@
 - i18n: `src/locales/{en,zh,ja}.json`, default and fallback `en`. Every new key must be added to all three files. User-facing strings go through `t()` — no hardcoded UI text.
 
 ## Conventions
-- Prettier: single quotes, trailing commas, `printWidth: 100`, LF. Run `npm run format` before finishing.
+- Prettier: single quotes, trailing commas, `printWidth: 100`, LF. Run `pnpm run format` before finishing.
 - Commit messages: Conventional Commits in English (`feat(scope): …`, `fix(scope): …`). No AI attribution / co-author trailers.
 - `tsconfig` extends `astro/tsconfigs/strict`; alias `@/*` → `src/*`. Do not suppress types.
 - Generated/ignored (never edit): `dist/`, `.astro/`, `node_modules/`, `.history/` (VS Code Local History artifacts).

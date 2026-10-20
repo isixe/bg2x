@@ -3,6 +3,7 @@
   "version": "0.2.2",
   "description": "Browser-based AI image super-resolution with fully client-side inference.",
   "type": "module",
+  "packageManager": "pnpm@10.25.0",
   "main": "electron/main.cjs",
   "author": "isixe",
   "license": "MIT",

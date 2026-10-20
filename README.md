@@ -75,7 +75,7 @@ cd bg2x
 pnpm install
 ```
 
-> This repository contains both `package-lock.json` and `pnpm-lock.yaml`. Use the same package manager as the rest of the team and do not mix them.
+> This project uses **pnpm**; `pnpm-lock.yaml` is the only lockfile. The `packageManager` field in `package.json` pins the version, and `package-lock.json` is git-ignored — do not run `npm install`.
 
 ### Start the Development Server
 
