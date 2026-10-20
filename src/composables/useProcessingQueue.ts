@@ -87,11 +87,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
   const modelPhase = ref<'downloading' | 'loading' | null>(null);
   const modelLoadStage = ref<ModelLoadStage | null>(null);
-  const modelLoadStartedAt = ref<number | null>(null);
 
   function resetModelLoad() {
     modelLoadStage.value = null;
-    modelLoadStartedAt.value = null;
   }
 
   /** copy button feedback: show a check icon for a short while after a successful copy */
@@ -634,7 +632,6 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
       modelPhase.value = 'loading';
       modelLoadStage.value = null;
-      modelLoadStartedAt.value = Date.now();
       await loadModel(modelId, modelData);
       await waitForModelLoaded();
       return true;
@@ -1040,7 +1037,6 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     cancelItem,
     modelPhase,
     modelLoadStage,
-    modelLoadStartedAt,
     removeItem,
     toggleSelect,
     toggleSelectAll,

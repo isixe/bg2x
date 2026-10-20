@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Ban, ImagePlus, Trash2 } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
@@ -69,7 +69,6 @@ const {
   cancelItem,
   modelPhase,
   modelLoadStage,
-  modelLoadStartedAt,
   removeItem,
   toggleSelect,
   toggleSelectAll,
@@ -101,39 +100,16 @@ const downloadError = computed(() => activeDownload.value?.error ?? null);
 const modelNoticeVisible = computed(
   () => modelPhase.value !== null || isDownloadingModel.value || downloadError.value !== null,
 );
-const loadNow = ref(Date.now());
-let loadTicker: ReturnType<typeof setInterval> | null = null;
-
-function stopLoadTicker() {
-  if (loadTicker) {
-    clearInterval(loadTicker);
-    loadTicker = null;
-  }
-}
-
-watch(
-  () => modelPhase.value === 'loading',
-  (loading) => {
-    stopLoadTicker();
-    if (!loading) return;
-    loadNow.value = Date.now();
-    loadTicker = setInterval(() => {
-      loadNow.value = Date.now();
-    }, 1000);
-  },
-  { immediate: true },
-);
-
-const loadElapsedSeconds = computed(() => {
-  const startedAt = modelLoadStartedAt.value;
-  return startedAt ? Math.max(0, Math.floor((loadNow.value - startedAt) / 1000)) : 0;
-});
-
 const loadStageText = computed(() =>
   modelLoadStage.value === 'fallback'
     ? t('processing.gpuFallbackLoading')
     : t('processing.initializingSession', { backend: gpu.value ? 'WebGPU' : 'WASM' }),
 );
+
+const noticeDetail = computed(() => {
+  const size = t('models.sizeApprox', { size: model.value.sizeMB });
+  return isDownloadingModel.value ? size : `${loadStageText.value} · ${size}`;
+});
 
 function openFilePicker() {
   fileInput.value?.click();
@@ -204,7 +180,6 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
-  stopLoadTicker();
   wideMq?.removeEventListener('change', handleWideChange);
 });
 </script>
@@ -253,7 +228,16 @@ onUnmounted(() => {
       </div>
 
       <div v-if="modelNoticeVisible" class="model-loading">
-        <span class="model-loading-spinner" aria-hidden="true" />
+        <span
+          v-if="!downloadError"
+          class="model-loading-ring"
+          :class="{ 'is-indeterminate': !isDownloadingModel }"
+          :style="isDownloadingModel ? { '--p': downloadProgress } : undefined"
+          role="progressbar"
+          :aria-valuenow="isDownloadingModel ? downloadProgress : undefined"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        />
         <div class="model-loading-body">
           <div class="model-loading-line">
             <span v-if="isDownloadingModel">
@@ -278,13 +262,7 @@ onUnmounted(() => {
               {{ t('home.downloadModel') }}
             </button>
           </div>
-          <div v-if="isDownloadingModel" class="model-loading-track">
-            <div class="model-loading-fill" :style="{ width: downloadProgress + '%' }" />
-          </div>
-          <span v-else-if="!downloadError" class="model-loading-detail">
-            {{ loadStageText }} · {{ t('models.sizeApprox', { size: model.sizeMB }) }} ·
-            {{ loadElapsedSeconds }}s
-          </span>
+          <span v-if="!downloadError" class="model-loading-detail">{{ noticeDetail }}</span>
           <span v-else class="model-loading-detail">{{ downloadError }}</span>
         </div>
       </div>
@@ -521,19 +499,39 @@ onUnmounted(() => {
   }
 }
 
-.model-loading-track {
-  height: 3px;
-  background: var(--color-border);
-  border-radius: 9999px;
-  overflow: hidden;
+/* Circular indicator: a filled arc while downloading, a spinning arc when the
+   real progress is unknown (session creation reports nothing). */
+.model-loading-ring {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-primary) calc(var(--p, 0) * 1%), var(--color-border) 0);
+  opacity: 0.75;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
 }
 
-.model-loading-fill {
-  height: 100%;
-  background: var(--color-primary);
-  opacity: 0.6;
-  border-radius: 9999px;
-  transition: width 0.15s ease;
+.model-loading-ring.is-indeterminate {
+  background: conic-gradient(
+    transparent 0 150deg,
+    var(--color-gray-dark) 240deg,
+    transparent 330deg
+  );
+  animation: model-loading-ring-spin 0.9s linear infinite;
+}
+
+@keyframes model-loading-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-loading-ring.is-indeterminate {
+    background: conic-gradient(var(--color-border) 0 60%, transparent 0);
+    animation: none;
+  }
 }
 
 .model-loading-detail {
@@ -544,22 +542,6 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.model-loading-spinner {
-  width: 12px;
-  height: 12px;
-  border: 1.5px solid var(--color-border);
-  border-top-color: var(--color-gray-dark);
-  border-radius: 50%;
-  animation: model-loading-spin 0.7s linear infinite;
-  flex-shrink: 0;
-}
-
-@keyframes model-loading-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .center-hint {
