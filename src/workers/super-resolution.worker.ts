@@ -168,6 +168,9 @@ async function processImage(payload: {
 }) {
   const { imageData, width, height, scale } = payload;
   const targetScale = payload.targetScale ?? scale;
+  // Tracks the run in flight so an early exit (abort or a throwing tile) can
+  // neutralise its rejection instead of leaving an unhandled promise behind.
+  let pending: Promise<Float32Array> | undefined;
 
   try {
     if (!session) {
@@ -200,41 +203,85 @@ async function processImage(payload: {
 
     const tilesX = Math.max(1, Math.ceil((width - TILE_OVERLAP) / TILE_STEP));
     const tilesY = Math.max(1, Math.ceil((height - TILE_OVERLAP) / TILE_STEP));
-    const totalTiles = tilesX * tilesY;
-    // Reused across tiles: safe because we always await the run before refilling.
-    const tileBuffer = new Float32Array(3 * TILE_SIZE * TILE_SIZE);
+
+    // Row-major tile order. The feathered blend is order-dependent (earlier tiles
+    // carry full weight, later ones ramp in), so this list is the single source of
+    // ordering for both inference and blending.
+    const tiles: Array<{ x0: number; y0: number; tx: number; ty: number }> = [];
+    for (let ty = 0; ty < tilesY; ty++) {
+      for (let tx = 0; tx < tilesX; tx++) {
+        tiles.push({ x0: tx * TILE_STEP, y0: ty * TILE_STEP, tx, ty });
+      }
+    }
+    const totalTiles = tiles.length;
+
+    // Two input buffers: the pixel packing for the next tile runs while the GPU is
+    // still busy with the current one, instead of the CPU idling between runs.
+    // onnxruntime-web forbids concurrent run() on a single session (the run stack
+    // is not re-entrant), so exactly one run is ever in flight.
+    const buffers = [
+      new Float32Array(3 * TILE_SIZE * TILE_SIZE),
+      new Float32Array(3 * TILE_SIZE * TILE_SIZE),
+    ];
     // Per-axis blend weights: tile 0 is full-weight, later tiles ramp in. Built
     // once per job and shared by every tile instead of reallocated per tile.
     const weights = buildBlendWeights(blendScale);
 
     let done = 0;
-    for (let ty = 0; ty < tilesY; ty++) {
-      const ay = ty === 0 ? weights.full : weights.ramp;
-      for (let tx = 0; tx < tilesX; tx++) {
-        if (abortRequested) throw new AbortError();
+    let inferMs = 0;
+    let cpuMs = 0;
 
-        const x0 = tx * TILE_STEP;
-        const y0 = ty * TILE_STEP;
+    /** Queue tile `index`, optionally reusing a buffer already packed by the caller. */
+    const startTile = (index: number, alreadyPacked = false): Promise<Float32Array> => {
+      const buffer = buffers[index % 2];
+      const { x0, y0 } = tiles[index];
+      const refill = () => extractTile(imageData, x0, y0, buffer);
+      if (!alreadyPacked) refill();
+      const tensor = new ort.Tensor('float32', buffer, [1, 3, TILE_SIZE, TILE_SIZE]);
+      return runWithFallback(inputName, outputName, tensor, refill, (ms) => {
+        inferMs += ms;
+      });
+    };
 
-        postProgress(
-          10 + Math.round((done / totalTiles) * 70),
-          `Running inference... (${done + 1}/${totalTiles})`,
-          { done, total: totalTiles },
-        );
+    const jobStart = performance.now();
+    pending = startTile(0);
 
-        const refill = () => extractTile(imageData, x0, y0, tileBuffer);
-        refill();
-        const tileTensor = new ort.Tensor('float32', tileBuffer, [1, 3, TILE_SIZE, TILE_SIZE]);
-        const tileOut = await runWithFallback(inputName, outputName, tileTensor, refill);
-        const tileData = downsample
-          ? downsampleTile(tileOut, TILE_SIZE * scale, rawFactor)
-          : tileOut;
-        const ax = tx === 0 ? weights.full : weights.ramp;
-        blendTile(outData, tileData, x0, y0, blendW, blendH, blendScale, ax, ay);
+    for (let i = 0; i < totalTiles; i++) {
+      if (abortRequested) throw new AbortError();
 
-        done++;
+      const { x0, y0, tx, ty } = tiles[i];
+
+      postProgress(
+        10 + Math.round((done / totalTiles) * 70),
+        `Running inference... (${done + 1}/${totalTiles})`,
+        { done, total: totalTiles },
+      );
+
+      const packStart = performance.now();
+      if (i + 1 < totalTiles) {
+        // Packed one run ahead so this CPU work hides behind the in-flight GPU pass.
+        extractTile(imageData, tiles[i + 1].x0, tiles[i + 1].y0, buffers[(i + 1) % 2]);
       }
+      cpuMs += performance.now() - packStart;
+
+      const tileOut = await pending;
+      if (abortRequested) throw new AbortError();
+
+      const blendStart = performance.now();
+      const tileData = downsample ? downsampleTile(tileOut, TILE_SIZE * scale, rawFactor) : tileOut;
+      const ax = tx === 0 ? weights.full : weights.ramp;
+      const ay = ty === 0 ? weights.full : weights.ramp;
+      blendTile(outData, tileData, x0, y0, blendW, blendH, blendScale, ax, ay);
+      cpuMs += performance.now() - blendStart;
+
+      done++;
+      if (i + 1 < totalTiles) pending = startTile(i + 1, true);
     }
+
+    console.log(
+      `[worker] tiles=${totalTiles} ep=${currentGpu ? 'webgpu' : 'wasm'} ` +
+        `inference=${inferMs | 0}ms cpu=${cpuMs | 0}ms wall=${(performance.now() - jobStart) | 0}ms`,
+    );
 
     if (abortRequested) throw new AbortError();
 
@@ -267,6 +314,7 @@ async function processImage(payload: {
       },
     });
   } catch (error) {
+    pending?.catch(() => undefined);
     if (error instanceof AbortError) {
       self.postMessage({
         type: 'aborted',
@@ -312,13 +360,10 @@ async function runWithFallback(
   outputName: string,
   tensor: ort.Tensor,
   refill: () => void,
+  onRun?: (ms: number) => void,
 ): Promise<Float32Array> {
   try {
-    const results = await withTimeout(
-      session!.run({ [inputName]: tensor }),
-      INFER_TIMEOUT_MS,
-      'Inference',
-    );
+    const results = await timedRun(inputName, tensor, onRun);
     return results[outputName].data as Float32Array;
   } catch (error) {
     if (abortRequested) throw new AbortError();
@@ -335,12 +380,17 @@ async function runWithFallback(
 
     // The aborted GPU run may have partially written to the shared buffer.
     refill();
-    const retry = await withTimeout(
-      session.run({ [inputName]: tensor }),
-      INFER_TIMEOUT_MS,
-      'Inference',
-    );
+    const retry = await timedRun(inputName, tensor, onRun);
     return retry[outputName].data as Float32Array;
+  }
+}
+
+async function timedRun(inputName: string, tensor: ort.Tensor, onRun?: (ms: number) => void) {
+  const start = performance.now();
+  try {
+    return await withTimeout(session!.run({ [inputName]: tensor }), INFER_TIMEOUT_MS, 'Inference');
+  } finally {
+    onRun?.(performance.now() - start);
   }
 }
 
