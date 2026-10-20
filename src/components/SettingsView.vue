@@ -13,6 +13,7 @@ import {
   Images,
   Wrench,
   RefreshCw,
+  Tag,
 } from 'lucide-vue-next';
 import { useLocaleStore, useSettingsStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
@@ -158,7 +159,8 @@ function onLanguageChange(value: string) {
             <ExternalLink class="link-ext" />
           </a>
           <div class="version-card">
-            <div class="version-head">
+            <div class="version-head" :class="{ 'is-web': !IS_DESKTOP }">
+              <Tag class="link-icon" />
               <div class="version-info">
                 <span class="version-label">{{ t('settings.version') }}</span>
                 <span class="version-value">v{{ APP_VERSION }}</span>
@@ -400,7 +402,7 @@ function onLanguageChange(value: string) {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   background: var(--color-card);
   border: var(--border-thin);
   border-radius: var(--radius-md);
@@ -416,20 +418,25 @@ function onLanguageChange(value: string) {
 
 .version-info {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex: 1;
+  align-items: center;
+  gap: 0.5rem;
   min-width: 0;
 }
 
+.version-head.is-web .version-info {
+  justify-content: space-between;
+}
+
 .version-label {
-  font-size: 0.75rem;
-  color: var(--color-gray-dark);
+  font-size: 0.875rem;
+  color: var(--color-dark);
 }
 
 .version-value {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: var(--color-dark);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-gray-dark);
 }
 
 .btn-check {
@@ -469,6 +476,7 @@ function onLanguageChange(value: string) {
 }
 
 .check-result {
+  padding-left: 1.875rem;
   font-size: 0.75rem;
   color: var(--color-gray-dark);
 }
