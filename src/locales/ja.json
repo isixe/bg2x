@@ -40,6 +40,8 @@
     "ready": "準備完了",
     "loadingModel": "モデルを読み込み中...",
     "downloadingModel": "モデルをダウンロード中...",
+    "initializingSession": "{backend} セッションを初期化中...",
+    "gpuFallbackLoading": "GPU の初期化に失敗しました。CPU に切り替えています...",
     "loadingImage": "画像を読み込み中...",
     "complete": "完了",
     "error": "エラー",

@@ -40,6 +40,8 @@
     "ready": "Ready",
     "loadingModel": "Loading model...",
     "downloadingModel": "Downloading model...",
+    "initializingSession": "Initializing {backend} session...",
+    "gpuFallbackLoading": "GPU init failed, switching to CPU...",
     "loadingImage": "Loading image...",
     "complete": "Complete",
     "error": "Error",

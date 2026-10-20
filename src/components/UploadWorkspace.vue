@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Ban, ImagePlus, Trash2 } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
@@ -10,6 +10,7 @@ import { useProcessingQueue } from '../composables/useProcessingQueue';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
 import {
+  cancelModelDownload,
   downloadModel,
   modelDownloadStates,
   refreshModelDownloadStates,
@@ -32,13 +33,21 @@ const selectedModelId = ref(initialModel.id);
 const model = computed(() => getModelById(selectedModelId.value) ?? MODEL_REGISTRY[0]);
 const targetScale = ref(2);
 const gpu = ref(typeof navigator !== 'undefined' && 'gpu' in navigator);
-const downloadProgress = computed(() => modelDownloadStates[model.value.id]?.progress ?? 0);
+const activeDownload = computed(() => modelDownloadStates[model.value.id]);
+const downloadProgress = computed(() => activeDownload.value?.progress ?? 0);
+const isDownloadingModel = computed(() => activeDownload.value?.downloading === true);
 
 function onModelChange(modelId: string) {
   selectedModelId.value = modelId;
   modelStore.setDefaultModel(modelId);
   const next = getModelById(modelId);
   if (!next || modelDownloadStates[modelId]?.cached) return;
+  void downloadModel(next).catch(() => undefined);
+}
+
+function retryModelDownload() {
+  const next = getModelById(selectedModelId.value);
+  if (!next) return;
   void downloadModel(next).catch(() => undefined);
 }
 
@@ -59,6 +68,8 @@ const {
   cancelProcessing,
   cancelItem,
   modelPhase,
+  modelLoadStage,
+  modelLoadStartedAt,
   removeItem,
   toggleSelect,
   toggleSelectAll,
@@ -85,6 +96,44 @@ const {
 });
 
 const fileInput = ref<HTMLInputElement | null>(null);
+
+const downloadError = computed(() => activeDownload.value?.error ?? null);
+const modelNoticeVisible = computed(
+  () => modelPhase.value !== null || isDownloadingModel.value || downloadError.value !== null,
+);
+const loadNow = ref(Date.now());
+let loadTicker: ReturnType<typeof setInterval> | null = null;
+
+function stopLoadTicker() {
+  if (loadTicker) {
+    clearInterval(loadTicker);
+    loadTicker = null;
+  }
+}
+
+watch(
+  () => modelPhase.value === 'loading',
+  (loading) => {
+    stopLoadTicker();
+    if (!loading) return;
+    loadNow.value = Date.now();
+    loadTicker = setInterval(() => {
+      loadNow.value = Date.now();
+    }, 1000);
+  },
+  { immediate: true },
+);
+
+const loadElapsedSeconds = computed(() => {
+  const startedAt = modelLoadStartedAt.value;
+  return startedAt ? Math.max(0, Math.floor((loadNow.value - startedAt) / 1000)) : 0;
+});
+
+const loadStageText = computed(() =>
+  modelLoadStage.value === 'fallback'
+    ? t('processing.gpuFallbackLoading')
+    : t('processing.initializingSession', { backend: gpu.value ? 'WebGPU' : 'WASM' }),
+);
 
 function openFilePicker() {
   fileInput.value?.click();
@@ -155,6 +204,7 @@ onDeactivated(() => {
 });
 
 onUnmounted(() => {
+  stopLoadTicker();
   wideMq?.removeEventListener('change', handleWideChange);
 });
 </script>
@@ -202,17 +252,41 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div v-if="modelPhase && state.items.length > 0" class="model-loading">
+      <div v-if="modelNoticeVisible" class="model-loading">
         <span class="model-loading-spinner" aria-hidden="true" />
-        <span>
-          {{
-            t(
-              modelPhase === 'downloading'
-                ? 'processing.downloadingModel'
-                : 'processing.loadingModel',
-            )
-          }}<template v-if="modelPhase === 'downloading'"> · {{ downloadProgress }}%</template>
-        </span>
+        <div class="model-loading-body">
+          <div class="model-loading-line">
+            <span v-if="isDownloadingModel">
+              {{ t('processing.downloadingModel') }} · {{ downloadProgress }}%
+            </span>
+            <span v-else-if="downloadError">{{ t('home.downloadFailed') }}</span>
+            <span v-else>{{ t('processing.loadingModel') }}</span>
+            <button
+              v-if="isDownloadingModel"
+              type="button"
+              class="model-loading-action"
+              @click="cancelModelDownload(model.id)"
+            >
+              {{ t('home.cancel') }}
+            </button>
+            <button
+              v-else-if="downloadError"
+              type="button"
+              class="model-loading-action"
+              @click="retryModelDownload"
+            >
+              {{ t('home.downloadModel') }}
+            </button>
+          </div>
+          <div v-if="isDownloadingModel" class="model-loading-track">
+            <div class="model-loading-fill" :style="{ width: downloadProgress + '%' }" />
+          </div>
+          <span v-else-if="!downloadError" class="model-loading-detail">
+            {{ loadStageText }} · {{ t('models.sizeApprox', { size: model.sizeMB }) }} ·
+            {{ loadElapsedSeconds }}s
+          </span>
+          <span v-else class="model-loading-detail">{{ downloadError }}</span>
+        </div>
       </div>
 
       <ImageUploader v-if="state.items.length === 0" @files-selected="processBatch" />
@@ -387,23 +461,96 @@ onUnmounted(() => {
 }
 
 .model-loading {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.5rem;
   align-self: center;
-  padding: 0.375rem 0.875rem;
-  border-radius: 999px;
-  background: var(--color-gray);
+  width: min(20rem, 100%);
+  padding: 0.125rem 0.25rem;
   color: var(--color-gray-dark);
   font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.model-loading-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.model-loading-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-loading-action {
+  flex-shrink: 0;
+  padding: 0 0.25rem;
+  font-size: 0.6875rem;
   font-weight: 500;
+  color: var(--color-gray-dark);
+  background: none;
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.15s ease,
+    background 0.15s ease;
+}
+
+.model-loading:hover .model-loading-action,
+.model-loading:focus-within .model-loading-action {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.model-loading-action:hover {
+  background: var(--color-gray);
+}
+
+/* Touch devices have no hover state, so keep the action reachable there. */
+@media (hover: none) {
+  .model-loading-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.model-loading-track {
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.model-loading-fill {
+  height: 100%;
+  background: var(--color-primary);
+  opacity: 0.6;
+  border-radius: 9999px;
+  transition: width 0.15s ease;
+}
+
+.model-loading-detail {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--color-gray-dark);
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-loading-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--color-border);
-  border-top-color: var(--color-primary);
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--color-border);
+  border-top-color: var(--color-gray-dark);
   border-radius: 50%;
   animation: model-loading-spin 0.7s linear infinite;
   flex-shrink: 0;

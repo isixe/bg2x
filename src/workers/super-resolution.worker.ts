@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import * as ort from 'onnxruntime-web';
-import type { WorkerMessage } from '../type';
+import type { ModelLoadStage, WorkerMessage } from '../type';
 
 // numThreads > 1 deadlocks InferenceSession.create() forever under Electron's
 // app:// (Emscripten pthread pool race, microsoft/onnxruntime#26858): A/B tested
@@ -85,8 +85,16 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   }
 };
 
-function postProgress(progress: number, status: string, tile?: { done: number; total: number }) {
-  self.postMessage({ type: 'progress', payload: { progress, status, jobId: currentJobId, tile } });
+function postProgress(
+  progress: number,
+  status: string,
+  tile?: { done: number; total: number },
+  stage?: ModelLoadStage,
+) {
+  self.postMessage({
+    type: 'progress',
+    payload: { progress, status, jobId: currentJobId, tile, stage },
+  });
 }
 
 async function createSession(source: string | ArrayBuffer, gpu: boolean) {
@@ -111,7 +119,7 @@ async function loadModel(modelId: string, modelData: ArrayBuffer, gpu = false) {
       return;
     }
 
-    postProgress(0, 'Loading model...');
+    postProgress(0, 'Loading model...', undefined, 'session');
 
     const source = modelData;
     let effectiveGpu = gpu;
@@ -125,6 +133,7 @@ async function loadModel(modelId: string, modelData: ArrayBuffer, gpu = false) {
     } catch (gpuError) {
       console.warn(`[worker] gpu session failed (${(performance.now() - t0) | 0}ms): ${gpuError}`);
       if (!gpu) throw gpuError;
+      postProgress(0, 'Loading model...', undefined, 'fallback');
       session = await createSession(source, false);
       effectiveGpu = false;
     }

@@ -3,12 +3,8 @@ import { computed, ref } from 'vue';
 import { ChevronDown, Download, ImagePlus, RotateCcw, Star } from 'lucide-vue-next';
 import { SelectItemText } from 'reka-ui';
 import { useI18n } from 'vue-i18n';
-import { MODEL_REGISTRY, sortModelsByFavorites } from '../composables/useModelRegistry';
-import {
-  cancelModelDownload,
-  downloadModel,
-  modelDownloadStates,
-} from '../composables/useModelDownloads';
+import { sortModelsByFavorites } from '../composables/useModelRegistry';
+import { modelDownloadStates } from '../composables/useModelDownloads';
 import { useModelStore } from '../store/stores';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
 import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue';
@@ -23,7 +19,7 @@ import SelectValue from './ui/select/SelectValue.vue';
 
 const { t } = useI18n();
 
-const props = defineProps<{
+defineProps<{
   targetScale: number;
   gpu: boolean;
   modelId: string;
@@ -50,20 +46,8 @@ const format = ref<DownloadFormat>('png');
 const modelStore = useModelStore();
 const sortedModels = computed(() => sortModelsByFavorites(modelStore.favoriteModelIds));
 
-const activeModel = computed(() => MODEL_REGISTRY.find((m) => m.id === props.modelId));
-const downloadState = computed(() => modelDownloadStates[props.modelId]);
-
 function pickFormat(value: DownloadFormat) {
   format.value = value;
-}
-
-function downloadActiveModel() {
-  const model = activeModel.value;
-  if (!model || downloadState.value?.downloading || downloadState.value?.cached) return;
-  downloadModel(model).then(
-    () => modelStore.setDefaultModel(model.id),
-    () => undefined,
-  );
 }
 </script>
 
@@ -192,35 +176,6 @@ function downloadActiveModel() {
           </SelectItem>
         </SelectContent>
       </Select>
-    </div>
-
-    <div
-      v-if="downloadState && (downloadState.downloading || !downloadState.cached)"
-      class="model-status"
-    >
-      <div v-if="downloadState.downloading" class="status-progress">
-        <div class="progress-track">
-          <div class="progress-fill" :style="{ width: downloadState.progress + '%' }"></div>
-        </div>
-        <span class="progress-text">{{ downloadState.progress }}%</span>
-        <button type="button" class="status-cancel" @click="cancelModelDownload(modelId)">
-          {{ t('home.cancel') }}
-        </button>
-      </div>
-      <template v-else>
-        <button
-          type="button"
-          class="status-download"
-          :disabled="!activeModel"
-          @click="downloadActiveModel"
-        >
-          <Download :size="14" />
-          <span>{{ t('home.downloadModel') }}</span>
-        </button>
-        <p v-if="downloadState.error" class="status-error" :title="downloadState.error">
-          {{ t('home.downloadFailed') }}
-        </p>
-      </template>
     </div>
 
     <div class="ops-gpu">
@@ -467,78 +422,5 @@ function downloadActiveModel() {
 .model-item-downloading {
   color: var(--color-primary);
   background: var(--color-gray);
-}
-
-.model-status {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-  margin-top: -0.375rem;
-}
-
-.status-progress {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.progress-track {
-  flex: 1;
-  height: 6px;
-  background: var(--color-gray);
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--color-primary);
-  border-radius: 9999px;
-  transition: width 0.15s ease;
-}
-
-.progress-text {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-primary);
-  min-width: 3ch;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.status-cancel {
-  font-size: 0.75rem;
-  color: var(--color-gray-dark);
-  text-decoration: underline;
-}
-
-.status-download {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  align-self: flex-start;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-primary);
-  background: var(--color-gray);
-  border-radius: var(--radius-md);
-}
-
-.status-download:hover:not(:disabled) {
-  background: #e5e0da;
-}
-
-.status-download:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.status-error {
-  margin: 0;
-  font-size: 0.6875rem;
-  color: #dc2626;
-  word-break: break-all;
 }
 </style>

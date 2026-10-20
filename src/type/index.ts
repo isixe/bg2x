@@ -103,6 +103,9 @@ export type AbortMessage = {
 
 export type WorkerMessage = LoadModelMessage | ProcessMessage | AbortMessage;
 
+/** Coarse model-load steps; `InferenceSession.create()` reports no real progress. */
+export type ModelLoadStage = 'session' | 'fallback';
+
 export type WorkerResponse =
   | {
       type: 'progress';
@@ -112,6 +115,8 @@ export type WorkerResponse =
         jobId?: number | null;
         /** Tiles completed so far / total — lets the main thread interpolate between reports at the real rate. */
         tile?: { done: number; total: number };
+        /** Present only while loading a model, not during inference. */
+        stage?: ModelLoadStage;
       };
     }
   | { type: 'model-loaded'; payload?: { modelId: string; gpu?: boolean } }

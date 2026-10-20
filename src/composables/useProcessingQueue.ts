@@ -1,7 +1,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { BatchItem, ModelEntry, WorkerResponse } from '../type';
+import type { BatchItem, ModelEntry, ModelLoadStage, WorkerResponse } from '../type';
 import { getCachedModel, isModelCached } from './useModelCache';
 import { getModelById } from './useModelRegistry';
 import { downloadModel } from './useModelDownloads';
@@ -86,6 +86,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const gpuFallback = ref(false);
 
   const modelPhase = ref<'downloading' | 'loading' | null>(null);
+  const modelLoadStage = ref<ModelLoadStage | null>(null);
+  const modelLoadStartedAt = ref<number | null>(null);
+
+  function resetModelLoad() {
+    modelLoadStage.value = null;
+    modelLoadStartedAt.value = null;
+  }
 
   /** copy button feedback: show a check icon for a short while after a successful copy */
   const copiedId = ref<number | null>(null);
@@ -158,6 +165,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           noteProgressReport(payload.progress, payload.tile);
           rawProgress = payload.progress;
           stepProgressSmoothing();
+          if (payload.stage) modelLoadStage.value = payload.stage;
           state.value.status = payload.status;
           armStallWatchdog();
           break;
@@ -232,6 +240,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           state.value.isModelLoaded = true;
           state.value.isLoadingModel = false;
           modelPhase.value = null;
+          resetModelLoad();
           state.value.status = 'Model loaded';
           loadedModelId = payload?.modelId ?? options.model.value.id;
           loadedGpuWanted = pendingGpuWanted;
@@ -253,6 +262,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.isLoadingModel = false;
       state.value.error = e.message;
       state.value.status = 'Worker error';
+      if (modelPhase.value === 'loading') modelPhase.value = null;
+      resetModelLoad();
       const item = currentItem;
       if (item) {
         stopItemTimer(item);
@@ -385,6 +396,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     pendingGpuWanted = null;
     currentJobId = null;
     state.value.isModelLoaded = false;
+    modelPhase.value = null;
+    resetModelLoad();
     setupWorker();
   }
 
@@ -400,6 +413,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     state.value.isLoadingModel = false;
     state.value.error = message;
     state.value.status = 'Error';
+    if (modelPhase.value === 'loading') modelPhase.value = null;
+    resetModelLoad();
     const item = currentItem;
     if (item) {
       stopItemTimer(item);
@@ -618,11 +633,14 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       }
 
       modelPhase.value = 'loading';
+      modelLoadStage.value = null;
+      modelLoadStartedAt.value = Date.now();
       await loadModel(modelId, modelData);
       await waitForModelLoaded();
       return true;
     } catch (err) {
       modelPhase.value = null;
+      resetModelLoad();
       state.value.isLoadingModel = false;
       if (err instanceof DOMException && err.name === 'AbortError') {
         state.value.status = 'Ready';
@@ -1021,6 +1039,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     cancelProcessing,
     cancelItem,
     modelPhase,
+    modelLoadStage,
+    modelLoadStartedAt,
     removeItem,
     toggleSelect,
     toggleSelectAll,

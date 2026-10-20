@@ -40,6 +40,8 @@
     "ready": "就绪",
     "loadingModel": "加载模型中...",
     "downloadingModel": "下载模型中...",
+    "initializingSession": "正在初始化 {backend} 会话...",
+    "gpuFallbackLoading": "GPU 初始化失败，正在切换到 CPU...",
     "loadingImage": "加载图片中...",
     "complete": "完成",
     "error": "错误",
