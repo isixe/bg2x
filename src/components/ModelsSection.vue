@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, reactive, onMounted, onUnmounted } from 'vue';
-import { MODEL_REGISTRY, sortModelsByFavorites } from '../composables/useModelRegistry';
-import type { ModelEntry, ModelState } from '../type';
-import { cacheModel, deleteCachedModel } from '../composables/useModelCache';
-import { fetchModelBytes } from '../composables/useModelDownload';
-import { useModelCacheStore, useModelStore } from '../store/stores';
+import { computed, onMounted } from 'vue';
+import { sortModelsByFavorites } from '../composables/useModelRegistry';
+import type { ModelEntry } from '../type';
+import {
+  cancelModelDownload,
+  downloadModel,
+  modelDownloadStates,
+  refreshModelDownloadStates,
+  removeCachedModel,
+} from '../composables/useModelDownloads';
+import { useModelStore } from '../store/stores';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { Check, ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
@@ -22,9 +27,8 @@ withDefaults(
 const router = useRouter();
 const { t } = useI18n();
 const modelStore = useModelStore();
-const modelCacheStore = useModelCacheStore();
 
-const modelStates = reactive<Record<string, ModelState>>({});
+const modelStates = modelDownloadStates;
 const defaultModelId = computed(() => modelStore.defaultModelId);
 const favoriteIds = computed(() => modelStore.favoriteModelIds);
 
@@ -39,72 +43,25 @@ const groups = computed(() => {
 });
 
 onMounted(async () => {
-  for (const model of MODEL_REGISTRY) {
-    modelStates[model.id] = {
-      cached: false,
-      downloading: false,
-      progress: 0,
-      error: null,
-      abortController: null,
-    };
-  }
-  await modelCacheStore.refresh();
-  for (const model of MODEL_REGISTRY) {
-    modelStates[model.id].cached = modelCacheStore.cachedModelIds.includes(model.id);
-  }
+  await refreshModelDownloadStates();
 });
 
-onUnmounted(() => {
-  for (const model of MODEL_REGISTRY) {
-    modelStates[model.id].abortController?.abort();
-  }
-});
-
-async function downloadModel(model: ModelEntry) {
-  const state = modelStates[model.id];
-  if (state.downloading || state.cached) return;
-
-  state.downloading = true;
-  state.progress = 0;
-  state.error = null;
-  const controller = new AbortController();
-  state.abortController = controller;
-
-  try {
-    const buffer = await fetchModelBytes(model, {
-      signal: controller.signal,
-      onProgress: (p) => (state.progress = p),
-    });
-
-    await cacheModel(model.id, buffer);
-    modelCacheStore.setCached(model.id, true);
-    state.cached = true;
-    state.progress = 100;
-    modelStore.setDefaultModel(model.id);
-  } catch (err: unknown) {
-    if (err instanceof Error && err.name !== 'AbortError') {
-      state.error = err.message || 'Download failed';
-    }
-  } finally {
-    state.downloading = false;
-    state.abortController = null;
-  }
+function startDownload(model: ModelEntry) {
+  downloadModel(model).then(
+    () => modelStore.setDefaultModel(model.id),
+    () => undefined,
+  );
 }
 
 async function removeModel(model: ModelEntry) {
-  const state = modelStates[model.id];
-  if (state.downloading) return;
-  await deleteCachedModel(model.id);
-  modelCacheStore.setCached(model.id, false);
-  state.cached = false;
-  state.progress = 0;
+  await removeCachedModel(model);
 }
 
 function selectModel(model: ModelEntry) {
   const state = modelStates[model.id];
   if (state?.downloading) return;
   if (state?.cached) modelStore.setDefaultModel(model.id);
-  else downloadModel(model);
+  else startDownload(model);
 }
 
 function toggleFavorite(model: ModelEntry) {
@@ -194,7 +151,7 @@ function goToModels() {
               <button
                 v-if="!modelStates[model.id]?.cached && !modelStates[model.id]?.downloading"
                 class="btn-download"
-                @click.stop="downloadModel(model)"
+                @click.stop="startDownload(model)"
               >
                 <Download :size="16" />
                 {{ t('home.downloadModel') }}
@@ -202,7 +159,7 @@ function goToModels() {
               <button
                 v-else-if="modelStates[model.id]?.downloading"
                 class="btn-cancel"
-                @click.stop="modelStates[model.id].abortController?.abort()"
+                @click.stop="cancelModelDownload(model.id)"
               >
                 {{ t('home.cancel') }}
               </button>

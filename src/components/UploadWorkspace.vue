@@ -9,6 +9,11 @@ import PreviewDialog from './PreviewDialog.vue';
 import { useProcessingQueue } from '../composables/useProcessingQueue';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
+import {
+  downloadModel,
+  modelDownloadStates,
+  refreshModelDownloadStates,
+} from '../composables/useModelDownloads';
 import type { BatchItem } from '../type';
 import { useHistoryStore, useModelStore } from '../store/stores';
 
@@ -27,6 +32,15 @@ const selectedModelId = ref(initialModel.id);
 const model = computed(() => getModelById(selectedModelId.value) ?? MODEL_REGISTRY[0]);
 const targetScale = ref(2);
 const gpu = ref(typeof navigator !== 'undefined' && 'gpu' in navigator);
+const downloadProgress = computed(() => modelDownloadStates[model.value.id]?.progress ?? 0);
+
+function onModelChange(modelId: string) {
+  selectedModelId.value = modelId;
+  modelStore.setDefaultModel(modelId);
+  const next = getModelById(modelId);
+  if (!next || modelDownloadStates[modelId]?.cached) return;
+  void downloadModel(next).catch(() => undefined);
+}
 
 const {
   state,
@@ -122,6 +136,7 @@ function handleWideChange(e: { matches: boolean }) {
 }
 
 onMounted(() => {
+  void refreshModelDownloadStates();
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
   wideMq = window.matchMedia(WIDE_QUERY);
   isWide.value = wideMq.matches;
@@ -196,7 +211,7 @@ onUnmounted(() => {
                 ? 'processing.downloadingModel'
                 : 'processing.loadingModel',
             )
-          }}
+          }}<template v-if="modelPhase === 'downloading'"> · {{ downloadProgress }}%</template>
         </span>
       </div>
 
@@ -238,7 +253,7 @@ onUnmounted(() => {
         :has-downloadable="hasDownloadable"
         @update:target-scale="targetScale = $event"
         @update:gpu="gpu = $event"
-        @update:model-id="selectedModelId = $event"
+        @update:model-id="onModelChange"
         @reprocess="reprocess()"
         @process-new="openFilePicker"
         @download-all="(format: DownloadFormat) => downloadBatch(format)"

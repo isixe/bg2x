@@ -2,10 +2,9 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { BatchItem, ModelEntry, WorkerResponse } from '../type';
-import { cacheModel, getCachedModel, isModelCached } from './useModelCache';
+import { getCachedModel, isModelCached } from './useModelCache';
 import { getModelById } from './useModelRegistry';
-import { fetchModelBytes } from './useModelDownload';
-import { useModelCacheStore } from '../store/stores';
+import { downloadModel } from './useModelDownloads';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
@@ -37,7 +36,6 @@ interface ProcessingState {
 
 export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const { t } = useI18n();
-  const modelCacheStore = useModelCacheStore();
 
   const state = ref<ProcessingState>({
     isProcessing: false,
@@ -616,9 +614,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         }
         state.value.status = 'Downloading model...';
         modelPhase.value = 'downloading';
-        modelData = await fetchModelBytes(model);
-        await cacheModel(modelId, modelData);
-        modelCacheStore.setCached(modelId, true);
+        modelData = await downloadModel(model);
       }
 
       modelPhase.value = 'loading';
@@ -628,6 +624,10 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     } catch (err) {
       modelPhase.value = null;
       state.value.isLoadingModel = false;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        state.value.status = 'Ready';
+        return false;
+      }
       state.value.error = err instanceof Error ? err.message : 'Failed to load model';
       state.value.status = 'Error';
       return false;
