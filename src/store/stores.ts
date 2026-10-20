@@ -81,6 +81,8 @@ export const useSettingsStore = defineStore(
   () => {
     const hasVisited = ref(false);
     const historyPersist = ref(false);
+    const checkUpdatesOnLaunch = ref(true);
+    const dismissedUpdateVersion = ref('');
 
     function markVisited() {
       hasVisited.value = true;
@@ -90,7 +92,19 @@ export const useSettingsStore = defineStore(
       historyPersist.value = enabled;
     }
 
-    return { hasVisited, markVisited, historyPersist, setHistoryPersist };
+    function dismissUpdate(version: string) {
+      dismissedUpdateVersion.value = version;
+    }
+
+    return {
+      hasVisited,
+      markVisited,
+      historyPersist,
+      setHistoryPersist,
+      checkUpdatesOnLaunch,
+      dismissedUpdateVersion,
+      dismissUpdate,
+    };
   },
   { persist: { key: 'super-resolution-settings' } },
 );

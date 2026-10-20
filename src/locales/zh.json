@@ -132,6 +132,12 @@
     "version": "最新版本",
     "noDetection": "无法识别你的操作系统，请在下方选择下载。"
   },
+  "update": {
+    "available": "检测到新版本 v{version}",
+    "desc": "前往下载最新的桌面端安装包。",
+    "action": "前往下载",
+    "dismiss": "关闭"
+  },
   "settings": {
     "title": "设置",
     "tabGeneral": "通用",
@@ -142,6 +148,13 @@
     "historySection": "历史记录",
     "persistHistory": "持久化历史记录",
     "persistHistoryDesc": "在浏览器中保留生成的结果以便下次访问",
+    "updateSection": "更新",
+    "checkUpdates": "启动时检查更新",
+    "checkUpdatesDesc": "打开应用时在后台检查是否有新版本",
+    "checkNow": "立即检查",
+    "checking": "检查中...",
+    "upToDate": "已是最新版本（v{version}）",
+    "checkFailed": "无法连接更新服务器",
     "aboutDesc": "bg2x 是一款基于浏览器的 AI 图像超分辨率工具。所有推理都在你的设备上通过 ONNX Runtime Web（WASM / WebGPU）本地完成——图片不会离开你的浏览器。",
     "version": "版本",
     "license": "许可证",

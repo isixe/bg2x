@@ -132,6 +132,12 @@
     "version": "Latest version",
     "noDetection": "We couldn't detect your operating system — pick a download below."
   },
+  "update": {
+    "available": "Version v{version} is available",
+    "desc": "Download the latest desktop build.",
+    "action": "Download",
+    "dismiss": "Dismiss"
+  },
   "settings": {
     "title": "Settings",
     "tabGeneral": "General",
@@ -142,6 +148,13 @@
     "historySection": "History",
     "persistHistory": "Persist history records",
     "persistHistoryDesc": "Keep generated results in your browser between sessions",
+    "updateSection": "Updates",
+    "checkUpdates": "Check for updates at startup",
+    "checkUpdatesDesc": "Check for a newer version in the background when the app opens",
+    "checkNow": "Check now",
+    "checking": "Checking...",
+    "upToDate": "You're on the latest version (v{version})",
+    "checkFailed": "Couldn't reach the update server",
     "aboutDesc": "bg2x is a browser-based AI image upscaler. All inference runs locally on your device via ONNX Runtime Web (WASM / WebGPU) — your images never leave your browser.",
     "version": "Version",
     "license": "License",

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router';
 import AppHeader from './AppHeader.vue';
+import UpdateNotice from './UpdateNotice.vue';
 import { useThemeStore } from '../store/stores';
 
 const themeStore = useThemeStore();
@@ -19,6 +20,7 @@ themeStore.applyToDocument();
         </KeepAlive>
       </RouterView>
     </main>
+    <UpdateNotice />
   </div>
 </template>
 

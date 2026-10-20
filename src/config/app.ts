@@ -14,4 +14,6 @@ export const GITHUB_LATEST_RELEASE_API = `https://api.github.com/repos/${GITHUB_
 
 export const HOMEPAGE_URL = 'https://bg2x.itea.dev/';
 
+export const WEB_DOWNLOAD_URL = new URL('download', HOMEPAGE_URL).toString();
+
 export const LICENSE = 'MIT';

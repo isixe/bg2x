@@ -132,6 +132,12 @@
     "version": "最新バージョン",
     "noDetection": "お使いの OS を判別できませんでした。以下から選択してください。"
   },
+  "update": {
+    "available": "新しいバージョン v{version} があります",
+    "desc": "最新のデスクトップ版をダウンロードしてください。",
+    "action": "ダウンロード",
+    "dismiss": "閉じる"
+  },
   "settings": {
     "title": "設定",
     "tabGeneral": "一般",
@@ -142,6 +148,13 @@
     "historySection": "履歴",
     "persistHistory": "履歴を保存",
     "persistHistoryDesc": "生成した結果をブラウザに保存して次回も利用します",
+    "updateSection": "アップデート",
+    "checkUpdates": "起動時にアップデートを確認",
+    "checkUpdatesDesc": "アプリの起動時に新しいバージョンをバックグラウンドで確認します",
+    "checkNow": "今すぐ確認",
+    "checking": "確認中...",
+    "upToDate": "最新バージョンです（v{version}）",
+    "checkFailed": "更新サーバーに接続できませんでした",
     "aboutDesc": "bg2x はブラウザベースの AI 画像超解像ツールです。すべての推論は ONNX Runtime Web（WASM / WebGPU）により端末上でローカルに実行され、画像がブラウザの外に出ることはありません。",
     "version": "バージョン",
     "license": "ライセンス",

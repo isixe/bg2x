@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
@@ -12,6 +12,7 @@ import {
   Eraser,
   Images,
   Wrench,
+  RefreshCw,
 } from 'lucide-vue-next';
 import { useLocaleStore, useSettingsStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
@@ -20,8 +21,10 @@ import SelectContent from './ui/select/SelectContent.vue';
 import SelectItem from './ui/select/SelectItem.vue';
 import SelectTrigger from './ui/select/SelectTrigger.vue';
 import SelectValue from './ui/select/SelectValue.vue';
-import { APP_NAME, APP_VERSION, GITHUB_URL, LICENSE } from '../config/app';
+import { APP_NAME, APP_VERSION, GITHUB_URL, LICENSE, WEB_DOWNLOAD_URL } from '../config/app';
 import { RELATED_PROJECTS } from '../config/related';
+import { IS_DESKTOP } from '../lib/desktop';
+import { useUpdateCheck } from '../composables/useUpdateCheck';
 
 type SettingsTab = 'general' | 'about' | 'related';
 
@@ -34,6 +37,15 @@ interface SettingsTabItem {
 const { t } = useI18n();
 const localeStore = useLocaleStore();
 const settingsStore = useSettingsStore();
+const { status: updateStatus, latestVersion, checkForUpdate } = useUpdateCheck();
+
+const updateResult = computed(() => {
+  if (updateStatus.value === 'latest') return t('settings.upToDate', { version: APP_VERSION });
+  if (updateStatus.value === 'failed') return t('settings.checkFailed');
+  if (updateStatus.value === 'available')
+    return t('update.available', { version: latestVersion.value });
+  return '';
+});
 
 const activeTab = ref<SettingsTab>('general');
 
@@ -95,6 +107,20 @@ function onLanguageChange(value: string) {
           </div>
         </div>
 
+        <div v-if="IS_DESKTOP" class="settings-section">
+          <h2 class="section-title">{{ t('settings.updateSection') }}</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.checkUpdates') }}</span>
+              <span class="setting-desc">{{ t('settings.checkUpdatesDesc') }}</span>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="settingsStore.checkUpdatesOnLaunch" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
         <div class="settings-section">
           <h2 class="section-title">{{ t('settings.language') }}</h2>
           <div class="setting-item">
@@ -120,10 +146,7 @@ function onLanguageChange(value: string) {
         <div class="about-card">
           <img class="about-logo" src="/favicon.png" :alt="APP_NAME" />
           <div class="about-body">
-            <div class="about-head">
-              <h2 class="about-name">{{ APP_NAME }}</h2>
-              <span class="about-version">v{{ APP_VERSION }}</span>
-            </div>
+            <h2 class="about-name">{{ APP_NAME }}</h2>
             <p class="about-desc">{{ t('settings.aboutDesc') }}</p>
           </div>
         </div>
@@ -134,10 +157,33 @@ function onLanguageChange(value: string) {
             <span class="link-label">{{ t('settings.viewOnGithub') }}</span>
             <ExternalLink class="link-ext" />
           </a>
-          <div class="link-item static">
-            <Info class="link-icon" />
-            <span class="link-label">{{ t('settings.version') }}</span>
-            <span class="link-value">{{ APP_VERSION }}</span>
+          <div class="version-card">
+            <div class="version-head">
+              <div class="version-info">
+                <span class="version-label">{{ t('settings.version') }}</span>
+                <span class="version-value">v{{ APP_VERSION }}</span>
+              </div>
+              <button
+                v-if="IS_DESKTOP"
+                type="button"
+                class="btn-check"
+                :disabled="updateStatus === 'checking'"
+                @click="checkForUpdate()"
+              >
+                <RefreshCw :size="14" :class="{ spinning: updateStatus === 'checking' }" />
+                {{ updateStatus === 'checking' ? t('settings.checking') : t('settings.checkNow') }}
+              </button>
+            </div>
+            <a
+              v-if="updateStatus === 'available'"
+              class="check-result is-update"
+              :href="WEB_DOWNLOAD_URL"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ updateResult }}
+            </a>
+            <span v-else-if="updateResult" class="check-result">{{ updateResult }}</span>
           </div>
           <div class="link-item static">
             <Scale class="link-icon" />
@@ -350,6 +396,99 @@ function onLanguageChange(value: string) {
   transform: translateX(20px);
 }
 
+.version-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--color-card);
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+}
+
+.version-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.version-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.version-label {
+  font-size: 0.75rem;
+  color: var(--color-gray-dark);
+}
+
+.version-value {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+
+.btn-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-gray-dark);
+  background: none;
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.btn-check:hover:not(:disabled) {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-check:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.btn-check .spinning {
+  animation: check-spin 0.9s linear infinite;
+}
+
+@keyframes check-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.check-result {
+  font-size: 0.75rem;
+  color: var(--color-gray-dark);
+}
+
+.check-result.is-update {
+  color: var(--color-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.check-result.is-update:hover {
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-check .spinning {
+    animation: none;
+  }
+}
+
 .about-card {
   display: flex;
   gap: 1rem;
@@ -372,27 +511,11 @@ function onLanguageChange(value: string) {
   min-width: 0;
 }
 
-.about-head {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
 .about-name {
   font-size: 1.125rem;
   font-weight: 700;
   color: var(--color-dark);
-  margin: 0;
-}
-
-.about-version {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--color-primary);
-  background: rgba(212, 132, 62, 0.12);
-  padding: 0.125rem 0.5rem;
-  border-radius: 999px;
+  margin: 0 0 0.5rem;
 }
 
 .about-desc {
