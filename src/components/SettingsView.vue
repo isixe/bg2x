@@ -11,6 +11,7 @@ import {
   Scale,
   Eraser,
   Images,
+  Wrench,
 } from 'lucide-vue-next';
 import { useLocaleStore, useSettingsStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
@@ -45,6 +46,7 @@ const tabs: SettingsTabItem[] = [
 const RELATED_ICONS: Record<string, Component> = {
   bgx: Eraser,
   imageDash: Images,
+  picnook: Wrench,
 };
 
 const failedLogos = ref<Record<string, boolean>>({});
@@ -163,6 +165,7 @@ function onLanguageChange(value: string) {
                 :src="project.favicon"
                 :alt="project.name"
                 loading="lazy"
+                crossorigin="anonymous"
                 referrerpolicy="no-referrer"
                 @error="onLogoError(project.i18nKey)"
               />

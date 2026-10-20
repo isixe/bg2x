@@ -147,7 +147,8 @@
     "relatedDesc": "Here are some of my other projects. If you're into image processing tools, you're welcome to try them.",
     "relatedItems": {
       "bgx": "Remove image backgrounds with AI.",
-      "imageDash": "A search engine image search launcher."
+      "imageDash": "A search engine image search launcher.",
+      "picnook": "A free, privacy-first image toolbox that runs entirely in your browser."
     }
   },
   "action": {

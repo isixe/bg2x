@@ -2,7 +2,10 @@ export interface RelatedProject {
   name: string;
   url: string;
   i18nKey: string;
-  /** Bundled locally: cross-origin favicons are blocked by COEP (require-corp). */
+  /**
+   * Remote logo URL. Must be CORS-enabled because COEP (require-corp) blocks
+   * opaque cross-origin image responses.
+   */
   favicon: string;
 }
 
@@ -18,5 +21,11 @@ export const RELATED_PROJECTS: RelatedProject[] = [
     url: 'https://image-dash.itea.dev/',
     i18nKey: 'imageDash',
     favicon: '/projects/imagedash.ico',
+  },
+  {
+    name: 'PicNook',
+    url: 'https://picnook.itea.dev/',
+    i18nKey: 'picnook',
+    favicon: 'https://picnook.itea.dev/favicon.png',
   },
 ];
