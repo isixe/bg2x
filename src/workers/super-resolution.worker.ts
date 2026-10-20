@@ -56,6 +56,15 @@ let currentSource: string | ArrayBuffer | null = null;
 /** Set by an `abort` message; checked between tiles so cancellation is prompt. */
 let abortRequested = false;
 
+/**
+ * Messages arrive as macrotasks, so an `abort` queued while a tile run blocks
+ * this thread is only dispatched after that run returns — yielding once per tile
+ * lets it land before the next tile starts instead of a tile later.
+ */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 /** Id of the job in flight, echoed in every reply so stale results can be dropped. */
 let currentJobId: number | null = null;
 
@@ -256,8 +265,6 @@ async function processImage(payload: {
     pending = startTile(0);
 
     for (let i = 0; i < totalTiles; i++) {
-      if (abortRequested) throw new AbortError();
-
       const { x0, y0, tx, ty } = tiles[i];
 
       postProgress(
@@ -284,7 +291,12 @@ async function processImage(payload: {
       cpuMs += performance.now() - blendStart;
 
       done++;
-      if (i + 1 < totalTiles) pending = startTile(i + 1, true);
+
+      if (i + 1 < totalTiles) {
+        await yieldToEventLoop();
+        if (abortRequested) throw new AbortError();
+        pending = startTile(i + 1, true);
+      }
     }
 
     console.log(

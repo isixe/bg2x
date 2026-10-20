@@ -220,8 +220,10 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         }
 
         case 'aborted': {
-          clearStallWatchdog();
+          // a late ack for a job the queue already moved past: leave the new
+          // job's watchdog and loading state alone
           if (payload.jobId != null && payload.jobId !== currentJobId) break;
+          clearStallWatchdog();
           state.value.isLoadingModel = false;
           const item = currentItem;
           if (item) {
