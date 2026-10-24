@@ -179,6 +179,7 @@ function assertOutputSize(w: number, h: number) {
 async function processImage(payload: {
   jobId: number;
   imageData: ImageData;
+  alpha?: Uint8ClampedArray;
   width: number;
   height: number;
   scale: number;
@@ -215,6 +216,9 @@ async function processImage(payload: {
     postProgress(5, 'Preprocessing...');
 
     const outData = new Uint8ClampedArray(blendW * blendH * 4);
+    const alphaPlane = payload.alpha
+      ? scaleAlpha(payload.alpha, width, height, blendW, blendH)
+      : null;
 
     const inputName = session.inputNames[0];
     const outputName = session.outputNames[0];
@@ -287,7 +291,7 @@ async function processImage(payload: {
       const tileData = downsample ? downsampleTile(tileOut, TILE_SIZE * scale, rawFactor) : tileOut;
       const ax = tx === 0 ? weights.full : weights.ramp;
       const ay = ty === 0 ? weights.full : weights.ramp;
-      blendTile(outData, tileData, x0, y0, blendW, blendH, blendScale, ax, ay);
+      blendTile(outData, tileData, x0, y0, blendW, blendH, blendScale, ax, ay, alphaPlane);
       cpuMs += performance.now() - blendStart;
 
       done++;
@@ -500,11 +504,50 @@ function downsampleTile(src: Float32Array, ow: number, factor: number): Float32A
 }
 
 /**
+ * Resample the source alpha onto the blend buffer's pixel grid. The mask is
+ * painted over white and read back from the alpha channel so the browser
+ * interpolates it in premultiplied space; a grayscale RGB image would drag black
+ * into every reduced-alpha pixel instead.
+ */
+function scaleAlpha(
+  alpha: Uint8ClampedArray,
+  srcW: number,
+  srcH: number,
+  dstW: number,
+  dstH: number,
+): Uint8ClampedArray {
+  if (srcW === dstW && srcH === dstH) return alpha;
+
+  const source = new ImageData(srcW, srcH);
+  for (let i = 0, p = 0; i < alpha.length; i++, p += 4) {
+    source.data[p] = 255;
+    source.data[p + 1] = 255;
+    source.data[p + 2] = 255;
+    source.data[p + 3] = alpha[i];
+  }
+
+  const srcCanvas = new OffscreenCanvas(srcW, srcH);
+  srcCanvas.getContext('2d')!.putImageData(source, 0, 0);
+  const dstCanvas = new OffscreenCanvas(dstW, dstH);
+  const ctx = dstCanvas.getContext('2d')!;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(srcCanvas, 0, 0, dstW, dstH);
+
+  const scaled = ctx.getImageData(0, 0, dstW, dstH).data;
+  const out = new Uint8ClampedArray(dstW * dstH);
+  for (let i = 0, p = 3; i < out.length; i++, p += 4) out[i] = scaled[p];
+  return out;
+}
+
+/**
  * Blend a tile's network output into the final buffer. Where tiles overlap the
  * contribution is feathered back in (linear ramp across TILE_OVERLAP), the first
  * tile along each axis always contributing fully. `ax`/`ay` are the precomputed
  * per-axis weights; `blendScale` maps source pixels to the destination buffer,
- * which is the native scale unless the output was downsampled first.
+ * which is the native scale unless the output was downsampled first. `alphaPlane`
+ * carries the source alpha resampled into the same destination space; without it
+ * every pixel is written fully opaque.
  */
 function blendTile(
   out: Uint8ClampedArray,
@@ -516,6 +559,7 @@ function blendTile(
   blendScale: number,
   ax: Float32Array,
   ay: Float32Array,
+  alphaPlane: Uint8ClampedArray | null,
 ) {
   const ow = TILE_SIZE * blendScale;
   const plane = ow * ow;
@@ -548,7 +592,7 @@ function blendTile(
         out[di + 1] = out[di + 1] * inv + g * a;
         out[di + 2] = out[di + 2] * inv + b * a;
       }
-      out[di + 3] = 255;
+      out[di + 3] = alphaPlane ? alphaPlane[gy * destW + gx] : 255;
     }
   }
 }

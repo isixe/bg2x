@@ -88,6 +88,12 @@ export type ProcessMessage = {
   payload: {
     jobId: number;
     imageData: ImageData;
+    /**
+     * Single-channel alpha at the source resolution, present only when the image
+     * is not fully opaque. The network only sees RGB, so the original alpha is
+     * carried alongside it and re-applied to the stitched output.
+     */
+    alpha?: Uint8ClampedArray;
     width: number;
     height: number;
     /** Native model scale (e.g. 4) — used for inference output sizing. */

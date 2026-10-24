@@ -711,13 +711,14 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       return 'error';
     }
 
-    const imageData = getImageData(img);
+    const { imageData, alpha } = prepareSourceImage(img);
 
     worker.postMessage({
       type: 'process',
       payload: {
         jobId,
         imageData,
+        alpha,
         width: img.width,
         height: img.height,
         scale: options.model.value.scale,
@@ -746,13 +747,74 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
   }
 
-  function getImageData(img: HTMLImageElement): ImageData {
+  function prepareSourceImage(img: HTMLImageElement): {
+    imageData: ImageData;
+    alpha?: Uint8ClampedArray;
+  } {
     const canvas = document.createElement('canvas');
     canvas.width = img.width;
     canvas.height = img.height;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
     ctx.drawImage(img, 0, 0);
-    return ctx.getImageData(0, 0, img.width, img.height);
+    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    const data = imageData.data;
+    const pixels = img.width * img.height;
+    const alpha = new Uint8ClampedArray(pixels);
+
+    let opaque = true;
+    for (let i = 0, p = 3; i < pixels; i++, p += 4) {
+      const a = data[p];
+      alpha[i] = a;
+      if (a !== 255) opaque = false;
+    }
+
+    if (opaque) return { imageData };
+
+    bleedTransparentPixels(data, alpha, img.width, img.height);
+    return { imageData, alpha };
+  }
+
+  /**
+   * Canvas storage is premultiplied, so a fully transparent pixel always reads
+   * back as pure black. Handing that to the network paints a black backdrop and
+   * darkens the subject edges it blends into, so spread the nearest opaque colour
+   * outwards first. A forward and a backward sweep reach most transparent regions.
+   */
+  function bleedTransparentPixels(
+    data: Uint8ClampedArray,
+    alpha: Uint8ClampedArray,
+    width: number,
+    height: number,
+  ) {
+    const resolved = new Uint8Array(width * height);
+    for (let i = 0; i < alpha.length; i++) resolved[i] = alpha[i] === 0 ? 0 : 1;
+
+    const copy = (dst: number, src: number) => {
+      const d = dst * 4;
+      const s = src * 4;
+      data[d] = data[s];
+      data[d + 1] = data[s + 1];
+      data[d + 2] = data[s + 2];
+      resolved[dst] = 1;
+    };
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = y * width + x;
+        if (resolved[i]) continue;
+        if (x > 0 && resolved[i - 1]) copy(i, i - 1);
+        else if (y > 0 && resolved[i - width]) copy(i, i - width);
+      }
+    }
+
+    for (let y = height - 1; y >= 0; y--) {
+      for (let x = width - 1; x >= 0; x--) {
+        const i = y * width + x;
+        if (resolved[i]) continue;
+        if (x + 1 < width && resolved[i + 1]) copy(i, i + 1);
+        else if (y + 1 < height && resolved[i + width]) copy(i, i + width);
+      }
+    }
   }
 
   async function runQueue() {

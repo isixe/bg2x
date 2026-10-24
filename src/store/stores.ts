@@ -142,7 +142,7 @@ async function createThumbnail(dataUrl: string, maxSize = 120): Promise<string> 
       canvas.height = img.height * ratio;
       const ctx = canvas.getContext('2d')!;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.6));
+      resolve(canvas.toDataURL('image/webp', 0.8));
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
