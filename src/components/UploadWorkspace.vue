@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Ban, ImagePlus, Trash2 } from 'lucide-vue-next';
+import { Ban, FolderOpen, ImagePlus, Trash2 } from 'lucide-vue-next';
 import ImageUploader from './ImageUploader.vue';
 import QueueList from './QueueList.vue';
 import OpsPanel from './OpsPanel.vue';
@@ -16,6 +16,7 @@ import {
   refreshModelDownloadStates,
 } from '../composables/useModelDownloads';
 import type { BatchItem } from '../type';
+import { filesToBatchInputs } from '../lib/batchInput';
 import { useHistoryStore, useModelStore } from '../store/stores';
 
 const { t } = useI18n();
@@ -95,6 +96,7 @@ const {
 });
 
 const fileInput = ref<HTMLInputElement | null>(null);
+const folderInput = ref<HTMLInputElement | null>(null);
 
 const downloadError = computed(() => activeDownload.value?.error ?? null);
 const modelNoticeVisible = computed(
@@ -115,11 +117,21 @@ function openFilePicker() {
   fileInput.value?.click();
 }
 
+function openFolderPicker() {
+  folderInput.value?.click();
+}
+
 function onFilePicked(e: Event) {
   const input = e.target as HTMLInputElement;
-  if (input.files?.length) {
-    processBatch(Array.from(input.files));
-  }
+  const inputs = filesToBatchInputs(Array.from(input.files || []), false);
+  if (inputs.length > 0) processBatch(inputs);
+  input.value = '';
+}
+
+function onFolderPicked(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const inputs = filesToBatchInputs(Array.from(input.files || []), true);
+  if (inputs.length > 0) processBatch(inputs);
   input.value = '';
 }
 
@@ -224,6 +236,10 @@ onUnmounted(() => {
             <ImagePlus :size="15" />
             <span>{{ t('ops.processNew') }}</span>
           </button>
+          <button type="button" class="toolbar-btn" @click="openFolderPicker">
+            <FolderOpen :size="15" />
+            <span>{{ t('upload.selectFolder') }}</span>
+          </button>
         </div>
       </div>
 
@@ -291,6 +307,14 @@ onUnmounted(() => {
       </p>
 
       <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="onFilePicked" />
+      <input
+        ref="folderInput"
+        type="file"
+        webkitdirectory
+        multiple
+        hidden
+        @change="onFolderPicked"
+      />
     </main>
 
     <aside :class="isWide ? 'ops-dock' : 'ops-inline'">

@@ -62,10 +62,16 @@ export type ViewName = 'home' | 'upload' | 'history' | 'models';
 
 export type ItemStatus = 'pending' | 'processing' | 'done' | 'error';
 
+export interface BatchInput {
+  file: File;
+  relativePath: string | null;
+}
+
 export interface BatchItem {
   id: number;
   name: string;
   file: File;
+  relativePath: string | null;
   status: ItemStatus;
   originalUrl: string;
   resultUrl: string | null;

@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { Upload } from 'lucide-vue-next';
+import { FolderOpen, Upload } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { BatchInput } from '../type';
+import { filesToBatchInputs, isImageFile } from '../lib/batchInput';
 
 const { t } = useI18n();
 
 const emit = defineEmits<{
-  (e: 'files-selected', files: File[]): void;
+  (e: 'files-selected', inputs: BatchInput[]): void;
 }>();
 
 const isDragging = ref(false);
+const folderInput = ref<HTMLInputElement | null>(null);
 
 function handleDragOver(e: DragEvent) {
   e.preventDefault();
@@ -20,27 +23,98 @@ function handleDragLeave() {
   isDragging.value = false;
 }
 
-function handleDrop(e: DragEvent) {
+function openFolderPicker() {
+  folderInput.value?.click();
+}
+
+function readFileEntry(entry: FileSystemFileEntry): Promise<File | null> {
+  return new Promise((resolve) => {
+    entry.file(
+      (file) => resolve(file),
+      () => resolve(null),
+    );
+  });
+}
+
+function readDirectoryEntries(dir: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> {
+  return new Promise((resolve) => {
+    const reader = dir.createReader();
+    const all: FileSystemEntry[] = [];
+    const readBatch = () => {
+      reader.readEntries(
+        (batch) => {
+          if (batch.length === 0) {
+            resolve(all);
+            return;
+          }
+          all.push(...batch);
+          readBatch();
+        },
+        () => resolve(all),
+      );
+    };
+    readBatch();
+  });
+}
+
+async function walkDirectory(dir: FileSystemDirectoryEntry, prefix: string, out: BatchInput[]) {
+  const children = await readDirectoryEntries(dir);
+  for (const child of children) {
+    if (child.isDirectory) {
+      await walkDirectory(child as FileSystemDirectoryEntry, `${prefix}${child.name}/`, out);
+    } else if (child.isFile) {
+      const file = await readFileEntry(child as FileSystemFileEntry);
+      if (file && isImageFile(file)) out.push({ file, relativePath: `${prefix}${file.name}` });
+    }
+  }
+}
+
+async function collectFromEntries(entries: FileSystemEntry[]): Promise<BatchInput[]> {
+  const out: BatchInput[] = [];
+  for (const entry of entries) {
+    if (entry.isDirectory) {
+      await walkDirectory(entry as FileSystemDirectoryEntry, '', out);
+    } else if (entry.isFile) {
+      const file = await readFileEntry(entry as FileSystemFileEntry);
+      if (file && isImageFile(file)) out.push({ file, relativePath: null });
+    }
+  }
+  return out;
+}
+
+async function handleDrop(e: DragEvent) {
   e.preventDefault();
   isDragging.value = false;
 
-  const files = Array.from(e.dataTransfer?.files || []);
-  const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+  const dt = e.dataTransfer;
+  if (!dt) return;
 
-  if (imageFiles.length > 0) {
-    emit('files-selected', imageFiles);
+  const entries: FileSystemEntry[] = [];
+  for (const item of Array.from(dt.items)) {
+    if (item.kind !== 'file') continue;
+    const entry = item.webkitGetAsEntry();
+    if (entry) entries.push(entry);
   }
+
+  const inputs =
+    entries.length > 0
+      ? await collectFromEntries(entries)
+      : filesToBatchInputs(Array.from(dt.files || []), false);
+
+  if (inputs.length > 0) emit('files-selected', inputs);
 }
 
 function handleFileInput(e: Event) {
   const input = e.target as HTMLInputElement;
-  const files = Array.from(input.files || []);
-  const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+  const inputs = filesToBatchInputs(Array.from(input.files || []), false);
+  if (inputs.length > 0) emit('files-selected', inputs);
+  input.value = '';
+}
 
-  if (imageFiles.length > 0) {
-    emit('files-selected', imageFiles);
-  }
-
+function handleFolderInput(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const inputs = filesToBatchInputs(Array.from(input.files || []), true);
+  if (inputs.length > 0) emit('files-selected', inputs);
   input.value = '';
 }
 </script>
@@ -61,6 +135,18 @@ function handleFileInput(e: Event) {
       </div>
       <input type="file" class="file-input" accept="image/*" multiple @change="handleFileInput" />
     </div>
+    <button type="button" class="folder-btn" @click="openFolderPicker">
+      <FolderOpen :size="15" />
+      <span>{{ t('upload.selectFolder') }}</span>
+    </button>
+    <input
+      ref="folderInput"
+      type="file"
+      webkitdirectory
+      multiple
+      hidden
+      @change="handleFolderInput"
+    />
   </div>
 </template>
 
@@ -71,6 +157,7 @@ function handleFileInput(e: Event) {
   /* Grow to fill the remaining height of the center column. */
   flex: 1;
   min-height: 0;
+  gap: 0.75rem;
 }
 
 .drop-zone {
@@ -138,6 +225,28 @@ function handleFileInput(e: Event) {
   z-index: 2;
   opacity: 0;
   cursor: pointer;
+}
+
+.folder-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  align-self: center;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-dark);
+  background: var(--color-gray);
+  border-radius: var(--radius-md);
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.folder-btn:hover {
+  background: var(--color-primary);
+  color: #fff;
 }
 
 @media (max-width: 1023px) {

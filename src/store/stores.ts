@@ -12,6 +12,7 @@ import {
 
 export type LocaleCode = 'en' | 'zh' | 'ja';
 export type ThemeMode = 'light' | 'dark';
+export type ExportMode = 'aggregate' | 'source';
 
 // Pick the initial UI language from the browser on first visit. A language the
 // user chose manually is restored from persistence and takes precedence.
@@ -83,6 +84,9 @@ export const useSettingsStore = defineStore(
     const historyPersist = ref(false);
     const checkUpdatesOnLaunch = ref(true);
     const dismissedUpdateVersion = ref('');
+    const exportMode = ref<ExportMode>('aggregate');
+    const filenameSuffixEnabled = ref(true);
+    const filenameSuffix = ref('upscaled');
 
     function markVisited() {
       hasVisited.value = true;
@@ -90,6 +94,10 @@ export const useSettingsStore = defineStore(
 
     function setHistoryPersist(enabled: boolean) {
       historyPersist.value = enabled;
+    }
+
+    function setExportMode(mode: ExportMode) {
+      exportMode.value = mode;
     }
 
     function dismissUpdate(version: string) {
@@ -104,6 +112,10 @@ export const useSettingsStore = defineStore(
       checkUpdatesOnLaunch,
       dismissedUpdateVersion,
       dismissUpdate,
+      exportMode,
+      setExportMode,
+      filenameSuffixEnabled,
+      filenameSuffix,
     };
   },
   { persist: { key: 'super-resolution-settings' } },

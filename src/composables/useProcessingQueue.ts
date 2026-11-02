@@ -1,10 +1,11 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { BatchItem, ModelEntry, ModelLoadStage, WorkerResponse } from '../type';
+import type { BatchInput, BatchItem, ModelEntry, ModelLoadStage, WorkerResponse } from '../type';
 import { getCachedModel, isModelCached } from './useModelCache';
 import { getModelById } from './useModelRegistry';
 import { downloadModel } from './useModelDownloads';
+import { useSettingsStore } from '../store/stores';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
@@ -36,6 +37,7 @@ interface ProcessingState {
 
 export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const { t } = useI18n();
+  const settings = useSettingsStore();
 
   const state = ref<ProcessingState>({
     isProcessing: false,
@@ -856,8 +858,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
   }
 
-  function processBatch(files: File[]) {
-    if (files.length === 0) return;
+  function processBatch(inputs: BatchInput[]) {
+    if (inputs.length === 0) return;
 
     if (!worker) {
       state.value.error = 'Web Worker not supported';
@@ -865,10 +867,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       return;
     }
 
-    const newItems: BatchItem[] = files.map((file) => ({
+    const newItems: BatchItem[] = inputs.map(({ file, relativePath }) => ({
       id: ++itemIdSeq,
       name: file.name,
       file,
+      relativePath: relativePath ?? null,
       status: 'pending' as const,
       originalUrl: URL.createObjectURL(file),
       resultUrl: null,
@@ -939,22 +942,38 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     link.click();
   }
 
-  function outputName(name: string, format: DownloadFormat): string {
-    if (!name) return `upscaled-image.${format}`;
-    return name.replace(/(\.\w+)$/, `-upscaled.${format}`);
+  function suffixPart(): string {
+    if (!settings.filenameSuffixEnabled) return '';
+    const text = settings.filenameSuffix.trim();
+    return text ? `-${text}` : '';
   }
 
-  function uniqueZipName(name: string, used: Set<string>): string {
-    if (!used.has(name)) {
-      used.add(name);
-      return name;
+  function exportFileName(name: string, format: DownloadFormat): string {
+    if (!name) return `upscaled-image.${format}`;
+    const base = name.replace(/(\.\w+)$/, '') || name;
+    return `${base}${suffixPart()}.${format}`;
+  }
+
+  function folderPrefix(relativePath: string | null): string {
+    if (!relativePath) return '';
+    const idx = relativePath.lastIndexOf('/');
+    return idx >= 0 ? relativePath.slice(0, idx + 1) : '';
+  }
+
+  function uniqueZipPath(path: string, used: Set<string>): string {
+    if (!used.has(path)) {
+      used.add(path);
+      return path;
     }
-    const dot = name.lastIndexOf('.');
-    const base = dot > 0 ? name.slice(0, dot) : name;
-    const ext = dot > 0 ? name.slice(dot) : '';
+    const slash = path.lastIndexOf('/');
+    const dir = slash >= 0 ? path.slice(0, slash + 1) : '';
+    const fileName = slash >= 0 ? path.slice(slash + 1) : path;
+    const dot = fileName.lastIndexOf('.');
+    const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+    const ext = dot > 0 ? fileName.slice(dot) : '';
     let n = 2;
-    while (used.has(`${base} (${n})${ext}`)) n++;
-    const out = `${base} (${n})${ext}`;
+    while (used.has(`${dir}${base} (${n})${ext}`)) n++;
+    const out = `${dir}${base} (${n})${ext}`;
     used.add(out);
     return out;
   }
@@ -999,7 +1018,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   async function downloadOne(item: BatchItem, format: DownloadFormat) {
     if (!item.resultUrl) return;
     const blob = await convertBlobUrl(item.resultUrl, format);
-    triggerDownload(URL.createObjectURL(blob), outputName(item.name, format));
+    triggerDownload(URL.createObjectURL(blob), exportFileName(item.name, format));
   }
 
   /** download every done item (optionally only the selected ones) as a zip */
@@ -1007,8 +1026,10 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     const targets = (items ?? state.value.items).filter((i) => i.status === 'done' && i.resultUrl);
     if (targets.length === 0) return;
 
+    const sourceMode = settings.exportMode === 'source';
+
     try {
-      if (targets.length === 1) {
+      if (!sourceMode && targets.length === 1) {
         await downloadOne(targets[0], format);
         return;
       }
@@ -1017,7 +1038,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       const used = new Set<string>();
       for (const item of targets) {
         const blob = await convertBlobUrl(item.resultUrl!, format);
-        zip.file(uniqueZipName(outputName(item.name, format), used), blob);
+        const fileName = exportFileName(item.name, format);
+        const path = sourceMode ? `${folderPrefix(item.relativePath)}${fileName}` : fileName;
+        zip.file(uniqueZipPath(path, used), blob);
       }
       const out = await zip.generateAsync({ type: 'blob' });
       triggerDownload(URL.createObjectURL(out), 'upscaled-images.zip');

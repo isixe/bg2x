@@ -16,7 +16,7 @@ import {
   Tag,
 } from 'lucide-vue-next';
 import { useLocaleStore, useSettingsStore } from '../store/stores';
-import type { LocaleCode } from '../store/stores';
+import type { ExportMode, LocaleCode } from '../store/stores';
 import Select from './ui/select/Select.vue';
 import SelectContent from './ui/select/SelectContent.vue';
 import SelectItem from './ui/select/SelectItem.vue';
@@ -71,6 +71,10 @@ function onLogoError(i18nKey: string) {
 function onLanguageChange(value: string) {
   localeStore.setLocale(value as LocaleCode);
 }
+
+function onExportModeChange(value: string) {
+  settingsStore.setExportMode(value as ExportMode);
+}
 </script>
 
 <template>
@@ -105,6 +109,52 @@ function onLanguageChange(value: string) {
               <input v-model="settingsStore.historyPersist" type="checkbox" />
               <span class="toggle-slider"></span>
             </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="section-title">{{ t('settings.exportSection') }}</h2>
+          <div class="setting-list">
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.exportMode') }}</span>
+                <span class="setting-desc">{{ t('settings.exportModeDesc') }}</span>
+              </div>
+              <Select
+                :model-value="settingsStore.exportMode"
+                @update:model-value="onExportModeChange"
+              >
+                <SelectTrigger class="w-[160px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="aggregate">{{ t('settings.exportModeAggregate') }}</SelectItem>
+                  <SelectItem value="source">{{ t('settings.exportModeSource') }}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.suffixEnabled') }}</span>
+                <span class="setting-desc">{{ t('settings.suffixEnabledDesc') }}</span>
+              </div>
+              <label class="toggle-switch">
+                <input v-model="settingsStore.filenameSuffixEnabled" type="checkbox" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-item">
+              <div class="setting-info">
+                <span class="setting-label">{{ t('settings.suffixLabel') }}</span>
+              </div>
+              <input
+                v-model="settingsStore.filenameSuffix"
+                type="text"
+                class="text-input"
+                :placeholder="t('settings.suffixPlaceholder')"
+                :disabled="!settingsStore.filenameSuffixEnabled"
+              />
+            </div>
           </div>
         </div>
 
@@ -352,6 +402,34 @@ function onLanguageChange(value: string) {
 .setting-desc {
   font-size: 0.75rem;
   color: var(--color-gray-dark);
+}
+
+.setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.text-input {
+  width: 160px;
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--color-dark);
+  background: var(--color-gray);
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  transition: border-color 0.15s ease;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.text-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .toggle-switch {
