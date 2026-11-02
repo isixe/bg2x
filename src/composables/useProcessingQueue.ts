@@ -938,14 +938,19 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (!item.resultUrl) return;
     const link = document.createElement('a');
     link.href = item.resultUrl;
-    link.download = item.name ? item.name.replace(/(\.\w+)$/, '-upscaled$1') : 'upscaled-image.png';
+    if (item.name) {
+      const base = item.name.replace(/(\.\w+)$/, '') || item.name;
+      const ext = item.name.match(/(\.\w+)$/)?.[1] ?? '';
+      link.download = `${base}${suffixPart()}${ext}`;
+    } else {
+      link.download = `upscaled-image${suffixPart()}.png`;
+    }
     link.click();
   }
 
   function suffixPart(): string {
     if (!settings.filenameSuffixEnabled) return '';
-    const text = settings.filenameSuffix.trim();
-    return text ? `-${text}` : '';
+    return settings.filenameSuffix.trim();
   }
 
   function exportFileName(name: string, format: DownloadFormat): string {

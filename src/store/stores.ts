@@ -84,9 +84,11 @@ export const useSettingsStore = defineStore(
     const historyPersist = ref(false);
     const checkUpdatesOnLaunch = ref(true);
     const dismissedUpdateVersion = ref('');
-    const exportMode = ref<ExportMode>('aggregate');
+    const exportMode = ref<ExportMode>('source');
     const filenameSuffixEnabled = ref(true);
-    const filenameSuffix = ref('upscaled');
+    const filenameSuffix = ref('-upscaled');
+    // Bumped when the persisted shape changes so we can migrate old values.
+    const settingsVersion = ref(1);
 
     function markVisited() {
       hasVisited.value = true;
@@ -116,9 +118,25 @@ export const useSettingsStore = defineStore(
       setExportMode,
       filenameSuffixEnabled,
       filenameSuffix,
+      settingsVersion,
     };
   },
-  { persist: { key: 'super-resolution-settings' } },
+  {
+    persist: {
+      key: 'super-resolution-settings',
+      afterHydrate: ({ store }) => {
+        // v1 persisted only the custom text and prepended "-" in code. v2 makes
+        // the leading separator part of the editable value, so migrate once.
+        if (store.settingsVersion < 2) {
+          const suffix = store.filenameSuffix.trim();
+          if (suffix && !suffix.startsWith('-')) {
+            store.filenameSuffix = `-${suffix}`;
+          }
+          store.settingsVersion = 2;
+        }
+      },
+    },
+  },
 );
 
 const MAX_RECORDS = 50;
@@ -307,3 +325,27 @@ export const useModelCacheStore = defineStore('model-cache', () => {
 
   return { cachedModelIds, isReady, hasCachedModels, refresh, setCached };
 });
+
+// Persisted localStorage keys owned by the app stores.
+const PERSISTED_KEYS = [
+  'super-resolution-locale',
+  'super-resolution-theme',
+  'super-resolution-settings',
+  'super-resolution-default-model',
+  'image-super-resolution-history',
+] as const;
+
+// "Restore defaults": drop every persisted preference, wipe the history image
+// cache, then reload so each store re-initializes from its default values.
+// Downloaded models are intentionally kept to avoid forcing a re-download.
+export function resetAllSettings(): void {
+  for (const key of PERSISTED_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // storage unavailable - nothing to clear
+    }
+  }
+  void clearAllHistoryImages();
+  if (typeof window !== 'undefined') window.location.reload();
+}

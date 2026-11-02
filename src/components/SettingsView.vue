@@ -15,7 +15,7 @@ import {
   RefreshCw,
   Tag,
 } from 'lucide-vue-next';
-import { useLocaleStore, useSettingsStore } from '../store/stores';
+import { resetAllSettings, useLocaleStore, useSettingsStore } from '../store/stores';
 import type { ExportMode, LocaleCode } from '../store/stores';
 import Select from './ui/select/Select.vue';
 import SelectContent from './ui/select/SelectContent.vue';
@@ -75,6 +75,13 @@ function onLanguageChange(value: string) {
 function onExportModeChange(value: string) {
   settingsStore.setExportMode(value as ExportMode);
 }
+
+const showResetConfirm = ref(false);
+
+function confirmReset() {
+  showResetConfirm.value = false;
+  resetAllSettings();
+}
 </script>
 
 <template>
@@ -133,27 +140,27 @@ function onExportModeChange(value: string) {
                 </SelectContent>
               </Select>
             </div>
-            <div class="setting-item">
-              <div class="setting-info">
-                <span class="setting-label">{{ t('settings.suffixEnabled') }}</span>
-                <span class="setting-desc">{{ t('settings.suffixEnabledDesc') }}</span>
+            <div class="setting-item setting-item-stacked">
+              <div class="setting-row">
+                <div class="setting-info">
+                  <span class="setting-label">{{ t('settings.suffixEnabled') }}</span>
+                  <span class="setting-desc">{{ t('settings.suffixEnabledDesc') }}</span>
+                </div>
+                <label class="toggle-switch">
+                  <input v-model="settingsStore.filenameSuffixEnabled" type="checkbox" />
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
-              <label class="toggle-switch">
-                <input v-model="settingsStore.filenameSuffixEnabled" type="checkbox" />
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
-            <div class="setting-item">
-              <div class="setting-info">
+              <div class="suffix-control">
                 <span class="setting-label">{{ t('settings.suffixLabel') }}</span>
+                <input
+                  v-model="settingsStore.filenameSuffix"
+                  type="text"
+                  class="text-input"
+                  :placeholder="t('settings.suffixPlaceholder')"
+                  :disabled="!settingsStore.filenameSuffixEnabled"
+                />
               </div>
-              <input
-                v-model="settingsStore.filenameSuffix"
-                type="text"
-                class="text-input"
-                :placeholder="t('settings.suffixPlaceholder')"
-                :disabled="!settingsStore.filenameSuffixEnabled"
-              />
             </div>
           </div>
         </div>
@@ -189,6 +196,19 @@ function onExportModeChange(value: string) {
                 <SelectItem value="ja">日本語</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h2 class="section-title">{{ t('settings.resetSection') }}</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.resetAll') }}</span>
+              <span class="setting-desc">{{ t('settings.resetAllDesc') }}</span>
+            </div>
+            <button type="button" class="btn-reset" @click="showResetConfirm = true">
+              {{ t('settings.resetAll') }}
+            </button>
           </div>
         </div>
       </section>
@@ -277,6 +297,30 @@ function onExportModeChange(value: string) {
           </a>
         </div>
       </section>
+
+      <Teleport to="body">
+        <div
+          v-if="showResetConfirm"
+          class="reset-overlay"
+          role="alertdialog"
+          aria-modal="true"
+          :aria-label="t('settings.resetConfirmTitle')"
+          @click.self="showResetConfirm = false"
+        >
+          <div class="reset-dialog">
+            <span class="reset-dialog-title">{{ t('settings.resetConfirmTitle') }}</span>
+            <span class="reset-dialog-desc">{{ t('settings.resetConfirmDesc') }}</span>
+            <div class="reset-dialog-actions">
+              <button type="button" class="btn-cancel" @click="showResetConfirm = false">
+                {{ t('settings.resetCancel') }}
+              </button>
+              <button type="button" class="btn-confirm" @click="confirmReset">
+                {{ t('settings.resetConfirm') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Teleport>
     </div>
   </div>
 </template>
@@ -391,6 +435,25 @@ function onExportModeChange(value: string) {
   gap: 0.25rem;
   flex: 1;
   margin-right: 1rem;
+}
+
+.setting-item-stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.suffix-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
 }
 
 .setting-label {
@@ -740,6 +803,102 @@ a.link-item:hover {
   height: 16px;
   flex-shrink: 0;
   color: var(--color-gray-dark);
+}
+
+.btn-reset {
+  flex-shrink: 0;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-destructive);
+  background: none;
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.btn-reset:hover {
+  color: var(--color-destructive-foreground);
+  background: var(--color-destructive);
+  border-color: var(--color-destructive);
+}
+
+.reset-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.reset-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(92vw, 400px);
+  padding: 1.25rem;
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+}
+
+.reset-dialog-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-dark);
+}
+
+.reset-dialog-desc {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--color-gray-dark);
+}
+
+.reset-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: var(--border-thin);
+  border-radius: var(--radius-md);
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.btn-cancel {
+  color: var(--color-dark);
+  background: var(--color-gray);
+  border-color: var(--color-border);
+}
+
+.btn-cancel:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.btn-confirm {
+  color: var(--color-destructive-foreground);
+  background: var(--color-destructive);
+  border-color: var(--color-destructive);
+}
+
+.btn-confirm:hover {
+  opacity: 0.9;
 }
 
 @media (max-width: 768px) {
