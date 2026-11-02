@@ -99,21 +99,21 @@ async function handleDrop(e: DragEvent) {
   const inputs =
     entries.length > 0
       ? await collectFromEntries(entries)
-      : filesToBatchInputs(Array.from(dt.files || []), false);
+      : filesToBatchInputs(Array.from(dt.files || []));
 
   if (inputs.length > 0) emit('files-selected', inputs);
 }
 
 function handleFileInput(e: Event) {
   const input = e.target as HTMLInputElement;
-  const inputs = filesToBatchInputs(Array.from(input.files || []), false);
+  const inputs = filesToBatchInputs(Array.from(input.files || []));
   if (inputs.length > 0) emit('files-selected', inputs);
   input.value = '';
 }
 
 function handleFolderInput(e: Event) {
   const input = e.target as HTMLInputElement;
-  const inputs = filesToBatchInputs(Array.from(input.files || []), true);
+  const inputs = filesToBatchInputs(Array.from(input.files || []));
   if (inputs.length > 0) emit('files-selected', inputs);
   input.value = '';
 }
@@ -132,13 +132,13 @@ function handleFolderInput(e: Event) {
         <Upload class="upload-icon" />
         <p class="drop-text">{{ t('upload.dragDrop') }}</p>
         <p class="drop-subtext">{{ t('upload.orClick') }}</p>
+        <button type="button" class="folder-link" @click.stop="openFolderPicker">
+          <FolderOpen :size="14" />
+          <span>{{ t('upload.selectFolder') }}</span>
+        </button>
       </div>
       <input type="file" class="file-input" accept="image/*" multiple @change="handleFileInput" />
     </div>
-    <button type="button" class="folder-btn" @click="openFolderPicker">
-      <FolderOpen :size="15" />
-      <span>{{ t('upload.selectFolder') }}</span>
-    </button>
     <input
       ref="folderInput"
       type="file"
@@ -153,11 +153,9 @@ function handleFolderInput(e: Event) {
 <style scoped>
 .uploader {
   display: flex;
-  flex-direction: column;
   /* Grow to fill the remaining height of the center column. */
   flex: 1;
   min-height: 0;
-  gap: 0.75rem;
 }
 
 .drop-zone {
@@ -185,7 +183,6 @@ function handleFolderInput(e: Event) {
 
 .drop-zone-content {
   position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -215,8 +212,33 @@ function handleFolderInput(e: Event) {
   color: var(--color-gray-dark);
 }
 
+/* Folder picker stays inside the same box as the image picker but sits above
+   the transparent file input overlay so it opens its own dialog. */
+.folder-link {
+  position: relative;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.75rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: rgba(212, 132, 62, 0.12);
+  border-radius: var(--radius-sm);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.folder-link:hover {
+  color: #fff;
+  background: var(--color-primary);
+}
+
 /* Cover the whole drop zone (not just the centered text) so a click anywhere
-   opens the picker. Sits above .drop-zone-content to catch the clicks. */
+   opens the image picker. Sits above .drop-zone-content to catch the clicks. */
 .file-input {
   position: absolute;
   inset: 0;
@@ -225,28 +247,6 @@ function handleFolderInput(e: Event) {
   z-index: 2;
   opacity: 0;
   cursor: pointer;
-}
-
-.folder-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  align-self: center;
-  padding: 0.5rem 0.875rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--color-dark);
-  background: var(--color-gray);
-  border-radius: var(--radius-md);
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-.folder-btn:hover {
-  background: var(--color-primary);
-  color: #fff;
 }
 
 @media (max-width: 1023px) {

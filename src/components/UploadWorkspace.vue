@@ -121,16 +121,9 @@ function openFolderPicker() {
   folderInput.value?.click();
 }
 
-function onFilePicked(e: Event) {
+function onFilesPicked(e: Event) {
   const input = e.target as HTMLInputElement;
-  const inputs = filesToBatchInputs(Array.from(input.files || []), false);
-  if (inputs.length > 0) processBatch(inputs);
-  input.value = '';
-}
-
-function onFolderPicked(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const inputs = filesToBatchInputs(Array.from(input.files || []), true);
+  const inputs = filesToBatchInputs(Array.from(input.files || []));
   if (inputs.length > 0) processBatch(inputs);
   input.value = '';
 }
@@ -306,14 +299,14 @@ onUnmounted(() => {
         {{ state.isModelLoaded ? t('processing.uploadToStart') : t('processing.modelNotLoaded') }}
       </p>
 
-      <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="onFilePicked" />
+      <input ref="fileInput" type="file" accept="image/*" multiple hidden @change="onFilesPicked" />
       <input
         ref="folderInput"
         type="file"
         webkitdirectory
         multiple
         hidden
-        @change="onFolderPicked"
+        @change="onFilesPicked"
       />
     </main>
 

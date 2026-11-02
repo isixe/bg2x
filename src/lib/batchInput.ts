@@ -20,11 +20,11 @@ export function relativePathWithinFolder(file: File): string | null {
   return segments.join('/') || null;
 }
 
-export function filesToBatchInputs(files: File[], fromFolder: boolean): BatchInput[] {
+export function filesToBatchInputs(files: File[]): BatchInput[] {
   const inputs: BatchInput[] = [];
   for (const file of files) {
     if (!isImageFile(file)) continue;
-    inputs.push({ file, relativePath: fromFolder ? relativePathWithinFolder(file) : null });
+    inputs.push({ file, relativePath: relativePathWithinFolder(file) });
   }
   return inputs;
 }

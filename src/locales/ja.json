@@ -25,8 +25,8 @@
   },
   "upload": {
     "title": "アップロード",
-    "dragDrop": "画像をここにドラッグ＆ドロップ",
-    "orClick": "またはクリックして参照",
+    "dragDrop": "画像やフォルダをここにドラッグ＆ドロップ",
+    "orClick": "またはクリックして画像を選択",
     "selectFolder": "フォルダを選択",
     "clearAll": "すべてクリア",
     "selectedItems": "選択アイテム",
