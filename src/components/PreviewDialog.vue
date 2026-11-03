@@ -20,7 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'close'): void }>();
 
-const COPIED_DURATION = 1800;
+const COPIED_DURATION = 2000;
 const copied = ref(false);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 

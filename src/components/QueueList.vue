@@ -11,9 +11,24 @@ const props = defineProps<{
   selectedIds: number[];
   activeId: number | null;
   copiedId: number | null;
-  isProcessing: boolean;
+  batchCopied: boolean;
   progress: number;
 }>();
+
+const selectableIds = computed(() =>
+  props.items.filter((item) => item.status === 'done').map((item) => item.id),
+);
+const hasBatchDownload = computed(() =>
+  props.items.some(
+    (item) => props.selectedIds.includes(item.id) && item.status === 'done' && !!item.resultUrl,
+  ),
+);
+const hasBatchReprocess = computed(() =>
+  props.items.some(
+    (item) =>
+      props.selectedIds.includes(item.id) && (item.status === 'done' || item.status === 'error'),
+  ),
+);
 
 const now = ref(Date.now());
 const hasRunningItem = computed(() => props.items.some((item) => item.status === 'processing'));
@@ -74,8 +89,10 @@ const emit = defineEmits<{
         <label class="queue-select-all">
           <input
             type="checkbox"
-            :checked="items.length > 0 && selectedIds.length === items.length"
-            :disabled="items.length === 0"
+            :checked="
+              selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id))
+            "
+            :disabled="selectableIds.length === 0"
             @change="emit('select-all')"
           />
           <span class="queue-title">{{ t('queue.title') }}</span>
@@ -88,7 +105,7 @@ const emit = defineEmits<{
         <button
           class="batch-btn"
           :title="t('queue.download')"
-          :disabled="isProcessing"
+          :disabled="!hasBatchDownload"
           @click="emit('batch', 'download')"
         >
           <Download :size="14" />
@@ -96,17 +113,19 @@ const emit = defineEmits<{
         </button>
         <button
           class="batch-btn"
+          :class="{ copied: batchCopied }"
           :title="t('queue.copy')"
-          :disabled="isProcessing"
+          :disabled="!hasBatchDownload"
           @click="emit('batch', 'copy')"
         >
-          <Copy :size="14" />
+          <Check v-if="batchCopied" :size="14" />
+          <Copy v-else :size="14" />
           <span>{{ t('queue.copy') }}</span>
         </button>
         <button
           class="batch-btn"
           :title="t('queue.reprocess')"
-          :disabled="isProcessing"
+          :disabled="!hasBatchReprocess"
           @click="emit('batch', 'reprocess')"
         >
           <RotateCcw :size="14" />
@@ -140,6 +159,7 @@ const emit = defineEmits<{
           type="checkbox"
           class="queue-check"
           :checked="selectedIds.includes(item.id)"
+          :disabled="item.status !== 'done'"
           @change="emit('toggle', item.id)"
           @click.stop
         />
@@ -262,6 +282,15 @@ const emit = defineEmits<{
   cursor: pointer;
 }
 
+.queue-select-all input:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.queue-select-all:has(input:disabled) {
+  cursor: not-allowed;
+}
+
 .queue-title {
   font-size: 0.875rem;
   font-weight: 600;
@@ -335,6 +364,11 @@ const emit = defineEmits<{
   accent-color: var(--color-primary);
   cursor: pointer;
   flex-shrink: 0;
+}
+
+.queue-check:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 .queue-thumb {
@@ -433,14 +467,7 @@ const emit = defineEmits<{
 .queue-actions {
   display: flex;
   gap: 0.25rem;
-  opacity: 0;
-  transition: opacity 0.15s ease;
   flex-shrink: 0;
-}
-
-.queue-item:hover .queue-actions,
-.queue-item.active .queue-actions {
-  opacity: 1;
 }
 
 .queue-action {
@@ -461,9 +488,10 @@ const emit = defineEmits<{
   color: #fff;
 }
 
-.queue-action.copied {
-  background: #16a34a;
-  color: #fff;
+.queue-action.copied,
+.queue-action.copied:hover {
+  background: var(--color-gray);
+  color: #16a34a;
 }
 
 .queue-cancel {
@@ -500,17 +528,9 @@ const emit = defineEmits<{
   background: var(--color-gray);
   color: var(--color-gray-dark);
   flex-shrink: 0;
-  opacity: 0;
   transition:
-    opacity 0.15s ease,
     background 0.15s ease,
     color 0.15s ease;
-}
-
-.queue-item:hover .queue-remove,
-.queue-item.active .queue-remove,
-.queue-item.error .queue-remove {
-  opacity: 1;
 }
 
 .queue-remove:hover {
@@ -547,5 +567,11 @@ const emit = defineEmits<{
 .batch-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.batch-btn.copied,
+.batch-btn.copied:hover {
+  background: var(--color-gray);
+  color: #16a34a;
 }
 </style>

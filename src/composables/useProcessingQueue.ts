@@ -59,12 +59,14 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const selectedItems = computed(() =>
     state.value.items.filter((item) => selectedIds.value.includes(item.id)),
   );
-  const selectableCount = computed(() => state.value.items.length);
+  const selectableCount = computed(
+    () => state.value.items.filter((i) => i.status === 'done').length,
+  );
   const selectedCount = computed(() => selectedIds.value.length);
   const allSelected = computed(
     () =>
-      state.value.items.length > 0 &&
-      state.value.items.every((i) => selectedIds.value.includes(i.id)),
+      state.value.items.some((i) => i.status === 'done') &&
+      state.value.items.every((i) => i.status !== 'done' || selectedIds.value.includes(i.id)),
   );
 
   const hasReprocessable = computed(() =>
@@ -94,10 +96,12 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     modelLoadStage.value = null;
   }
 
-  /** copy button feedback: show a check icon for a short while after a successful copy */
+  /** copy button feedback: flip to a check icon immediately on click, then revert after a short while */
   const copiedId = ref<number | null>(null);
-  const COPIED_DURATION = 1800;
+  const batchCopied = ref(false);
+  const COPIED_DURATION = 2000;
   let copiedTimer: ReturnType<typeof setTimeout> | null = null;
+  let batchCopiedTimer: ReturnType<typeof setTimeout> | null = null;
 
   function flashCopied(id: number) {
     if (copiedTimer) clearTimeout(copiedTimer);
@@ -108,12 +112,26 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }, COPIED_DURATION);
   }
 
+  function flashBatchCopied() {
+    if (batchCopiedTimer) clearTimeout(batchCopiedTimer);
+    batchCopied.value = true;
+    batchCopiedTimer = setTimeout(() => {
+      batchCopied.value = false;
+      batchCopiedTimer = null;
+    }, COPIED_DURATION);
+  }
+
   function resetCopied() {
     if (copiedTimer) {
       clearTimeout(copiedTimer);
       copiedTimer = null;
     }
+    if (batchCopiedTimer) {
+      clearTimeout(batchCopiedTimer);
+      batchCopiedTimer = null;
+    }
     copiedId.value = null;
+    batchCopied.value = false;
   }
 
   let itemIdSeq = 0;
@@ -886,11 +904,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     runQueue();
   }
 
-  /** re-run queue items (given list, or all done/error items when omitted) */
+  /** re-run queue items (given list, or all done/error when omitted); allowed mid-run, requeued after the current item */
   function reprocess(items?: BatchItem[]) {
-    if (state.value.isProcessing || !worker) return;
+    if (!worker) return;
     const targets = items ?? state.value.items;
-    let any = false;
+    const reset: BatchItem[] = [];
     for (const item of targets) {
       if (item.status === 'done' || item.status === 'error') {
         item.status = 'pending';
@@ -899,13 +917,26 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         item.resultSize = null;
         item.startedAt = null;
         item.durationMs = null;
-        any = true;
+        reset.push(item);
       }
     }
-    if (any) runQueue();
+    if (reset.length === 0) return;
+
+    const current = currentItem;
+    if (current) {
+      const resetIds = new Set(reset.map((i) => i.id));
+      const rest = state.value.items.filter((i) => !resetIds.has(i.id));
+      const currentIndex = rest.findIndex((i) => i.id === current.id);
+      const insertAt = currentIndex >= 0 ? currentIndex + 1 : rest.length;
+      state.value.items = [...rest.slice(0, insertAt), ...reset, ...rest.slice(insertAt)];
+    }
+
+    runQueue();
   }
 
   function toggleSelect(id: number) {
+    const item = state.value.items.find((i) => i.id === id);
+    if (!item || item.status !== 'done') return;
     const idx = selectedIds.value.indexOf(id);
     if (idx >= 0) selectedIds.value.splice(idx, 1);
     else selectedIds.value.push(id);
@@ -915,7 +946,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (allSelected.value) {
       selectedIds.value = [];
     } else {
-      selectedIds.value = state.value.items.map((i) => i.id);
+      selectedIds.value = state.value.items.filter((i) => i.status === 'done').map((i) => i.id);
     }
   }
 
@@ -1067,20 +1098,34 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
   }
 
-  /** copy results to the clipboard (given list, or all done items when omitted) */
+  /** copy one item and flash its own row button */
+  async function copyItem(item: BatchItem) {
+    if (item.status !== 'done') return;
+    flashCopied(item.id);
+
+    const ok = await copyOne(item);
+    if (!ok) {
+      state.value.error = 'Failed to copy to clipboard';
+      return;
+    }
+    state.value.status = t('processing.copied');
+  }
+
+  /** copy results to the clipboard (given list, or all done items when omitted) and flash the batch button */
   async function copyBatch(items?: BatchItem[]) {
     const targets = (items ?? state.value.items).filter((i) => i.status === 'done');
+    if (targets.length === 0) return;
+
+    flashBatchCopied();
+
     for (const item of targets) {
       const ok = await copyOne(item);
       if (!ok) {
         state.value.error = 'Failed to copy to clipboard';
         return;
       }
-      flashCopied(item.id);
     }
-    if (targets.length > 0) {
-      state.value.status = t('processing.copied');
-    }
+    state.value.status = t('processing.copied');
   }
 
   function removeItem(id: number): boolean {
@@ -1113,6 +1158,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     previewId,
     previewItem,
     copiedId,
+    batchCopied,
     selectedIds,
     selectedItems,
     selectedCount,
@@ -1137,6 +1183,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     closePreview,
     downloadItem,
     downloadBatch,
+    copyItem,
     copyBatch,
     clearQueue,
   };

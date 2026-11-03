@@ -15,7 +15,6 @@ import {
   modelDownloadStates,
   refreshModelDownloadStates,
 } from '../composables/useModelDownloads';
-import type { BatchItem } from '../type';
 import { filesToBatchInputs } from '../lib/batchInput';
 import { useHistoryStore, useModelStore } from '../store/stores';
 
@@ -57,6 +56,7 @@ const {
   activeId,
   previewItem,
   copiedId,
+  batchCopied,
   selectedIds,
   selectedItems,
   hasReprocessable,
@@ -77,6 +77,7 @@ const {
   closePreview,
   downloadItem,
   downloadBatch,
+  copyItem,
   copyBatch,
   clearQueue,
 } = useProcessingQueue({
@@ -283,13 +284,13 @@ onUnmounted(() => {
         :selected-ids="selectedIds"
         :active-id="activeId"
         :copied-id="copiedId"
-        :is-processing="state.isProcessing"
+        :batch-copied="batchCopied"
         :progress="state.progress"
         @toggle="toggleSelect"
         @select-all="toggleSelectAll"
         @preview="selectItem"
         @download="downloadItem"
-        @copy="(item: BatchItem) => copyBatch([item])"
+        @copy="copyItem"
         @batch="onBatch"
         @cancel-item="cancelItem"
         @remove="removeItem"
