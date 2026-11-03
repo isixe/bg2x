@@ -42,16 +42,16 @@ function download() {
   link.click();
 }
 
-async function copy() {
+function copy() {
   if (!props.item.resultUrl) return;
-  const ok = await copyImage(props.item.resultUrl);
-  if (!ok) return;
+  // Show the checkmark immediately; the clipboard write runs in the background.
   resetCopied();
   copied.value = true;
   copiedTimer = setTimeout(() => {
     copied.value = false;
     copiedTimer = null;
   }, COPIED_DURATION);
+  void copyImage(props.item.resultUrl);
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -139,49 +139,57 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  /* mask only — the dialog itself adds no background */
   background: rgba(0, 0, 0, 0.65);
 }
 
 .preview-dialog {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  width: min(96vw, 1600px);
-  height: min(92vh, 1100px);
-  padding: 1rem;
-  background: var(--color-card);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  height: 100%;
+  /* fullscreen, no card background so the mask shows through */
+  background: transparent;
 }
 
 .preview-header {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 20;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  flex-shrink: 0;
 }
 
 .preview-info {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 0.125rem;
   min-width: 0;
+  max-width: 60vw;
+  text-align: left;
 }
 
 .preview-name {
+  max-width: 100%;
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--color-dark);
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .preview-size {
   font-size: 0.6875rem;
-  color: var(--color-gray-dark);
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .preview-actions {
@@ -200,17 +208,18 @@ onUnmounted(() => {
   padding: 0;
   line-height: 1;
   border-radius: var(--radius-md);
-  background: var(--color-gray);
-  color: var(--color-gray-dark);
+  /* no chip: plain white icons over the dark mask */
+  background: transparent;
+  color: #fff;
   transition:
-    background-color 0.2s ease,
+    opacity 0.2s ease,
     color 0.2s ease,
     transform 0.15s ease;
 }
 
 .preview-icon-btn:hover {
-  background: var(--color-border);
-  color: var(--color-primary);
+  background: transparent;
+  opacity: 0.75;
 }
 
 .preview-icon-btn:active {
@@ -218,15 +227,16 @@ onUnmounted(() => {
 }
 
 .preview-icon-btn:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid #fff;
   outline-offset: 1px;
 }
 
-/* copy succeeded: swap to the check icon and highlight the button */
+/* copy succeeded: swap to the check icon and tint it (no background chip) */
 .preview-icon-btn.copied,
 .preview-icon-btn.copied:hover {
-  background: var(--color-secondary);
-  color: var(--color-light);
+  background: transparent;
+  color: var(--color-secondary);
+  opacity: 1;
 }
 
 .preview-icon-btn.copied svg {

@@ -12,7 +12,7 @@ defineProps<{
 }>();
 
 const containerRef = ref<HTMLElement | null>(null);
-const { isPanning, transform } = usePanZoom(containerRef);
+const { isPanning, transform } = usePanZoom(containerRef, { minScale: 0.25 });
 
 const sliderPosition = ref(50);
 const isDragging = ref(false);
@@ -161,19 +161,8 @@ onUnmounted(() => {
   position: relative;
   width: 100%;
   overflow: hidden;
-  border-radius: var(--radius-md);
-  background-color: var(--color-gray);
-  background-image:
-    linear-gradient(45deg, #e6e0da 25%, transparent 25%),
-    linear-gradient(-45deg, #e6e0da 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e6e0da 75%),
-    linear-gradient(-45deg, transparent 75%, #e6e0da 75%);
-  background-size: 20px 20px;
-  background-position:
-    0 0,
-    0 10px,
-    10px -10px,
-    -10px 0;
+  /* no checkerboard: the dialog's semi-transparent mask shows through */
+  background: transparent;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
@@ -205,23 +194,15 @@ onUnmounted(() => {
 .result-clip {
   position: absolute;
   inset: 0;
-  background-color: var(--color-gray);
-  background-image:
-    linear-gradient(45deg, #e6e0da 25%, transparent 25%),
-    linear-gradient(-45deg, #e6e0da 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #e6e0da 75%),
-    linear-gradient(-45deg, transparent 75%, #e6e0da 75%);
-  background-size: 20px 20px;
-  background-position:
-    0 0,
-    0 10px,
-    10px -10px,
-    -10px 0;
+  /* transparent so the mask reads identically on both sides of the split */
+  background: transparent;
 }
 
+/* labels sit at the bottom so they never collide with the preview header
+   (which is absolutely positioned in the top-right corner) */
 .compare-label {
   position: absolute;
-  top: 8px;
+  bottom: 8px;
   z-index: 5;
   padding: 0.125rem 0.5rem;
   font-size: 0.6875rem;
