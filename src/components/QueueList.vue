@@ -72,6 +72,7 @@ function formatDuration(ms: number | null): string {
 
 const emit = defineEmits<{
   (e: 'toggle', id: number): void;
+  (e: 'toggle-range', id: number): void;
   (e: 'select-all'): void;
   (e: 'preview', item: BatchItem): void;
   (e: 'download', item: BatchItem): void;
@@ -80,6 +81,23 @@ const emit = defineEmits<{
   (e: 'cancel-item', id: number): void;
   (e: 'remove', id: number): void;
 }>();
+
+function onCheckClick(event: MouseEvent, item: BatchItem) {
+  if (item.status !== 'done') return;
+  if (event.shiftKey) {
+    emit('toggle-range', item.id);
+    return;
+  }
+  emit('toggle', item.id);
+}
+
+function onRowClick(event: MouseEvent, item: BatchItem) {
+  if (event.shiftKey && item.status === 'done') {
+    emit('toggle-range', item.id);
+    return;
+  }
+  emit('preview', item);
+}
 </script>
 
 <template>
@@ -153,16 +171,16 @@ const emit = defineEmits<{
         }"
         role="listitem"
         :title="item.status === 'done' ? t('processing.clickToCompare') : item.name"
-        @click="emit('preview', item)"
+        @click="onRowClick($event, item)"
       >
-        <input
-          type="checkbox"
-          class="queue-check"
-          :checked="selectedIds.includes(item.id)"
-          :disabled="item.status !== 'done'"
-          @change="emit('toggle', item.id)"
-          @click.stop
-        />
+        <span class="queue-check-box" @click.stop="onCheckClick($event, item)">
+          <input
+            type="checkbox"
+            class="queue-check"
+            :checked="selectedIds.includes(item.id)"
+            :disabled="item.status !== 'done'"
+          />
+        </span>
         <img
           class="queue-thumb"
           :src="item.resultUrl ?? item.originalUrl"
@@ -360,15 +378,23 @@ const emit = defineEmits<{
   background: rgba(220, 38, 38, 0.04);
 }
 
+.queue-check-box {
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .queue-check {
   accent-color: var(--color-primary);
-  cursor: pointer;
-  flex-shrink: 0;
+  pointer-events: none;
 }
 
 .queue-check:disabled {
-  cursor: not-allowed;
   opacity: 0.4;
+}
+
+.queue-check-box:has(.queue-check:disabled) {
+  cursor: not-allowed;
 }
 
 .queue-thumb {

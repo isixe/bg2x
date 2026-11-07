@@ -56,6 +56,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   );
 
   const selectedIds = ref<number[]>([]);
+  const rangeAnchorId = ref<number | null>(null);
   const selectedItems = computed(() =>
     state.value.items.filter((item) => selectedIds.value.includes(item.id)),
   );
@@ -938,8 +939,38 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     const item = state.value.items.find((i) => i.id === id);
     if (!item || item.status !== 'done') return;
     const idx = selectedIds.value.indexOf(id);
-    if (idx >= 0) selectedIds.value.splice(idx, 1);
-    else selectedIds.value.push(id);
+    if (idx >= 0) {
+      selectedIds.value.splice(idx, 1);
+      if (rangeAnchorId.value === id) rangeAnchorId.value = null;
+    } else {
+      selectedIds.value.push(id);
+      rangeAnchorId.value = id;
+    }
+  }
+
+  /**
+   * Shift range-select: from the anchor up to the clicked item, inclusive. The
+   * anchor is the most recently checked item and stays fixed across shift-clicks
+   * so the range never flips the earlier selection; with no anchor the range
+   * starts at the first item. Only `done` items are collected, so gaps are skipped.
+   */
+  function selectRange(id: number) {
+    const items = state.value.items;
+    const clickedIndex = items.findIndex((i) => i.id === id);
+    if (clickedIndex === -1 || items[clickedIndex].status !== 'done') return;
+
+    let anchorIndex = 0;
+    if (rangeAnchorId.value != null) {
+      const found = items.findIndex((i) => i.id === rangeAnchorId.value);
+      if (found >= 0) anchorIndex = found;
+    }
+
+    const start = Math.min(anchorIndex, clickedIndex);
+    const end = Math.max(anchorIndex, clickedIndex);
+    selectedIds.value = items
+      .slice(start, end + 1)
+      .filter((i) => i.status === 'done')
+      .map((i) => i.id);
   }
 
   function toggleSelectAll() {
@@ -947,11 +978,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       selectedIds.value = [];
     } else {
       selectedIds.value = state.value.items.filter((i) => i.status === 'done').map((i) => i.id);
+      rangeAnchorId.value = null;
     }
   }
 
   function clearSelection() {
     selectedIds.value = [];
+    rangeAnchorId.value = null;
   }
 
   function selectItem(item: BatchItem) {
@@ -1178,6 +1211,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     removeItem,
     toggleSelect,
     toggleSelectAll,
+    selectRange,
     clearSelection,
     selectItem,
     closePreview,

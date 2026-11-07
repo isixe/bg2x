@@ -73,6 +73,7 @@ const {
   removeItem,
   toggleSelect,
   toggleSelectAll,
+  selectRange,
   selectItem,
   closePreview,
   downloadItem,
@@ -287,6 +288,7 @@ onUnmounted(() => {
         :batch-copied="batchCopied"
         :progress="state.progress"
         @toggle="toggleSelect"
+        @toggle-range="selectRange"
         @select-all="toggleSelectAll"
         @preview="selectItem"
         @download="downloadItem"
