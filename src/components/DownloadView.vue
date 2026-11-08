@@ -52,8 +52,13 @@ function buildFiles(assets: ReleaseAsset[]): DownloadFile[] {
     if (!asset) return;
     result.push({ key, labelKey, icon, url: asset.browser_download_url, size: asset.size });
   };
-  add('windows', 'action.downloadWindows', Monitor, pick(/-setup-.*\.exe$/i) ?? pick(/\.exe$/i));
-  add('windows-portable', 'action.downloadWindowsPortable', Usb, pick(/-portable\.exe$/i));
+  add(
+    'windows',
+    'action.downloadWindows',
+    Monitor,
+    pick(/-setup-.*\.exe$/i) ?? pick(/^(?!.*-portable-).*\.exe$/i),
+  );
+  add('windows-portable', 'action.downloadWindowsPortable', Usb, pick(/-portable-.*\.exe$/i));
   add('macos', 'action.downloadMacos', Apple, pick(/\.dmg$/i) ?? pick(/\.zip$/i));
   add('linux', 'action.downloadLinux', Terminal, pick(/\.AppImage$/i));
   add('debian', 'action.downloadDebian', Package, pick(/\.deb$/i));
