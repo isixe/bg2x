@@ -258,6 +258,7 @@ function handleFolderInput(e: Event) {
 
   .drop-zone {
     flex: none;
+    width: 100%;
     height: 240px;
     padding: 1.5rem 1.25rem;
   }
