@@ -14,9 +14,8 @@ const props = defineProps<{
   batchCopied: boolean;
 }>();
 
-const selectableIds = computed(() =>
-  props.items.filter((item) => item.status === 'done').map((item) => item.id),
-);
+const isSelectable = (item: BatchItem) => item.status === 'done' || item.status === 'error';
+const selectableIds = computed(() => props.items.filter(isSelectable).map((item) => item.id));
 const hasBatchDownload = computed(() =>
   props.items.some(
     (item) => props.selectedIds.includes(item.id) && item.status === 'done' && !!item.resultUrl,
@@ -82,7 +81,7 @@ const emit = defineEmits<{
 }>();
 
 function onCheckClick(event: MouseEvent, item: BatchItem) {
-  if (item.status !== 'done') return;
+  if (!isSelectable(item)) return;
   if (event.shiftKey) {
     emit('toggle-range', item.id);
     return;
@@ -91,7 +90,7 @@ function onCheckClick(event: MouseEvent, item: BatchItem) {
 }
 
 function onRowClick(event: MouseEvent, item: BatchItem) {
-  if (event.shiftKey && item.status === 'done') {
+  if (event.shiftKey && isSelectable(item)) {
     emit('toggle-range', item.id);
     return;
   }
@@ -177,7 +176,7 @@ function onRowClick(event: MouseEvent, item: BatchItem) {
             type="checkbox"
             class="queue-check"
             :checked="selectedIds.includes(item.id)"
-            :disabled="item.status !== 'done'"
+            :disabled="!isSelectable(item)"
           />
         </span>
         <img

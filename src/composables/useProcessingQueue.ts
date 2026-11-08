@@ -94,14 +94,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const selectedItems = computed(() =>
     state.value.items.filter((item) => selectedIds.value.includes(item.id)),
   );
-  const selectableCount = computed(
-    () => state.value.items.filter((i) => i.status === 'done').length,
-  );
+  const isSelectable = (item: BatchItem) => item.status === 'done' || item.status === 'error';
+  const selectableCount = computed(() => state.value.items.filter(isSelectable).length);
   const selectedCount = computed(() => selectedIds.value.length);
   const allSelected = computed(
     () =>
-      state.value.items.some((i) => i.status === 'done') &&
-      state.value.items.every((i) => i.status !== 'done' || selectedIds.value.includes(i.id)),
+      state.value.items.some(isSelectable) &&
+      state.value.items.every((i) => !isSelectable(i) || selectedIds.value.includes(i.id)),
   );
 
   const hasReprocessable = computed(() =>
@@ -1106,7 +1105,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
   function toggleSelect(id: number) {
     const item = state.value.items.find((i) => i.id === id);
-    if (!item || item.status !== 'done') return;
+    if (!item || !isSelectable(item)) return;
     const idx = selectedIds.value.indexOf(id);
     if (idx >= 0) {
       selectedIds.value.splice(idx, 1);
@@ -1121,12 +1120,12 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
    * Shift range-select: from the anchor up to the clicked item, inclusive. The
    * anchor is the most recently checked item and stays fixed across shift-clicks
    * so the range never flips the earlier selection; with no anchor the range
-   * starts at the first item. Only `done` items are collected, so gaps are skipped.
+   * starts at the first item. Only selectable (done/error) items are collected, so gaps are skipped.
    */
   function selectRange(id: number) {
     const items = state.value.items;
     const clickedIndex = items.findIndex((i) => i.id === id);
-    if (clickedIndex === -1 || items[clickedIndex].status !== 'done') return;
+    if (clickedIndex === -1 || !isSelectable(items[clickedIndex])) return;
 
     let anchorIndex = 0;
     if (rangeAnchorId.value != null) {
@@ -1138,7 +1137,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     const end = Math.max(anchorIndex, clickedIndex);
     selectedIds.value = items
       .slice(start, end + 1)
-      .filter((i) => i.status === 'done')
+      .filter(isSelectable)
       .map((i) => i.id);
   }
 
@@ -1146,7 +1145,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (allSelected.value) {
       selectedIds.value = [];
     } else {
-      selectedIds.value = state.value.items.filter((i) => i.status === 'done').map((i) => i.id);
+      selectedIds.value = state.value.items.filter(isSelectable).map((i) => i.id);
       rangeAnchorId.value = null;
     }
   }
