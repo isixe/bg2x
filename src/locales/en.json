@@ -192,6 +192,7 @@
     "github": "View source on GitHub",
     "download": "Download desktop app",
     "downloadWindows": "Windows (.exe)",
+    "downloadWindowsPortable": "Windows (Portable)",
     "downloadMacos": "macOS (.dmg)",
     "downloadLinux": "Linux (AppImage)",
     "downloadDebian": "Debian (.deb)",

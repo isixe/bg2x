@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue';
 import type { Component } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Apple, Download, ExternalLink, Monitor, Package, Terminal } from 'lucide-vue-next';
+import { Apple, Download, ExternalLink, Monitor, Package, Terminal, Usb } from 'lucide-vue-next';
 import { GITHUB_LATEST_RELEASE_API, GITHUB_RELEASES_URL } from '../config/app';
 
 const { t } = useI18n();
@@ -52,7 +52,8 @@ function buildFiles(assets: ReleaseAsset[]): DownloadFile[] {
     if (!asset) return;
     result.push({ key, labelKey, icon, url: asset.browser_download_url, size: asset.size });
   };
-  add('windows', 'action.downloadWindows', Monitor, pick(/\.exe$/i));
+  add('windows', 'action.downloadWindows', Monitor, pick(/-setup-.*\.exe$/i) ?? pick(/\.exe$/i));
+  add('windows-portable', 'action.downloadWindowsPortable', Usb, pick(/-portable\.exe$/i));
   add('macos', 'action.downloadMacos', Apple, pick(/\.dmg$/i) ?? pick(/\.zip$/i));
   add('linux', 'action.downloadLinux', Terminal, pick(/\.AppImage$/i));
   add('debian', 'action.downloadDebian', Package, pick(/\.deb$/i));

@@ -192,6 +192,7 @@
     "github": "在 GitHub 上查看源码",
     "download": "下载桌面端",
     "downloadWindows": "Windows (.exe)",
+    "downloadWindowsPortable": "Windows (便携版)",
     "downloadMacos": "macOS (.dmg)",
     "downloadLinux": "Linux (AppImage)",
     "downloadDebian": "Debian (.deb)",

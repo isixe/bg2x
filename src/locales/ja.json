@@ -192,6 +192,7 @@
     "github": "GitHub でソースを見る",
     "download": "デスクトップアプリをダウンロード",
     "downloadWindows": "Windows (.exe)",
+    "downloadWindowsPortable": "Windows (ポータブル版)",
     "downloadMacos": "macOS (.dmg)",
     "downloadLinux": "Linux (AppImage)",
     "downloadDebian": "Debian (.deb)",

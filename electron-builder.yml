@@ -16,11 +16,16 @@ win:
     - target: nsis
       arch:
         - x64
+    - target: portable
+      arch:
+        - x64
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   artifactName: ${productName}-${version}-setup-${arch}.${ext}
+portable:
+  artifactName: ${productName}-${version}-portable-${arch}.${ext}
 mac:
   icon: build/icon.png
   category: public.app-category.graphics-design
