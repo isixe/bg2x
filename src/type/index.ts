@@ -78,6 +78,8 @@ export interface BatchItem {
   originalSize: { width: number; height: number } | null;
   resultSize: { width: number; height: number } | null;
   error: string | null;
+  /** 0–100 inference progress; only meaningful while status is 'processing'. */
+  progress: number;
   /** Epoch ms when this item started processing; null when not running. */
   startedAt: number | null;
   /** Total processing time in ms, set once the item settles (done or error). */
@@ -86,7 +88,7 @@ export interface BatchItem {
 
 export type LoadModelMessage = {
   type: 'load-model';
-  payload: { modelId: string; modelData: ArrayBuffer; gpu?: boolean };
+  payload: { modelId: string; modelData: ArrayBuffer; gpu?: boolean; numThreads?: number };
 };
 
 export type ProcessMessage = {

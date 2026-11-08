@@ -80,6 +80,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         message.payload.modelId,
         message.payload.modelData,
         message.payload.gpu ?? false,
+        message.payload.numThreads,
       );
       break;
     case 'process': {
@@ -121,11 +122,22 @@ async function createSession(source: string | ArrayBuffer, gpu: boolean) {
   });
 }
 
-async function loadModel(modelId: string, modelData: ArrayBuffer, gpu = false) {
+async function loadModel(
+  modelId: string,
+  modelData: ArrayBuffer,
+  gpu = false,
+  numThreads?: number,
+) {
   try {
     if (session && currentModelId === modelId && currentGpu === gpu) {
       self.postMessage({ type: 'model-loaded', payload: { modelId, gpu } });
       return;
+    }
+
+    // Each worker in the pool gets its slice of the CPU so N concurrent
+    // workers do not each grab every core and oversubscribe the machine.
+    if (numThreads != null && !isElectron) {
+      ort.env.wasm.numThreads = Math.max(1, Math.floor(numThreads));
     }
 
     postProgress(0, 'Loading model...', undefined, 'session');

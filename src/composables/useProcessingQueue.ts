@@ -35,6 +35,40 @@ interface ProcessingState {
   items: BatchItem[];
 }
 
+/** Hard cap on how many images upscale simultaneously. */
+export const MAX_CONCURRENCY = 4;
+/** Dropdown choices for concurrent images; every value is a fixed count. */
+export const CONCURRENCY_OPTIONS = [1, 2, 3, 4] as const;
+
+function hardwareConcurrency(): number {
+  return typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
+}
+
+/**
+ * One pooled worker and the single item it is currently processing. Inference is
+ * not re-entrant within a worker, so each slot owns exactly one in-flight item
+ * and the pool provides the concurrency.
+ */
+interface WorkerSlot {
+  worker: Worker;
+  item: BatchItem | null;
+  jobId: number | null;
+  resolve: (() => void) | null;
+  loadedModelId: string | null;
+  loadedGpuWanted: boolean | null;
+  pendingGpuWanted: boolean | null;
+  inflightLoad: Promise<boolean> | null;
+  stallTimer: ReturnType<typeof setTimeout> | null;
+  rawProgress: number;
+  displayProgress: number;
+  lastReportAt: number;
+  lastReportInference: boolean;
+  skipWarmupDelta: boolean;
+  measuredTileMs: number | null;
+  tileTotal: number | null;
+  smoothTimer: ReturnType<typeof setInterval> | null;
+}
+
 export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const { t } = useI18n();
   const settings = useSettingsStore();
@@ -75,14 +109,15 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   );
   const hasDownloadable = computed(() => state.value.items.some((i) => i.status === 'done'));
 
-  // batch-wide progress: settled items count fully, the active item contributes its fraction
+  // batch-wide progress: settled items count fully, each running item contributes
+  // its own fraction so several concurrent inferences sum up correctly
   const overallProgress = computed(() => {
     const items = state.value.items;
     if (items.length === 0) return 0;
     let sum = 0;
     for (const item of items) {
       if (item.status === 'done' || item.status === 'error') sum += 1;
-      else if (item.status === 'processing') sum += state.value.progress / 100;
+      else if (item.status === 'processing') sum += item.progress / 100;
     }
     return Math.round((sum / items.length) * 100);
   });
@@ -135,17 +170,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     batchCopied.value = false;
   }
 
+  const effectiveConcurrency = computed(() =>
+    Math.min(MAX_CONCURRENCY, Math.max(1, settings.concurrency)),
+  );
+
+  let slots: WorkerSlot[] = [];
   let itemIdSeq = 0;
   let jobIdSeq = 0;
-  let worker: Worker | null = null;
-  let currentItem: BatchItem | null = null;
-  let currentJobId: number | null = null;
-  let resolveCurrent: (() => void) | null = null;
   let queueRunning = false;
   let batchAborted = false;
   let userCancelled = false;
+  let disposed = false;
   const STALL_TIMEOUT_MS = 10 * 60_000;
-  let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
   // The worker only reports at tile boundaries, so a naive bar freezes during a
   // long tile run (notably the first, which pays one-time init cost). Ground the
@@ -156,51 +192,65 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const TILE_PROGRESS_SPAN = 70; // worker spreads tile reports across 10..80
   const INFERENCE_MIN = 10;
   const INFERENCE_MAX = 84; // below the real Postprocessing report (85)
-  let smoothTimer: ReturnType<typeof setInterval> | null = null;
-  let rawProgress = 0;
-  let displayProgress = 0;
-  let lastReportAt = 0;
-  let lastReportInference = false;
-  let skipWarmupDelta = false;
-  let measuredTileMs: number | null = null;
-  let tileTotal: number | null = null;
 
-  /** which (model id, gpu) the worker session currently serves; gpu = value requested at load time */
-  let loadedModelId: string | null = null;
-  let loadedGpuWanted: boolean | null = null;
-  let pendingGpuWanted: boolean | null = null;
-
-  function setupWorker() {
-    worker = new Worker(new URL('../workers/super-resolution.worker.ts', import.meta.url), {
+  function createWorker(): Worker {
+    return new Worker(new URL('../workers/super-resolution.worker.ts', import.meta.url), {
       type: 'module',
     });
+  }
 
-    worker.onmessage = (e) => {
+  function createSlot(): WorkerSlot {
+    const slot: WorkerSlot = {
+      worker: createWorker(),
+      item: null,
+      jobId: null,
+      resolve: null,
+      loadedModelId: null,
+      loadedGpuWanted: null,
+      pendingGpuWanted: null,
+      inflightLoad: null,
+      stallTimer: null,
+      rawProgress: 0,
+      displayProgress: 0,
+      lastReportAt: 0,
+      lastReportInference: false,
+      skipWarmupDelta: false,
+      measuredTileMs: null,
+      tileTotal: null,
+      smoothTimer: null,
+    };
+    attachSlotHandlers(slot);
+    return slot;
+  }
+
+  function attachSlotHandlers(slot: WorkerSlot) {
+    slot.worker.onmessage = (e) => {
       const { type, payload } = e.data as WorkerResponse;
 
       switch (type) {
         case 'progress':
-          if (payload.jobId != null && payload.jobId !== currentJobId) break;
-          noteProgressReport(payload.progress, payload.tile);
-          rawProgress = payload.progress;
-          stepProgressSmoothing();
+          if (payload.jobId != null && payload.jobId !== slot.jobId) break;
+          noteProgressReport(slot, payload.progress, payload.tile);
+          slot.rawProgress = payload.progress;
+          stepProgressSmoothing(slot);
           if (payload.stage) modelLoadStage.value = payload.stage;
           state.value.status = payload.status;
-          armStallWatchdog();
+          armSlotWatchdog(slot);
           break;
 
         case 'complete': {
-          if (payload.jobId != null && payload.jobId !== currentJobId) {
+          if (payload.jobId != null && payload.jobId !== slot.jobId) {
             URL.revokeObjectURL(payload.resultUrl);
             break;
           }
-          clearStallWatchdog();
-          setProgress(100);
+          clearSlotWatchdog(slot);
+          setSlotProgress(slot, 100);
           state.value.status = 'Complete';
-          const item = currentItem;
+          const item = slot.item;
           if (item && item.status === 'processing') {
             stopItemTimer(item);
             item.status = 'done';
+            item.progress = 100;
             item.resultUrl = payload.resultUrl;
             item.resultSize = payload.size;
             activeId.value = item.id;
@@ -211,49 +261,52 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
               resultUrl: payload.resultUrl,
             });
           }
-          currentItem = null;
-          currentJobId = null;
-          resolveCurrent?.();
-          resolveCurrent = null;
+          slot.item = null;
+          slot.jobId = null;
+          stopSlotSmoothing(slot);
+          slot.resolve?.();
+          slot.resolve = null;
+          updateGlobalProgress();
           break;
         }
 
         case 'error': {
-          if (payload.jobId != null && payload.jobId !== currentJobId) break;
-          clearStallWatchdog();
+          if (payload.jobId != null && payload.jobId !== slot.jobId) break;
+          clearSlotWatchdog(slot);
           state.value.isLoadingModel = false;
           state.value.error = payload.message;
           state.value.status = 'Error';
-          const item = currentItem;
+          const item = slot.item;
           if (item) {
             stopItemTimer(item);
             item.status = 'error';
             item.error = payload.message;
-            currentItem = null;
-          } else {
-            batchAborted = true;
-            markRemainingFailed(payload.message);
+            slot.item = null;
           }
-          currentJobId = null;
-          resolveCurrent?.();
-          resolveCurrent = null;
+          slot.jobId = null;
+          stopSlotSmoothing(slot);
+          slot.resolve?.();
+          slot.resolve = null;
+          updateGlobalProgress();
           break;
         }
 
         case 'aborted': {
           // a late ack for a job the queue already moved past: leave the new
           // job's watchdog and loading state alone
-          if (payload.jobId != null && payload.jobId !== currentJobId) break;
-          clearStallWatchdog();
+          if (payload.jobId != null && payload.jobId !== slot.jobId) break;
+          clearSlotWatchdog(slot);
           state.value.isLoadingModel = false;
-          const item = currentItem;
+          const item = slot.item;
           if (item) {
             markItemCancelled(item);
-            currentItem = null;
+            slot.item = null;
           }
-          currentJobId = null;
-          resolveCurrent?.();
-          resolveCurrent = null;
+          slot.jobId = null;
+          stopSlotSmoothing(slot);
+          slot.resolve?.();
+          slot.resolve = null;
+          updateGlobalProgress();
           break;
         }
 
@@ -263,94 +316,122 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           modelPhase.value = null;
           resetModelLoad();
           state.value.status = 'Model loaded';
-          loadedModelId = payload?.modelId ?? options.model.value.id;
-          loadedGpuWanted = pendingGpuWanted;
-          pendingGpuWanted = null;
+          slot.loadedModelId = payload?.modelId ?? options.model.value.id;
+          slot.loadedGpuWanted = slot.pendingGpuWanted;
+          slot.pendingGpuWanted = null;
           break;
 
         case 'gpu-fallback':
           gpuFallback.value = true;
           options.gpu.value = false;
-          loadedGpuWanted = false;
+          slot.loadedGpuWanted = false;
           state.value.status = t('processing.gpuFallback');
           break;
       }
     };
 
-    worker.onerror = (e) => {
-      clearStallWatchdog();
-      state.value.isProcessing = false;
-      state.value.isLoadingModel = false;
-      state.value.error = e.message;
-      state.value.status = 'Worker error';
-      if (modelPhase.value === 'loading') modelPhase.value = null;
-      resetModelLoad();
-      const item = currentItem;
-      if (item) {
-        stopItemTimer(item);
-        item.status = 'error';
-        item.error = e.message;
-        currentItem = null;
-      } else {
-        batchAborted = true;
-        markRemainingFailed(e.message);
-      }
-      currentJobId = null;
-      resolveCurrent?.();
-      resolveCurrent = null;
+    slot.worker.onerror = (e) => {
+      handleSlotError(slot, e.message);
     };
-    void preloadCachedModel();
   }
 
-  function clearStallWatchdog() {
-    if (stallTimer) {
-      clearTimeout(stallTimer);
-      stallTimer = null;
+  function buildPool() {
+    teardownPool();
+    const count = effectiveConcurrency.value;
+    slots = Array.from({ length: count }, () => createSlot());
+    state.value.isModelLoaded = false;
+    state.value.isLoadingModel = false;
+    modelPhase.value = null;
+    resetModelLoad();
+  }
+
+  function teardownPool() {
+    for (const slot of slots) {
+      clearSlotWatchdog(slot);
+      stopSlotSmoothing(slot);
+      slot.worker.terminate();
+    }
+    slots = [];
+  }
+
+  function restartSlot(slot: WorkerSlot) {
+    if (disposed) return;
+    clearSlotWatchdog(slot);
+    stopSlotSmoothing(slot);
+    slot.worker.terminate();
+    slot.loadedModelId = null;
+    slot.loadedGpuWanted = null;
+    slot.pendingGpuWanted = null;
+    slot.jobId = null;
+    slot.inflightLoad = null;
+    slot.worker = createWorker();
+    attachSlotHandlers(slot);
+  }
+
+  function clearSlotWatchdog(slot: WorkerSlot) {
+    if (slot.stallTimer) {
+      clearTimeout(slot.stallTimer);
+      slot.stallTimer = null;
     }
   }
 
-  function armStallWatchdog() {
-    clearStallWatchdog();
-    stallTimer = setTimeout(onWorkerStalled, STALL_TIMEOUT_MS);
+  function armSlotWatchdog(slot: WorkerSlot) {
+    clearSlotWatchdog(slot);
+    slot.stallTimer = setTimeout(() => onSlotStalled(slot), STALL_TIMEOUT_MS);
   }
 
-  function startProgressSmoothing() {
-    if (smoothTimer) return;
-    smoothTimer = setInterval(stepProgressSmoothing, SMOOTH_INTERVAL_MS);
+  function startSlotSmoothing(slot: WorkerSlot) {
+    if (slot.smoothTimer) return;
+    slot.smoothTimer = setInterval(() => stepProgressSmoothing(slot), SMOOTH_INTERVAL_MS);
   }
 
-  function stopProgressSmoothing() {
-    if (smoothTimer) {
-      clearInterval(smoothTimer);
-      smoothTimer = null;
+  function stopSlotSmoothing(slot: WorkerSlot) {
+    if (slot.smoothTimer) {
+      clearInterval(slot.smoothTimer);
+      slot.smoothTimer = null;
     }
-    rawProgress = 0;
-    lastReportAt = 0;
-    lastReportInference = false;
-    skipWarmupDelta = false;
-    tileTotal = null;
-    measuredTileMs = null;
+    slot.rawProgress = 0;
+    slot.lastReportAt = 0;
+    slot.lastReportInference = false;
+    slot.skipWarmupDelta = false;
+    slot.tileTotal = null;
+    // measuredTileMs is kept: later items reuse the warm baseline.
   }
 
-  function resetProgress() {
-    rawProgress = 0;
-    displayProgress = 0;
-    state.value.progress = 0;
-    lastReportAt = 0;
-    lastReportInference = false;
-    skipWarmupDelta = false;
-    tileTotal = null;
+  function resetSlotProgress(slot: WorkerSlot) {
+    slot.rawProgress = 0;
+    slot.displayProgress = 0;
+    slot.lastReportAt = 0;
+    slot.lastReportInference = false;
+    slot.skipWarmupDelta = false;
+    slot.tileTotal = null;
     // measuredTileMs is kept: later items in the same run reuse the warm baseline.
   }
 
-  /**
-   * Record the worker's reported value; `complete` (100) snaps the bar to the end.
-   */
-  function setProgress(value: number) {
-    rawProgress = value;
+  /** Highest per-item progress among running items, for the shared toolbar bar. */
+  function updateGlobalProgress() {
+    let max = 0;
+    for (const item of state.value.items) {
+      if (item.status === 'processing' && item.progress > max) max = item.progress;
+    }
+    if (state.value.progress !== max) state.value.progress = max;
+  }
+
+  function publishSlotProgress(slot: WorkerSlot) {
+    const rounded = Math.round(slot.displayProgress);
+    if (slot.item && slot.item.status === 'processing' && slot.item.progress !== rounded) {
+      slot.item.progress = rounded;
+    }
+    updateGlobalProgress();
+  }
+
+  /** Record the worker's reported value; `complete` (100) snaps the bar to the end. */
+  function setSlotProgress(slot: WorkerSlot, value: number) {
+    slot.rawProgress = value;
     if (value >= 100) {
-      displayProgress = 100;
-      state.value.progress = 100;
+      slot.displayProgress = 100;
+      if (slot.item) slot.item.progress = 100;
+      updateGlobalProgress();
     }
   }
 
@@ -359,19 +440,24 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
    * measured. The interval after the pre-tile-1 report includes one-time model
    * init, so it is skipped instead of poisoning the baseline.
    */
-  function noteProgressReport(progress: number, tile?: { done: number; total: number }) {
+  function noteProgressReport(
+    slot: WorkerSlot,
+    progress: number,
+    tile?: { done: number; total: number },
+  ) {
     const now = performance.now();
     const inInference = progress >= INFERENCE_MIN && progress <= INFERENCE_MAX;
-    if (inInference && lastReportInference && lastReportAt > 0 && !skipWarmupDelta) {
-      const delta = now - lastReportAt;
+    if (inInference && slot.lastReportInference && slot.lastReportAt > 0 && !slot.skipWarmupDelta) {
+      const delta = now - slot.lastReportAt;
       if (delta > 0) {
-        measuredTileMs = measuredTileMs === null ? delta : measuredTileMs * 0.3 + delta * 0.7;
+        slot.measuredTileMs =
+          slot.measuredTileMs === null ? delta : slot.measuredTileMs * 0.3 + delta * 0.7;
       }
     }
-    skipWarmupDelta = inInference && (tile?.done ?? 1) === 0;
-    if (tile) tileTotal = tile.total;
-    lastReportAt = now;
-    lastReportInference = inInference;
+    slot.skipWarmupDelta = inInference && (tile?.done ?? 1) === 0;
+    if (tile) slot.tileTotal = tile.total;
+    slot.lastReportAt = now;
+    slot.lastReportInference = inInference;
   }
 
   /**
@@ -381,75 +467,78 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
    * baseline the bar holds; `complete` (100) snaps. Monotonic within an item —
    * transient lower reports never move the bar backwards.
    */
-  function stepProgressSmoothing() {
-    if (rawProgress >= 100) {
-      displayProgress = 100;
-    } else if (displayProgress < rawProgress) {
-      displayProgress = rawProgress;
+  function stepProgressSmoothing(slot: WorkerSlot) {
+    if (slot.rawProgress >= 100) {
+      slot.displayProgress = 100;
+    } else if (slot.displayProgress < slot.rawProgress) {
+      slot.displayProgress = slot.rawProgress;
     } else if (
-      measuredTileMs !== null &&
-      tileTotal !== null &&
-      lastReportAt > 0 &&
-      rawProgress >= INFERENCE_MIN &&
-      rawProgress <= INFERENCE_MAX
+      slot.measuredTileMs !== null &&
+      slot.tileTotal !== null &&
+      slot.lastReportAt > 0 &&
+      slot.rawProgress >= INFERENCE_MIN &&
+      slot.rawProgress <= INFERENCE_MAX
     ) {
-      const gap = TILE_PROGRESS_SPAN / tileTotal;
-      const lead = Math.min(gap, gap * ((performance.now() - lastReportAt) / measuredTileMs));
-      const ceiling = Math.min(rawProgress + lead, INFERENCE_MAX);
-      if (displayProgress < ceiling) {
-        displayProgress = ceiling;
+      const gap = TILE_PROGRESS_SPAN / slot.tileTotal;
+      const lead = Math.min(
+        gap,
+        gap * ((performance.now() - slot.lastReportAt) / slot.measuredTileMs),
+      );
+      const ceiling = Math.min(slot.rawProgress + lead, INFERENCE_MAX);
+      if (slot.displayProgress < ceiling) {
+        slot.displayProgress = ceiling;
       }
     }
-    const rounded = Math.round(displayProgress);
-    if (rounded !== state.value.progress) {
-      state.value.progress = rounded;
-    }
-  }
-
-  function restartWorker() {
-    clearStallWatchdog();
-    if (worker) {
-      worker.terminate();
-      worker = null;
-    }
-    loadedModelId = null;
-    loadedGpuWanted = null;
-    pendingGpuWanted = null;
-    currentJobId = null;
-    state.value.isModelLoaded = false;
-    modelPhase.value = null;
-    resetModelLoad();
-    setupWorker();
+    publishSlotProgress(slot);
   }
 
   /**
-   * The worker stopped posting progress for longer than STALL_TIMEOUT_MS — most
-   * likely a wedged GPU/WASM inference. Fail the in-flight item and rebuild the
-   * worker so the queue does not stay stuck forever.
+   * One worker stopped posting progress for longer than STALL_TIMEOUT_MS — most
+   * likely a wedged GPU/WASM inference. Fail its in-flight item and rebuild just
+   * that worker so the rest of the pool keeps going.
    */
-  function onWorkerStalled() {
-    clearStallWatchdog();
+  function onSlotStalled(slot: WorkerSlot) {
+    clearSlotWatchdog(slot);
     const message = t('processing.stalled');
-    state.value.isProcessing = false;
-    state.value.isLoadingModel = false;
     state.value.error = message;
     state.value.status = 'Error';
     if (modelPhase.value === 'loading') modelPhase.value = null;
     resetModelLoad();
-    const item = currentItem;
+    const item = slot.item;
     if (item) {
       stopItemTimer(item);
       item.status = 'error';
       item.error = message;
-      currentItem = null;
-    } else {
-      batchAborted = true;
-      markRemainingFailed(message);
+      slot.item = null;
     }
-    currentJobId = null;
-    resolveCurrent?.();
-    resolveCurrent = null;
-    restartWorker();
+    slot.jobId = null;
+    stopSlotSmoothing(slot);
+    slot.resolve?.();
+    slot.resolve = null;
+    updateGlobalProgress();
+    restartSlot(slot);
+  }
+
+  function handleSlotError(slot: WorkerSlot, message: string) {
+    clearSlotWatchdog(slot);
+    state.value.error = message;
+    state.value.status = 'Worker error';
+    state.value.isLoadingModel = false;
+    if (modelPhase.value === 'loading') modelPhase.value = null;
+    resetModelLoad();
+    const item = slot.item;
+    if (item) {
+      stopItemTimer(item);
+      item.status = 'error';
+      item.error = message;
+      slot.item = null;
+    }
+    slot.jobId = null;
+    stopSlotSmoothing(slot);
+    slot.resolve?.();
+    slot.resolve = null;
+    updateGlobalProgress();
+    restartSlot(slot);
   }
 
   function markItemCancelled(item: BatchItem) {
@@ -474,42 +563,53 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       return;
     }
     if (item.status !== 'processing') return;
-    const cancellingCurrent = currentItem?.id === id;
+    const slot = slots.find((s) => s.item?.id === id) ?? null;
     markItemCancelled(item);
-    if (cancellingCurrent) {
-      currentItem = null;
-      currentJobId = null;
-      resolveCurrent?.();
-      resolveCurrent = null;
-      worker?.postMessage({ type: 'abort' });
+    if (slot) {
+      slot.item = null;
+      slot.jobId = null;
+      clearSlotWatchdog(slot);
+      stopSlotSmoothing(slot);
+      const resolve = slot.resolve;
+      slot.resolve = null;
+      resolve?.();
+      slot.worker.postMessage({ type: 'abort' });
     }
+    updateGlobalProgress();
   }
 
-  /** Cancel the whole batch: fail every unfinished item and stop the queue. */
+  /** Cancel the whole batch: fail every unfinished item and stop the pool. */
   function cancelProcessing() {
-    if (!worker) return;
+    if (slots.length === 0) return;
     const hasActive = state.value.items.some(
       (i) => i.status === 'pending' || i.status === 'processing',
     );
     if (!hasActive) return;
-    const hadCurrent = currentItem !== null;
     state.value.items.forEach((i) => {
       if (i.status === 'pending' || i.status === 'processing') markItemCancelled(i);
     });
-    currentItem = null;
-    currentJobId = null;
     batchAborted = true;
     state.value.error = null;
     userCancelled = true;
     state.value.isProcessing = false;
-    resolveCurrent?.();
-    resolveCurrent = null;
-    if (hadCurrent) worker.postMessage({ type: 'abort' });
+    for (const slot of slots) {
+      const hadItem = slot.item !== null;
+      slot.item = null;
+      slot.jobId = null;
+      clearSlotWatchdog(slot);
+      stopSlotSmoothing(slot);
+      const resolve = slot.resolve;
+      slot.resolve = null;
+      resolve?.();
+      if (hadItem) slot.worker.postMessage({ type: 'abort' });
+    }
+    updateGlobalProgress();
   }
 
   onMounted(() => {
     if (typeof Worker !== 'undefined') {
-      setupWorker();
+      buildPool();
+      void preloadCachedModel();
     }
 
     window.addEventListener('keydown', onGlobalKeydown);
@@ -520,14 +620,21 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   });
 
   onUnmounted(() => {
+    disposed = true;
     window.removeEventListener('keydown', onGlobalKeydown);
     document.body.style.overflow = '';
-    stopProgressSmoothing();
     resetCopied();
-    if (worker) {
-      worker.terminate();
-    }
+    teardownPool();
     revokeAllOriginalUrls();
+  });
+
+  // Changing the concurrency rebuilds the pool, but only while idle so a running
+  // batch is never disrupted; otherwise the new value applies to the next run.
+  watch(effectiveConcurrency, () => {
+    if (disposed || typeof Worker === 'undefined') return;
+    if (state.value.isProcessing) return;
+    buildPool();
+    void preloadCachedModel();
   });
 
   /**
@@ -538,8 +645,10 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (options.gpu.value) gpuFallback.value = false;
     if (state.value.isProcessing) return;
     state.value.isModelLoaded = false;
-    loadedModelId = null;
-    loadedGpuWanted = null;
+    for (const slot of slots) {
+      slot.loadedModelId = null;
+      slot.loadedGpuWanted = null;
+    }
     if (!state.value.items.some((i) => i.status === 'processing')) {
       state.value.status = state.value.items.length > 0 ? 'Ready' : state.value.status;
     }
@@ -560,6 +669,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         item.error = message;
       }
     });
+    updateGlobalProgress();
   }
 
   function revokeAllOriginalUrls() {
@@ -570,27 +680,15 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     previewId.value = null;
   }
 
-  async function loadModel(modelId: string, modelData: ArrayBuffer) {
-    if (!worker) return;
-
-    state.value.isLoadingModel = true;
-    state.value.isModelLoaded = false;
-    state.value.status = 'Loading model...';
-    state.value.error = null;
-    pendingGpuWanted = options.gpu.value;
-
-    worker.postMessage({
-      type: 'load-model',
-      payload: { modelId, modelData, gpu: options.gpu.value },
-    });
-  }
-
   /** Reject instead of spinning forever if the worker never replies (deadlock safety net). */
   const MODEL_LOAD_TIMEOUT_MS = 60_000;
 
-  function waitForModelLoaded(timeoutMs = MODEL_LOAD_TIMEOUT_MS): Promise<void> {
+  function waitForSlotModelLoaded(
+    slot: WorkerSlot,
+    timeoutMs = MODEL_LOAD_TIMEOUT_MS,
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const workerRef = worker!;
+      const workerRef = slot.worker;
       const origOnMsg = workerRef.onmessage;
       let timer: ReturnType<typeof setTimeout> | null = null;
       const restore = () => {
@@ -617,29 +715,26 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
   }
 
-  function isModelReadyForCurrentSelection(): boolean {
+  function slotModelReady(slot: WorkerSlot): boolean {
     return (
-      state.value.isModelLoaded &&
-      loadedModelId === options.model.value.id &&
-      loadedGpuWanted === options.gpu.value
+      slot.loadedModelId === options.model.value.id && slot.loadedGpuWanted === options.gpu.value
     );
   }
 
-  let inflightLoad: Promise<boolean> | null = null;
+  // The model bytes are fetched once and shared: every slot posts the same
+  // ArrayBuffer, which structured-clones into an independent copy per worker.
+  let inflightModelData: Promise<ArrayBuffer | null> | null = null;
 
-  async function ensureModel(): Promise<boolean> {
-    if (isModelReadyForCurrentSelection()) return true;
-    if (inflightLoad) return inflightLoad;
-
-    inflightLoad = doEnsureModel();
-    try {
-      return await inflightLoad;
-    } finally {
-      inflightLoad = null;
+  async function ensureModelData(): Promise<ArrayBuffer | null> {
+    if (!inflightModelData) {
+      inflightModelData = fetchModelData().finally(() => {
+        inflightModelData = null;
+      });
     }
+    return inflightModelData;
   }
 
-  async function doEnsureModel(): Promise<boolean> {
+  async function fetchModelData(): Promise<ArrayBuffer | null> {
     try {
       const modelId = options.model.value.id;
       let modelData = await getCachedModel(modelId);
@@ -652,11 +747,58 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         modelPhase.value = 'downloading';
         modelData = await downloadModel(model);
       }
+      return modelData;
+    } catch (err) {
+      modelPhase.value = null;
+      resetModelLoad();
+      state.value.isLoadingModel = false;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        state.value.status = 'Ready';
+        return null;
+      }
+      state.value.error = err instanceof Error ? err.message : 'Failed to load model';
+      state.value.status = 'Error';
+      return null;
+    }
+  }
 
+  /** Per-worker WASM thread budget so N slots do not each grab every core. */
+  function perWorkerThreads(): number {
+    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) return 1;
+    return Math.max(1, Math.floor(hardwareConcurrency() / effectiveConcurrency.value));
+  }
+
+  async function ensureSlotModel(slot: WorkerSlot): Promise<boolean> {
+    if (slotModelReady(slot)) return true;
+    if (slot.inflightLoad) return slot.inflightLoad;
+
+    slot.inflightLoad = doEnsureSlotModel(slot);
+    try {
+      return await slot.inflightLoad;
+    } finally {
+      slot.inflightLoad = null;
+    }
+  }
+
+  async function doEnsureSlotModel(slot: WorkerSlot): Promise<boolean> {
+    try {
+      const modelId = options.model.value.id;
+      const modelData = await ensureModelData();
+      if (!modelData) return false;
+
+      state.value.isLoadingModel = true;
+      state.value.isModelLoaded = false;
+      state.value.status = 'Loading model...';
+      state.value.error = null;
       modelPhase.value = 'loading';
       modelLoadStage.value = null;
-      await loadModel(modelId, modelData);
-      await waitForModelLoaded();
+      slot.pendingGpuWanted = options.gpu.value;
+
+      slot.worker.postMessage({
+        type: 'load-model',
+        payload: { modelId, modelData, gpu: options.gpu.value, numThreads: perWorkerThreads() },
+      });
+      await waitForSlotModelLoaded(slot);
       return true;
     } catch (err) {
       modelPhase.value = null;
@@ -673,49 +815,61 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   }
 
   /**
-   * Warm up the worker with the currently selected model as soon as it is
+   * Warm up the first slot with the currently selected model as soon as it is
    * already cached, so processing does not have to wait for the session to load.
    * Best-effort: a failure here is swallowed and retried on demand.
    */
   async function preloadCachedModel(): Promise<void> {
-    if (!worker || state.value.isProcessing) return;
-    if (isModelReadyForCurrentSelection()) return;
+    if (disposed || state.value.isProcessing) return;
+    const slot = slots[0];
+    if (!slot) return;
+    if (slotModelReady(slot)) return;
 
     try {
       if (await isModelCached(options.model.value.id)) {
-        await ensureModel();
+        await ensureSlotModel(slot);
       }
     } catch {
       /* best-effort preload */
     }
   }
 
-  async function processItem(item: BatchItem): Promise<'done' | 'error' | 'abort'> {
-    if (!worker) return 'abort';
+  async function processItemOnSlot(
+    slot: WorkerSlot,
+    item: BatchItem,
+  ): Promise<'done' | 'error' | 'abort'> {
+    if (disposed) return 'abort';
 
-    const modelOk = await ensureModel();
+    // Reserve the item synchronously (before any await) so another slot's
+    // scheduler loop cannot pick the same pending item.
+    item.status = 'processing';
+    item.progress = 0;
+    item.startedAt = Date.now();
+    item.durationMs = null;
+    updateGlobalProgress();
+
+    const modelOk = await ensureSlotModel(slot);
     if (!modelOk) {
+      stopItemTimer(item);
       item.status = 'error';
-      item.error = state.value.error;
+      item.error = state.value.error ?? 'Failed to load model';
+      updateGlobalProgress();
       return 'abort';
     }
 
-    // the item may have been cancelled (or the batch aborted) while the model
-    // was loading; bail out so a cancelled item is not resurrected here
-    if (batchAborted || item.status !== 'pending') {
+    // the item may have been cancelled while the model was loading
+    if (batchAborted || item.status !== 'processing') {
       return 'error';
     }
 
     const jobId = ++jobIdSeq;
-    currentJobId = jobId;
+    slot.jobId = jobId;
+    slot.item = item;
+    resetSlotProgress(slot);
+    startSlotSmoothing(slot);
     state.value.isProcessing = true;
-    resetProgress();
     state.value.status = 'Loading image...';
     state.value.error = null;
-    item.status = 'processing';
-    item.startedAt = Date.now();
-    item.durationMs = null;
-    currentItem = item;
 
     let img: HTMLImageElement;
     try {
@@ -727,14 +881,16 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       item.error = err instanceof Error ? err.message : 'Failed to load image';
       state.value.status = 'Error';
       state.value.error = item.error;
-      currentItem = null;
-      currentJobId = null;
+      slot.item = null;
+      slot.jobId = null;
+      stopSlotSmoothing(slot);
+      updateGlobalProgress();
       return 'error';
     }
 
     const { imageData, alpha } = prepareSourceImage(img);
 
-    worker.postMessage({
+    slot.worker.postMessage({
       type: 'process',
       payload: {
         jobId,
@@ -748,9 +904,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
 
     await new Promise<void>((resolve) => {
-      resolveCurrent = resolve;
+      slot.resolve = resolve;
     });
-    resolveCurrent = null;
+    slot.resolve = null;
 
     // status is mutated by the worker callback — read it back fresh so TS
     // control-flow narrowing on the earlier `= 'processing'` assignment
@@ -839,24 +995,30 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   }
 
   async function runQueue() {
-    if (queueRunning) return;
+    if (queueRunning || slots.length === 0) return;
     queueRunning = true;
     batchAborted = false;
     userCancelled = false;
-    currentJobId = null;
     state.value.isProcessing = true;
-    startProgressSmoothing();
 
-    try {
+    // Each slot drives its own loop over the pending items, so up to N items run
+    // at once. Reserving an item marks it `processing` synchronously, so two
+    // loops never grab the same item.
+    const runner = async (slot: WorkerSlot) => {
       while (!batchAborted) {
         const item = state.value.items.find((i) => i.status === 'pending');
         if (!item) break;
 
-        const result = await processItem(item);
+        const result = await processItemOnSlot(slot, item);
         if (result === 'abort') {
           batchAborted = true;
+          break;
         }
       }
+    };
+
+    try {
+      await Promise.all(slots.map((slot) => runner(slot)));
 
       if (batchAborted) {
         markRemainingFailed(
@@ -866,21 +1028,23 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     } catch (err) {
       state.value.error = err instanceof Error ? err.message : 'Processing failed';
       state.value.status = 'Error';
-      currentItem = null;
-      resolveCurrent?.();
-      resolveCurrent = null;
+      for (const slot of slots) {
+        slot.item = null;
+        slot.jobId = null;
+        slot.resolve?.();
+        slot.resolve = null;
+      }
       markRemainingFailed(state.value.error);
     } finally {
       state.value.isProcessing = false;
       queueRunning = false;
-      stopProgressSmoothing();
     }
   }
 
   function processBatch(inputs: BatchInput[]) {
     if (inputs.length === 0) return;
 
-    if (!worker) {
+    if (slots.length === 0) {
       state.value.error = 'Web Worker not supported';
       state.value.status = 'Error';
       return;
@@ -897,6 +1061,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       originalSize: null,
       resultSize: null,
       error: null,
+      progress: 0,
       startedAt: null,
       durationMs: null,
     }));
@@ -905,9 +1070,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     runQueue();
   }
 
-  /** re-run queue items (given list, or all done/error when omitted); allowed mid-run, requeued after the current item */
+  /** re-run queue items (given list, or all done/error when omitted); allowed mid-run, requeued after the current items */
   function reprocess(items?: BatchItem[]) {
-    if (!worker) return;
+    if (slots.length === 0) return;
     const targets = items ?? state.value.items;
     const reset: BatchItem[] = [];
     for (const item of targets) {
@@ -916,6 +1081,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         item.error = null;
         item.resultUrl = null;
         item.resultSize = null;
+        item.progress = 0;
         item.startedAt = null;
         item.durationMs = null;
         reset.push(item);
@@ -923,12 +1089,15 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
     if (reset.length === 0) return;
 
-    const current = currentItem;
-    if (current) {
+    const running = slots.map((s) => s.item).filter((i): i is BatchItem => i !== null);
+    if (running.length > 0) {
       const resetIds = new Set(reset.map((i) => i.id));
       const rest = state.value.items.filter((i) => !resetIds.has(i.id));
-      const currentIndex = rest.findIndex((i) => i.id === current.id);
-      const insertAt = currentIndex >= 0 ? currentIndex + 1 : rest.length;
+      const lastRunningIndex = rest.reduce(
+        (acc, i, idx) => (running.some((r) => r.id === i.id) ? idx : acc),
+        -1,
+      );
+      const insertAt = lastRunningIndex >= 0 ? lastRunningIndex + 1 : rest.length;
       state.value.items = [...rest.slice(0, insertAt), ...reset, ...rest.slice(insertAt)];
     }
 
@@ -1180,7 +1349,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   function clearQueue() {
     if (state.value.isProcessing) return;
     revokeAllOriginalUrls();
-    resetProgress();
+    updateGlobalProgress();
     state.value.status = 'Ready';
     state.value.error = null;
   }

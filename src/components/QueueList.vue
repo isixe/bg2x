@@ -12,7 +12,6 @@ const props = defineProps<{
   activeId: number | null;
   copiedId: number | null;
   batchCopied: boolean;
-  progress: number;
 }>();
 
 const selectableIds = computed(() =>
@@ -210,8 +209,12 @@ function onRowClick(event: MouseEvent, item: BatchItem) {
             </template>
           </span>
         </div>
-        <div v-if="item.status === 'processing'" class="queue-ring" :style="{ '--p': progress }">
-          <span class="queue-ring-label">{{ progress }}%</span>
+        <div
+          v-if="item.status === 'processing'"
+          class="queue-ring"
+          :style="{ '--p': item.progress }"
+        >
+          <span class="queue-ring-label">{{ item.progress }}%</span>
         </div>
         <Check v-else-if="item.status === 'done'" class="queue-done-icon" :size="16" />
         <span

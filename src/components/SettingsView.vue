@@ -14,6 +14,7 @@ import {
   Wrench,
   RefreshCw,
   Tag,
+  Gauge,
 } from 'lucide-vue-next';
 import { resetAllSettings, useLocaleStore, useSettingsStore } from '../store/stores';
 import type { ExportMode, LocaleCode } from '../store/stores';
@@ -26,8 +27,9 @@ import { APP_NAME, APP_VERSION, GITHUB_URL, LICENSE, WEB_DOWNLOAD_URL } from '..
 import { RELATED_PROJECTS } from '../config/related';
 import { IS_DESKTOP } from '../lib/desktop';
 import { useUpdateCheck } from '../composables/useUpdateCheck';
+import { CONCURRENCY_OPTIONS } from '../composables/useProcessingQueue';
 
-type SettingsTab = 'general' | 'about' | 'related';
+type SettingsTab = 'general' | 'performance' | 'about' | 'related';
 
 interface SettingsTabItem {
   id: SettingsTab;
@@ -52,6 +54,7 @@ const activeTab = ref<SettingsTab>('general');
 
 const tabs: SettingsTabItem[] = [
   { id: 'general', icon: Settings, label: 'settings.tabGeneral' },
+  { id: 'performance', icon: Gauge, label: 'settings.tabPerformance' },
   { id: 'related', icon: Layers, label: 'settings.tabRelated' },
   { id: 'about', icon: Info, label: 'settings.tabAbout' },
 ];
@@ -74,6 +77,10 @@ function onLanguageChange(value: string) {
 
 function onExportModeChange(value: string) {
   settingsStore.setExportMode(value as ExportMode);
+}
+
+function onConcurrencyChange(value: string) {
+  settingsStore.setConcurrency(Number(value));
 }
 
 const showResetConfirm = ref(false);
@@ -209,6 +216,35 @@ function confirmReset() {
             <button type="button" class="btn-reset" @click="showResetConfirm = true">
               {{ t('settings.resetAll') }}
             </button>
+          </div>
+        </div>
+      </section>
+
+      <section v-else-if="activeTab === 'performance'" class="settings-panel">
+        <div class="settings-section">
+          <h2 class="section-title">{{ t('settings.concurrencySection') }}</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.concurrency') }}</span>
+              <span class="setting-desc">{{ t('settings.concurrencyDesc') }}</span>
+            </div>
+            <Select
+              :model-value="String(settingsStore.concurrency)"
+              @update:model-value="onConcurrencyChange"
+            >
+              <SelectTrigger class="w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="value in CONCURRENCY_OPTIONS"
+                  :key="value"
+                  :value="String(value)"
+                >
+                  {{ value }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </section>

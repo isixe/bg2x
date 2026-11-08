@@ -6,7 +6,12 @@ import ImageUploader from './ImageUploader.vue';
 import QueueList from './QueueList.vue';
 import OpsPanel from './OpsPanel.vue';
 import PreviewDialog from './PreviewDialog.vue';
-import { useProcessingQueue } from '../composables/useProcessingQueue';
+import Select from './ui/select/Select.vue';
+import SelectContent from './ui/select/SelectContent.vue';
+import SelectItem from './ui/select/SelectItem.vue';
+import SelectTrigger from './ui/select/SelectTrigger.vue';
+import SelectValue from './ui/select/SelectValue.vue';
+import { CONCURRENCY_OPTIONS, useProcessingQueue } from '../composables/useProcessingQueue';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
 import {
@@ -16,7 +21,7 @@ import {
   refreshModelDownloadStates,
 } from '../composables/useModelDownloads';
 import { filesToBatchInputs } from '../lib/batchInput';
-import { useHistoryStore, useModelStore } from '../store/stores';
+import { useHistoryStore, useModelStore, useSettingsStore } from '../store/stores';
 
 const { t } = useI18n();
 
@@ -26,6 +31,11 @@ defineOptions({ name: 'UploadWorkspace' });
 
 const modelStore = useModelStore();
 const historyStore = useHistoryStore();
+const settingsStore = useSettingsStore();
+
+function onConcurrencyChange(value: string) {
+  settingsStore.setConcurrency(Number(value));
+}
 
 const initialModel = getModelById(modelStore.defaultModelId) ?? MODEL_REGISTRY[0];
 const selectedModelId = ref(initialModel.id);
@@ -195,23 +205,21 @@ onUnmounted(() => {
   <div class="upload-workspace">
     <main class="workspace-main">
       <div v-if="state.items.length > 0" class="workspace-toolbar">
-        <div class="toolbar-left">
-          <span class="toolbar-count">{{ t('upload.images', { count: state.items.length }) }}</span>
-          <div
-            v-if="state.items.length > 1 && state.isProcessing"
-            class="batch-progress"
-            role="progressbar"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            :aria-valuenow="overallProgress"
+        <div class="toolbar-concurrency">
+          <span class="toolbar-concurrency-label">{{ t('settings.concurrency') }}</span>
+          <Select
+            :model-value="String(settingsStore.concurrency)"
+            @update:model-value="onConcurrencyChange"
           >
-            <div class="batch-progress-track">
-              <div class="batch-progress-bar" :style="{ width: overallProgress + '%' }" />
-            </div>
-            <span class="batch-progress-label">
-              {{ settledCount }}/{{ state.items.length }} · {{ overallProgress }}%
-            </span>
-          </div>
+            <SelectTrigger class="h-8 w-[68px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem v-for="value in CONCURRENCY_OPTIONS" :key="value" :value="String(value)">
+                {{ value }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div class="toolbar-right">
           <button
@@ -278,6 +286,25 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <div v-if="state.items.length > 0" class="queue-status">
+        <span class="toolbar-count">{{ t('upload.images', { count: state.items.length }) }}</span>
+        <div
+          v-if="state.items.length > 1 && state.isProcessing"
+          class="batch-progress"
+          role="progressbar"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          :aria-valuenow="overallProgress"
+        >
+          <div class="batch-progress-track">
+            <div class="batch-progress-bar" :style="{ width: overallProgress + '%' }" />
+          </div>
+          <span class="batch-progress-label">
+            {{ settledCount }}/{{ state.items.length }} · {{ overallProgress }}%
+          </span>
+        </div>
+      </div>
+
       <ImageUploader v-if="state.items.length === 0" @files-selected="processBatch" />
       <QueueList
         v-else
@@ -286,7 +313,6 @@ onUnmounted(() => {
         :active-id="activeId"
         :copied-id="copiedId"
         :batch-copied="batchCopied"
-        :progress="state.progress"
         @toggle="toggleSelect"
         @toggle-range="selectRange"
         @select-all="toggleSelectAll"
@@ -371,12 +397,11 @@ onUnmounted(() => {
   color: var(--color-gray-dark);
 }
 
-.toolbar-left {
+.queue-status {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  flex: 1;
-  min-width: 0;
+  margin-bottom: 0.5rem;
 }
 
 .batch-progress {
@@ -385,7 +410,6 @@ onUnmounted(() => {
   gap: 0.5rem;
   flex: 1;
   min-width: 0;
-  max-width: 20rem;
 }
 
 .batch-progress-track {
@@ -417,6 +441,19 @@ onUnmounted(() => {
   align-items: center;
   gap: 0.5rem;
   margin-left: auto;
+}
+
+.toolbar-concurrency {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.toolbar-concurrency-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-gray-dark);
+  white-space: nowrap;
 }
 
 .toolbar-btn {

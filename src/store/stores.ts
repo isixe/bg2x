@@ -87,6 +87,13 @@ export const useSettingsStore = defineStore(
     const exportMode = ref<ExportMode>('source');
     const filenameSuffixEnabled = ref(true);
     const filenameSuffix = ref('-upscaled');
+    /** Default concurrency: ~one worker per four logical cores, clamped to 1-4. */
+    function defaultConcurrency(): number {
+      const hw = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
+      return Math.min(4, Math.max(1, Math.floor(hw / 4)));
+    }
+    /** How many images upscale at once (1-4). */
+    const concurrency = ref(defaultConcurrency());
     // Bumped when the persisted shape changes so we can migrate old values.
     const settingsVersion = ref(1);
 
@@ -100,6 +107,10 @@ export const useSettingsStore = defineStore(
 
     function setExportMode(mode: ExportMode) {
       exportMode.value = mode;
+    }
+
+    function setConcurrency(value: number) {
+      concurrency.value = Math.min(4, Math.max(1, Math.floor(value)));
     }
 
     function dismissUpdate(version: string) {
@@ -118,6 +129,8 @@ export const useSettingsStore = defineStore(
       setExportMode,
       filenameSuffixEnabled,
       filenameSuffix,
+      concurrency,
+      setConcurrency,
       settingsVersion,
     };
   },
