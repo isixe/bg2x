@@ -6,6 +6,12 @@ import { getCachedModel, isModelCached } from './useModelCache';
 import { getModelById } from './useModelRegistry';
 import { downloadModel } from './useModelDownloads';
 import { useSettingsStore } from '../store/stores';
+import {
+  GPU_CONCURRENCY,
+  clampBatchConcurrency,
+  getMaxWorkersForModelBytes,
+  getSessionThreads,
+} from '../config/concurrency';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
@@ -33,15 +39,6 @@ interface ProcessingState {
   status: string;
   error: string | null;
   items: BatchItem[];
-}
-
-/** Hard cap on how many images upscale simultaneously. */
-export const MAX_CONCURRENCY = 4;
-/** Dropdown choices for concurrent images; every value is a fixed count. */
-export const CONCURRENCY_OPTIONS = [1, 2, 3, 4] as const;
-
-function hardwareConcurrency(): number {
-  return typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
 }
 
 /**
@@ -169,9 +166,24 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     batchCopied.value = false;
   }
 
-  const effectiveConcurrency = computed(() =>
-    Math.min(MAX_CONCURRENCY, Math.max(1, settings.concurrency)),
-  );
+  // Last known model size, used to keep several full sessions inside a sane
+  // memory budget. Starts from the registry estimate so the pool is sized
+  // correctly before the first download completes.
+  const currentModelBytes = ref(options.model.value.sizeMB * 1024 * 1024);
+
+  const effectiveConcurrency = computed(() => {
+    if (options.gpu.value) return GPU_CONCURRENCY;
+    return Math.max(
+      1,
+      Math.min(
+        clampBatchConcurrency(settings.concurrency),
+        getMaxWorkersForModelBytes(currentModelBytes.value),
+      ),
+    );
+  });
+
+  let pendingPoolRebuild = false;
+  let configuredThreads = 0;
 
   let slots: WorkerSlot[] = [];
   let itemIdSeq = 0;
@@ -196,6 +208,51 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     return new Worker(new URL('../workers/super-resolution.worker.ts', import.meta.url), {
       type: 'module',
     });
+  }
+
+  /** Per-worker thread budget: split the cores across `workers`, one core left for the UI. */
+  function workerThreads(workers: number): number {
+    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) return 1;
+    return getSessionThreads(workers);
+  }
+
+  /**
+   * Push the per-worker thread budget to every idle-and-busy slot. ORT only reads
+   * numThreads when a session is built, so the worker marks its session stale and
+   * rebuilds lazily at the next task boundary.
+   */
+  function applyThreadConfig(workers: number) {
+    const numThreads = workerThreads(workers);
+    if (numThreads === configuredThreads) return;
+    configuredThreads = numThreads;
+    for (const slot of slots) {
+      slot.worker.postMessage({
+        type: 'configure-worker',
+        payload: { numThreads, gpu: options.gpu.value },
+      });
+    }
+  }
+
+  /**
+   * Grow or shrink the pool in place without disrupting busy workers. Extra idle
+   * slots are terminated from the tail, then the thread budget is recomputed so a
+   * small batch gives each worker a larger share of the CPU.
+   */
+  function resizePool(target: number) {
+    if (disposed || typeof Worker === 'undefined') return;
+    const desired = Math.max(1, target);
+    while (slots.length < desired) {
+      slots.push(createSlot());
+    }
+    for (let i = slots.length - 1; i >= desired; i--) {
+      const slot = slots[i];
+      if (slot.item || slot.inflightLoad) continue;
+      clearSlotWatchdog(slot);
+      stopSlotSmoothing(slot);
+      slot.worker.terminate();
+      slots.splice(i, 1);
+    }
+    applyThreadConfig(slots.length);
   }
 
   function createSlot(): WorkerSlot {
@@ -316,7 +373,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           resetModelLoad();
           state.value.status = 'Model loaded';
           slot.loadedModelId = payload?.modelId ?? options.model.value.id;
-          slot.loadedGpuWanted = slot.pendingGpuWanted;
+          slot.loadedGpuWanted = payload?.gpu ?? slot.pendingGpuWanted;
           slot.pendingGpuWanted = null;
           break;
 
@@ -325,6 +382,15 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           options.gpu.value = false;
           slot.loadedGpuWanted = false;
           state.value.status = t('processing.gpuFallback');
+          break;
+
+        case 'gpu-status':
+          if (payload.active) {
+            gpuFallback.value = false;
+          } else {
+            gpuFallback.value = true;
+            options.gpu.value = false;
+          }
           break;
       }
     };
@@ -337,6 +403,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   function buildPool() {
     teardownPool();
     const count = effectiveConcurrency.value;
+    configuredThreads = workerThreads(count);
     slots = Array.from({ length: count }, () => createSlot());
     state.value.isModelLoaded = false;
     state.value.isLoadingModel = false;
@@ -351,6 +418,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       slot.worker.terminate();
     }
     slots = [];
+    configuredThreads = 0;
   }
 
   function restartSlot(slot: WorkerSlot) {
@@ -365,6 +433,12 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     slot.inflightLoad = null;
     slot.worker = createWorker();
     attachSlotHandlers(slot);
+    if (configuredThreads > 0) {
+      slot.worker.postMessage({
+        type: 'configure-worker',
+        payload: { numThreads: configuredThreads, gpu: options.gpu.value },
+      });
+    }
   }
 
   function clearSlotWatchdog(slot: WorkerSlot) {
@@ -627,21 +701,31 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     revokeAllOriginalUrls();
   });
 
-  // Changing the concurrency rebuilds the pool, but only while idle so a running
-  // batch is never disrupted; otherwise the new value applies to the next run.
-  watch(effectiveConcurrency, () => {
+  // The pool is shaped by GPU mode, the requested CPU concurrency, and the
+  // model's memory budget. A running batch keeps its current pool; the resize is
+  // deferred until the queue drains so in-flight images are never disrupted.
+  function requestPoolRebuild() {
     if (disposed || typeof Worker === 'undefined') return;
-    if (state.value.isProcessing) return;
-    buildPool();
+    if (state.value.isProcessing || slots.some((slot) => slot.inflightLoad)) {
+      pendingPoolRebuild = true;
+      return;
+    }
+    pendingPoolRebuild = false;
+    resizePool(effectiveConcurrency.value);
     void preloadCachedModel();
-  });
+  }
 
-  /**
-   * Soft invalidation: changing model or gpu only forces a reload on the next
-   * process — queued items are kept (unlike the old resetState wipe).
-   */
-  watch([() => options.model.value.id, options.gpu], () => {
-    if (options.gpu.value) gpuFallback.value = false;
+  function flushPendingPoolRebuild() {
+    if (!pendingPoolRebuild) return;
+    if (state.value.isProcessing || slots.some((slot) => slot.inflightLoad)) return;
+    pendingPoolRebuild = false;
+    resizePool(effectiveConcurrency.value);
+    void preloadCachedModel();
+  }
+
+  watch(effectiveConcurrency, () => requestPoolRebuild());
+
+  function invalidateSlotModels() {
     if (state.value.isProcessing) return;
     state.value.isModelLoaded = false;
     for (const slot of slots) {
@@ -652,6 +736,23 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.status = state.value.items.length > 0 ? 'Ready' : state.value.status;
     }
     void preloadCachedModel();
+  }
+
+  /**
+   * Soft invalidation: changing model or gpu only forces a reload on the next
+   * process — queued items are kept (unlike the old resetState wipe).
+   */
+  watch(
+    () => options.model.value.id,
+    () => {
+      currentModelBytes.value = options.model.value.sizeMB * 1024 * 1024;
+      invalidateSlotModels();
+    },
+  );
+
+  watch(options.gpu, () => {
+    if (options.gpu.value) gpuFallback.value = false;
+    invalidateSlotModels();
   });
 
   function onGlobalKeydown(e: KeyboardEvent) {
@@ -746,6 +847,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         modelPhase.value = 'downloading';
         modelData = await downloadModel(model);
       }
+      if (modelData) currentModelBytes.value = modelData.byteLength;
       return modelData;
     } catch (err) {
       modelPhase.value = null;
@@ -761,10 +863,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
   }
 
-  /** Per-worker WASM thread budget so N slots do not each grab every core. */
   function perWorkerThreads(): number {
-    if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) return 1;
-    return Math.max(1, Math.floor(hardwareConcurrency() / effectiveConcurrency.value));
+    return configuredThreads > 0 ? configuredThreads : workerThreads(effectiveConcurrency.value);
   }
 
   async function ensureSlotModel(slot: WorkerSlot): Promise<boolean> {
@@ -830,6 +930,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       }
     } catch {
       /* best-effort preload */
+    } finally {
+      flushPendingPoolRebuild();
     }
   }
 
@@ -1037,6 +1139,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     } finally {
       state.value.isProcessing = false;
       queueRunning = false;
+      flushPendingPoolRebuild();
     }
   }
 
@@ -1065,6 +1168,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       durationMs: null,
     }));
     state.value.items.push(...newItems);
+
+    if (!state.value.isProcessing) {
+      const pendingCount = state.value.items.filter((i) => i.status === 'pending').length;
+      resizePool(Math.max(1, Math.min(effectiveConcurrency.value, pendingCount)));
+    }
 
     runQueue();
   }
@@ -1098,6 +1206,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       );
       const insertAt = lastRunningIndex >= 0 ? lastRunningIndex + 1 : rest.length;
       state.value.items = [...rest.slice(0, insertAt), ...reset, ...rest.slice(insertAt)];
+    }
+
+    if (!state.value.isProcessing) {
+      const pendingCount = state.value.items.filter((i) => i.status === 'pending').length;
+      resizePool(Math.max(1, Math.min(effectiveConcurrency.value, pendingCount)));
     }
 
     runQueue();

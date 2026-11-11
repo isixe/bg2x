@@ -11,7 +11,8 @@ import SelectContent from './ui/select/SelectContent.vue';
 import SelectItem from './ui/select/SelectItem.vue';
 import SelectTrigger from './ui/select/SelectTrigger.vue';
 import SelectValue from './ui/select/SelectValue.vue';
-import { CONCURRENCY_OPTIONS, useProcessingQueue } from '../composables/useProcessingQueue';
+import { CONCURRENCY_OPTIONS, GPU_CONCURRENCY } from '../config/concurrency';
+import { useProcessingQueue } from '../composables/useProcessingQueue';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
 import { getModelById, MODEL_REGISTRY } from '../composables/useModelRegistry';
 import {
@@ -206,8 +207,12 @@ onUnmounted(() => {
     <main class="workspace-main">
       <div v-if="state.items.length > 0" class="workspace-toolbar">
         <div class="toolbar-concurrency">
-          <span class="toolbar-concurrency-label">{{ t('settings.concurrency') }}</span>
+          <span class="toolbar-concurrency-label">{{
+            t(gpu ? 'settings.gpuConcurrency' : 'settings.concurrency')
+          }}</span>
+          <span v-if="gpu" class="toolbar-concurrency-value">{{ GPU_CONCURRENCY }}</span>
           <Select
+            v-else
             :model-value="String(settingsStore.concurrency)"
             @update:model-value="onConcurrencyChange"
           >
@@ -454,6 +459,17 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--color-gray-dark);
   white-space: nowrap;
+}
+
+.toolbar-concurrency-value {
+  min-width: 1.75rem;
+  padding: 0.25rem 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-dark);
+  background: var(--color-gray);
+  border-radius: var(--radius-md);
 }
 
 .toolbar-btn {
