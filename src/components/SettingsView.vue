@@ -27,7 +27,7 @@ import { APP_NAME, APP_VERSION, GITHUB_URL, LICENSE, WEB_DOWNLOAD_URL } from '..
 import { RELATED_PROJECTS } from '../config/related';
 import { IS_DESKTOP } from '../lib/desktop';
 import { useUpdateCheck } from '../composables/useUpdateCheck';
-import { CONCURRENCY_OPTIONS } from '../composables/useProcessingQueue';
+import { CONCURRENCY_OPTIONS, GPU_CONCURRENCY } from '../config/concurrency';
 
 type SettingsTab = 'general' | 'performance' | 'about' | 'related';
 
@@ -245,6 +245,13 @@ function confirmReset() {
                 </SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.gpuConcurrency') }}</span>
+              <span class="setting-desc">{{ t('settings.gpuConcurrencyDesc') }}</span>
+            </div>
+            <span class="setting-value">{{ GPU_CONCURRENCY }}</span>
           </div>
         </div>
       </section>
@@ -465,12 +472,24 @@ function confirmReset() {
   border-radius: var(--radius-md);
 }
 
+.setting-item + .setting-item {
+  margin-top: 0.75rem;
+}
+
 .setting-info {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   flex: 1;
   margin-right: 1rem;
+}
+
+.setting-value {
+  min-width: 2.5rem;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-gray-dark);
 }
 
 .setting-item-stacked {

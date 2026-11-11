@@ -2,12 +2,13 @@
 
 import * as ort from 'onnxruntime-web';
 import type { ModelLoadStage, WorkerMessage } from '../type';
+import { getMaxSessionThreads } from '../config/concurrency';
 
 // numThreads > 1 deadlocks InferenceSession.create() forever under Electron's
 // app:// (Emscripten pthread pool race, microsoft/onnxruntime#26858): A/B tested
 // 8 threads => stuck, 1 thread => loads. Browsers keep full multithreading.
 const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron');
-ort.env.wasm.numThreads = isElectron ? 1 : navigator.hardwareConcurrency || 4;
+ort.env.wasm.numThreads = isElectron ? 1 : getMaxSessionThreads();
 // Fail wasm backend init instead of hanging forever (0 = no timeout).
 ort.env.wasm.initTimeout = 30_000;
 console.log(
@@ -53,6 +54,13 @@ let currentGpu = false;
 /** Source used to build the current session; kept so we can rebuild it on CPU if GPU inference fails. */
 let currentSource: string | ArrayBuffer | null = null;
 
+/** Thread count the current session was built with; ORT reads it only at build time. */
+let sessionThreads = isElectron ? 1 : getMaxSessionThreads();
+/** User's GPU intent, independent of whether the live session actually runs on GPU. */
+let wantsGpu = true;
+/** A thread/EP change arrived while a session exists; rebuild it at the next task boundary. */
+let sessionStale = false;
+
 /** Set by an `abort` message; checked between tiles so cancellation is prompt. */
 let abortRequested = false;
 
@@ -89,11 +97,80 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       await jobChain;
       break;
     }
+    case 'configure-worker':
+      configureWorker(message.payload.numThreads, message.payload.gpu);
+      break;
     case 'abort':
       abortRequested = true;
       break;
   }
 };
+
+/**
+ * Apply a new thread budget and/or GPU intent. ORT bakes `numThreads` into a
+ * session at creation, so a change only takes effect after a rebuild; we flag
+ * the live session stale and rebuild from the cached source at the next task
+ * boundary instead of re-transferring the model just to change the thread count.
+ */
+function configureWorker(numThreads: number, gpu?: boolean) {
+  if (gpu !== undefined && gpu !== wantsGpu) {
+    wantsGpu = gpu;
+    if (session) sessionStale = true;
+  }
+  const clamped = Math.max(1, Math.min(getMaxSessionThreads(), Math.floor(numThreads)));
+  if (clamped === sessionThreads) return;
+  sessionThreads = clamped;
+  if (!isElectron) ort.env.wasm.numThreads = clamped;
+  if (session) sessionStale = true;
+}
+
+/**
+ * Rebuild the live session from the cached source so a pending thread change
+ * lands. Build the replacement before releasing the old one: a failed rebuild
+ * keeps the current backend alive, and `sessionStale` stays set to retry.
+ */
+async function applyPendingThreadChange() {
+  if (!sessionStale) return;
+  const source = currentSource;
+  if (!session || !source) {
+    sessionStale = false;
+    return;
+  }
+
+  const previous = session;
+  const wantGpu = currentGpu && wantsGpu;
+  let rebuilt: Awaited<ReturnType<typeof createSession>> | null = null;
+  let rebuiltGpu = false;
+
+  if (wantGpu) {
+    try {
+      rebuilt = await createSession(source, true);
+      rebuiltGpu = true;
+    } catch {
+      rebuilt = null;
+    }
+  }
+  if (!rebuilt) {
+    try {
+      rebuilt = await createSession(source, false);
+      rebuiltGpu = false;
+    } catch {
+      rebuilt = null;
+    }
+  }
+
+  // Rebuild failed: keep serving from the current session and retry next task.
+  if (!rebuilt) return;
+
+  sessionStale = false;
+  try {
+    await previous.release();
+  } catch {
+    /* session already gone */
+  }
+  session = rebuilt;
+  currentGpu = rebuiltGpu;
+}
 
 function postProgress(
   progress: number,
@@ -129,15 +206,27 @@ async function loadModel(
   numThreads?: number,
 ) {
   try {
+    // Each worker in the pool gets its slice of the CPU so N concurrent
+    // workers do not each grab every core and oversubscribe the machine.
+    if (numThreads != null) configureWorker(numThreads, gpu);
+    wantsGpu = gpu;
+
+    if (sessionStale) {
+      sessionStale = false;
+      if (session) {
+        try {
+          await session.release();
+        } catch {
+          /* session already gone */
+        }
+        session = null;
+        currentModelId = null;
+      }
+    }
+
     if (session && currentModelId === modelId && currentGpu === gpu) {
       self.postMessage({ type: 'model-loaded', payload: { modelId, gpu } });
       return;
-    }
-
-    // Each worker in the pool gets its slice of the CPU so N concurrent
-    // workers do not each grab every core and oversubscribe the machine.
-    if (numThreads != null && !isElectron) {
-      ort.env.wasm.numThreads = Math.max(1, Math.floor(numThreads));
     }
 
     postProgress(0, 'Loading model...', undefined, 'session');
@@ -157,6 +246,10 @@ async function loadModel(
       postProgress(0, 'Loading model...', undefined, 'fallback');
       session = await createSession(source, false);
       effectiveGpu = false;
+      self.postMessage({
+        type: 'gpu-status',
+        payload: { active: false, reason: String(gpuError) },
+      });
     }
 
     currentSource = source;
@@ -204,6 +297,7 @@ async function processImage(payload: {
   let pending: Promise<Float32Array> | undefined;
 
   try {
+    await applyPendingThreadChange();
     if (!session) {
       throw new Error('Model not loaded');
     }

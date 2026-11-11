@@ -115,7 +115,18 @@ export type AbortMessage = {
   type: 'abort';
 };
 
-export type WorkerMessage = LoadModelMessage | ProcessMessage | AbortMessage;
+/**
+ * Re-tune the worker's WASM thread count (and GPU intent) without re-sending the
+ * model. ORT only reads `numThreads` when a session is built, so the worker
+ * defers the rebuild to the next task boundary.
+ */
+export type ConfigureWorkerMessage = {
+  type: 'configure-worker';
+  payload: { numThreads: number; gpu?: boolean };
+};
+
+export type WorkerMessage =
+  LoadModelMessage | ProcessMessage | AbortMessage | ConfigureWorkerMessage;
 
 /** Coarse model-load steps; `InferenceSession.create()` reports no real progress. */
 export type ModelLoadStage = 'session' | 'fallback';
@@ -135,6 +146,8 @@ export type WorkerResponse =
     }
   | { type: 'model-loaded'; payload?: { modelId: string; gpu?: boolean } }
   | { type: 'gpu-fallback'; payload: { message: string } }
+  /** Emitted when GPU is unavailable at session-build time, so the pool can drop to CPU mode. */
+  | { type: 'gpu-status'; payload: { active: boolean; reason?: string } }
   | {
       type: 'complete';
       payload: {

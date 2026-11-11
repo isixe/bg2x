@@ -4,6 +4,7 @@ import { i18n } from '../locales/i18n';
 import type { HistoryRecord } from '../type';
 import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import { isModelCached } from '../composables/useModelCache';
+import { DEFAULT_BATCH_CONCURRENCY, clampBatchConcurrency } from '../config/concurrency';
 import {
   putHistoryImages,
   deleteHistoryImages,
@@ -87,13 +88,7 @@ export const useSettingsStore = defineStore(
     const exportMode = ref<ExportMode>('source');
     const filenameSuffixEnabled = ref(true);
     const filenameSuffix = ref('-upscaled');
-    /** Default concurrency: ~one worker per four logical cores, clamped to 1-4. */
-    function defaultConcurrency(): number {
-      const hw = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4;
-      return Math.min(4, Math.max(1, Math.floor(hw / 4)));
-    }
-    /** How many images upscale at once (1-4). */
-    const concurrency = ref(defaultConcurrency());
+    const concurrency = ref(DEFAULT_BATCH_CONCURRENCY);
     // Bumped when the persisted shape changes so we can migrate old values.
     const settingsVersion = ref(1);
 
@@ -110,7 +105,7 @@ export const useSettingsStore = defineStore(
     }
 
     function setConcurrency(value: number) {
-      concurrency.value = Math.min(4, Math.max(1, Math.floor(value)));
+      concurrency.value = clampBatchConcurrency(value);
     }
 
     function dismissUpdate(version: string) {
@@ -147,6 +142,7 @@ export const useSettingsStore = defineStore(
           }
           store.settingsVersion = 2;
         }
+        store.concurrency = clampBatchConcurrency(store.concurrency);
       },
     },
   },
