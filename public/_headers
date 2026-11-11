@@ -1,0 +1,5 @@
+# Allow cross-origin embedding of this site's assets. bgx's "related tools" cards
+# run under COEP: require-corp and load https://bg2x.itea.dev/favicon.ico, which is
+# blocked unless the response opts into cross-origin loading via CORP.
+/*
+  Cross-Origin-Resource-Policy: cross-origin
