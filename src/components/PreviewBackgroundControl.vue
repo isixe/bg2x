@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Image as ImageIcon, X } from 'lucide-vue-next';
+import { ChevronRight, Image as ImageIcon, X } from 'lucide-vue-next';
 import { usePreviewBackground } from '../composables/usePreviewBackground';
 import { useSettingsStore } from '../store/stores';
 import type { PreviewBackground } from '../type';
@@ -42,10 +42,15 @@ function onImageChange(event: Event) {
     :class="[`pos-${settingsStore.previewBackgroundPosition}`, { 'is-light': isLight }]"
     role="group"
     :aria-label="t('preview.background')"
+    :title="t('preview.background')"
     @mousedown.stop
     @touchstart.stop
     @click.stop
   >
+    <span class="control-hint" aria-hidden="true">
+      <ChevronRight class="hint-icon" :stroke-width="3" />
+    </span>
+
     <div class="control-panel">
       <button
         v-for="swatch in SWATCHES"
@@ -77,7 +82,7 @@ function onImageChange(event: Event) {
 
       <button
         type="button"
-        class="swatch swatch-icon-btn"
+        class="swatch swatch-action"
         :class="{ selected: activeBackground === 'image' }"
         :aria-pressed="activeBackground === 'image'"
         :aria-label="t('preview.backgroundImage')"
@@ -90,7 +95,7 @@ function onImageChange(event: Event) {
       <button
         v-if="hasImage"
         type="button"
-        class="swatch swatch-icon-btn"
+        class="swatch swatch-action"
         :aria-label="t('preview.backgroundImageClear')"
         :title="t('preview.backgroundImageClear')"
         @click="clearImage"
@@ -116,28 +121,119 @@ function onImageChange(event: Event) {
   display: flex;
 }
 
-.pos-top {
-  top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.pos-bottom {
-  bottom: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
 .pos-left {
-  left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 12px;
+  align-items: center;
 }
 
 .pos-right {
-  right: 1rem;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pos-top {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.pos-bottom {
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 12px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.control-hint {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.background-control:not(.is-light) .control-hint {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.background-control.is-light .control-hint {
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.pos-left .control-hint {
+  left: 0;
   top: 50%;
+  width: 14px;
+  height: 44px;
+  border-radius: 0 999px 999px 0;
   transform: translateY(-50%);
+}
+
+.pos-right .control-hint {
+  right: 0;
+  top: 50%;
+  width: 14px;
+  height: 44px;
+  border-radius: 999px 0 0 999px;
+  transform: translateY(-50%);
+}
+
+.pos-top .control-hint {
+  top: 0;
+  left: 50%;
+  width: 44px;
+  height: 14px;
+  border-radius: 0 0 999px 999px;
+  transform: translateX(-50%);
+}
+
+.pos-bottom .control-hint {
+  bottom: 0;
+  left: 50%;
+  width: 44px;
+  height: 14px;
+  border-radius: 999px 999px 0 0;
+  transform: translateX(-50%);
+}
+
+.pos-right .hint-icon {
+  transform: rotate(180deg);
+}
+
+.pos-top .hint-icon {
+  transform: rotate(90deg);
+}
+
+.pos-bottom .hint-icon {
+  transform: rotate(-90deg);
+}
+
+.hint-icon {
+  width: 10px;
+  height: 10px;
+}
+
+.background-control:hover .control-hint,
+.background-control:focus-within .control-hint {
+  opacity: 0;
 }
 
 .control-panel {
@@ -145,23 +241,69 @@ function onImageChange(event: Event) {
   align-items: center;
   gap: 6px;
   padding: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  background: rgba(17, 24, 39, 0.5);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(8px);
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(4px);
+  transition: transform 0.2s ease-out;
+}
+
+.background-control:not(.is-light) .control-panel {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.background-control.is-light .control-panel {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.pos-left .control-panel,
+.pos-right .control-panel {
+  flex-direction: column;
+}
+
+.pos-top .control-panel,
+.pos-bottom .control-panel {
+  flex-direction: row;
+}
+
+.pos-left .control-panel {
+  transform: translateX(calc(-100% - 8px));
+}
+
+.pos-right .control-panel {
+  transform: translateX(calc(100% + 8px));
+}
+
+.pos-top .control-panel {
+  transform: translateY(calc(-100% - 8px));
+}
+
+.pos-bottom .control-panel {
+  transform: translateY(calc(100% + 8px));
 }
 
 .background-control:hover .control-panel,
 .background-control:focus-within .control-panel {
-  opacity: 1;
+  transform: translate(0);
 }
 
-.background-control.is-light .control-panel {
-  border-color: rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.6);
+.background-control.pos-left:hover .control-panel,
+.background-control.pos-left:focus-within .control-panel {
+  transform: translateX(12px);
+}
+
+.background-control.pos-right:hover .control-panel,
+.background-control.pos-right:focus-within .control-panel {
+  transform: translateX(-12px);
+}
+
+.background-control.pos-top:hover .control-panel,
+.background-control.pos-top:focus-within .control-panel {
+  transform: translateY(12px);
+}
+
+.background-control.pos-bottom:hover .control-panel,
+.background-control.pos-bottom:focus-within .control-panel {
+  transform: translateY(-12px);
 }
 
 .swatch {
@@ -170,51 +312,77 @@ function onImageChange(event: Event) {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 1px solid transparent;
   border-radius: 50%;
   cursor: pointer;
-  transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: transform 0.15s ease;
 }
 
 .swatch:hover {
-  transform: scale(1.12);
+  transform: scale(1.1);
+}
+
+.swatch:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
 }
 
 .swatch.selected {
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.9);
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
 }
 
 .swatch-transparent {
   background-color: #fff;
+  border-color: rgba(0, 0, 0, 0.15);
   background-image:
-    linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%),
-    linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 75%, #cbd5e1 75%);
-  background-size: 6px 6px;
+    linear-gradient(45deg, #cbd5e1 25%, transparent 25%),
+    linear-gradient(-45deg, #cbd5e1 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #cbd5e1 75%),
+    linear-gradient(-45deg, transparent 75%, #cbd5e1 75%);
+  background-size: 5px 5px;
   background-position:
     0 0,
-    3px 3px;
+    0 2.5px,
+    2.5px -2.5px,
+    -2.5px 0;
 }
 
 .swatch-black {
   background-color: #000;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .swatch-white {
   background-color: #fff;
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
 .swatch-custom {
   overflow: hidden;
+  border-color: rgba(0, 0, 0, 0.15);
 }
 
-.swatch-icon-btn {
-  background-color: rgba(255, 255, 255, 0.75);
-  color: #374151;
+/* plain icons: reset the global `button` chip background */
+.swatch-action {
+  background: transparent;
+}
+
+.swatch-action:hover {
+  background: transparent;
+}
+
+.background-control:not(.is-light) .swatch-action {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.background-control.is-light .swatch-action {
+  border-color: rgba(0, 0, 0, 0.15);
+  color: rgba(0, 0, 0, 0.7);
 }
 
 .color-input {
@@ -224,16 +392,27 @@ function onImageChange(event: Event) {
   height: 100%;
   padding: 0;
   border: 0;
+  border-radius: 50%;
   opacity: 0;
   cursor: pointer;
 }
 
 .swatch-icon {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
 }
 
 .file-input {
   display: none;
+}
+
+@media (hover: none) {
+  .background-control .control-panel {
+    transform: translate(0);
+  }
+
+  .background-control .control-hint {
+    opacity: 0;
+  }
 }
 </style>
