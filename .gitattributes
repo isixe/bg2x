@@ -1,0 +1,15 @@
+# Keep LF in both the repository and the working tree so the pre-commit
+# prettier check (endOfLine: lf) stays stable on Windows, where
+# core.autocrlf=true would otherwise rewrite sources to CRLF on checkout.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.wasm binary
+*.onnx binary
+*.woff binary
+*.woff2 binary

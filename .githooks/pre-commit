@@ -1,0 +1,54 @@
+#!/bin/sh
+# 提交前强制检查：format / lint / typecheck，出现任何错误或警告都会阻止提交。
+# 真身保存在 .githooks/pre-commit，由 scripts/install-git-hooks.mjs 安装到 .git/hooks/pre-commit，
+# 因此本文件需要与 .githooks/pre-commit 保持一致（改动后重新执行 pnpm hooks:install）。
+#
+# 说明：输出信息统一使用英文，避免 Windows 控制台编码（GBK/UTF-8）不一致导致乱码。
+
+set -u
+
+if [ -n "${BG2X_SKIP_HOOKS:-}" ]; then
+  echo "[pre-commit] BG2X_SKIP_HOOKS is set, skipping checks."
+  exit 0
+fi
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "[pre-commit] pnpm not found on PATH, cannot run the pre-commit checks." >&2
+  exit 1
+fi
+
+status=0
+
+run_check() {
+  label="$1"
+  shift
+  echo ""
+  echo "[pre-commit] running ${label} ..."
+  if "$@"; then
+    echo "[pre-commit] ${label} passed."
+  else
+    echo "[pre-commit] ${label} FAILED." >&2
+    status=1
+  fi
+}
+
+run_check "format (prettier --check src/)" pnpm run format:check
+run_check "lint (eslint src/)" pnpm run lint
+run_check "typecheck (astro check)" pnpm run typecheck
+
+if [ "$status" -ne 0 ]; then
+  echo "" >&2
+  echo "[pre-commit] Commit blocked: fix every error and warning reported above." >&2
+  echo "" >&2
+  echo "Auto-fixable:" >&2
+  echo "  pnpm format    # apply Prettier formatting" >&2
+  echo "  pnpm lint:fix  # apply ESLint autofixes" >&2
+  echo "The rest (type errors, lint warnings, ...) must be fixed by hand." >&2
+  echo "" >&2
+  echo "To bypass once (not recommended): git commit --no-verify" >&2
+  exit 1
+fi
+
+echo ""
+echo "[pre-commit] All checks passed."
+exit 0
