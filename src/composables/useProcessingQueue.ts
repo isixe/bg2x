@@ -82,6 +82,7 @@ interface WorkerSlot {
   measuredTileMs: number | null;
   tileTotal: number | null;
   smoothTimer: ReturnType<typeof setInterval> | null;
+  retiring: boolean;
 }
 
 export function useProcessingQueue(options: UseProcessingQueueOptions) {
@@ -201,6 +202,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   });
 
   let pendingPoolRebuild = false;
+  let wakeRunners: (() => void) | null = null;
   let configuredThreads = 0;
 
   let slots: WorkerSlot[] = [];
@@ -265,25 +267,37 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   }
 
   /**
-   * Grow or shrink the pool in place without disrupting busy workers. Extra idle
-   * slots are terminated from the tail, then the thread budget is recomputed so a
-   * small batch gives each worker a larger share of the CPU.
+   * Grow or shrink the pool immediately. Extra workers finish their current item
+   * before they are terminated, so a running batch is never disrupted.
    */
-  function resizePool(target: number) {
+  function resizePool(target: number, reconfigure = true) {
     if (disposed || typeof Worker === 'undefined') return;
     const desired = Math.max(1, target);
     while (slots.length < desired) {
       slots.push(createSlot());
     }
-    for (let i = slots.length - 1; i >= desired; i--) {
+    let live = slots.filter((slot) => !slot.retiring).length;
+    for (let i = slots.length - 1; i >= 0 && live > desired; i--) {
       const slot = slots[i];
-      if (slot.item || slot.inflightLoad) continue;
-      clearSlotWatchdog(slot);
-      stopSlotSmoothing(slot);
-      slot.worker.terminate();
-      slots.splice(i, 1);
+      if (slot.retiring) continue;
+      live--;
+      if (slot.item || slot.inflightLoad) {
+        slot.retiring = true;
+        continue;
+      }
+      retireSlot(slot);
     }
-    applyThreadConfig(slots.length);
+    if (reconfigure) applyThreadConfig(slots.length);
+  }
+
+  function retireSlot(slot: WorkerSlot) {
+    const index = slots.indexOf(slot);
+    if (index === -1) return;
+    slot.retiring = true;
+    clearSlotWatchdog(slot);
+    stopSlotSmoothing(slot);
+    slot.worker.terminate();
+    slots.splice(index, 1);
   }
 
   function replaySharedBuffers(worker: Worker) {
@@ -314,8 +328,15 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       measuredTileMs: null,
       tileTotal: null,
       smoothTimer: null,
+      retiring: false,
     };
     attachSlotHandlers(slot);
+    if (configuredThreads > 0) {
+      worker.postMessage({
+        type: 'configure-worker',
+        payload: { numThreads: configuredThreads, gpu: options.gpu.value },
+      });
+    }
     return slot;
   }
 
@@ -772,16 +793,23 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   });
 
   // The pool is shaped by GPU mode, the requested CPU concurrency, and the
-  // model's memory budget. A running batch keeps its current pool; the resize is
-  // deferred until the queue drains so in-flight images are never disrupted.
+  // model's memory budget. A concurrency change applies immediately, even while a
+  // batch runs: growth adds workers, shrink retires idle ones and lets busy ones
+  // finish their current item first.
   function requestPoolRebuild() {
     if (disposed || typeof Worker === 'undefined') return;
-    if (state.value.isProcessing || slots.some((slot) => slot.inflightLoad)) {
+    const target = effectiveConcurrency.value;
+    if (state.value.isProcessing) {
+      resizePool(target, target >= slots.length);
+      wakeRunners?.();
+      return;
+    }
+    if (slots.some((slot) => slot.inflightLoad)) {
       pendingPoolRebuild = true;
       return;
     }
     pendingPoolRebuild = false;
-    resizePool(effectiveConcurrency.value);
+    resizePool(target);
     void preloadCachedModel();
   }
 
@@ -1237,21 +1265,50 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     // Each slot drives its own loop over the pending items, so up to N items run
     // at once. Reserving an item marks it `processing` synchronously, so two
     // loops never grab the same item.
-    const runner = async (slot: WorkerSlot) => {
-      while (!batchAborted) {
-        const item = state.value.items.find((i) => i.status === 'pending');
-        if (!item) break;
+    const active = new Map<WorkerSlot, Promise<void>>();
 
-        const result = await processItemOnSlot(slot, item);
-        if (result === 'abort') {
-          batchAborted = true;
-          break;
+    const runSlotLoop = async (slot: WorkerSlot) => {
+      try {
+        while (!batchAborted && !slot.retiring) {
+          const item = state.value.items.find((i) => i.status === 'pending');
+          if (!item) break;
+
+          const result = await processItemOnSlot(slot, item);
+          if (result === 'abort') {
+            batchAborted = true;
+            break;
+          }
         }
+      } finally {
+        if (slot.retiring) retireSlot(slot);
       }
     };
 
+    const hasPending = () => state.value.items.some((i) => i.status === 'pending');
+
+    const ensureRunners = () => {
+      if (!hasPending()) return;
+      for (const slot of slots) {
+        if (slot.retiring || active.has(slot)) continue;
+        const job = runSlotLoop(slot).finally(() => {
+          active.delete(slot);
+          wakeRunners?.();
+        });
+        active.set(slot, job);
+      }
+    };
+
+    ensureRunners();
+
     try {
-      await Promise.all(slots.map((slot) => runner(slot)));
+      while (active.size > 0) {
+        const wake = new Promise<void>((resolve) => {
+          wakeRunners = resolve;
+        });
+        await Promise.race([...active.values(), wake]);
+        wakeRunners = null;
+        ensureRunners();
+      }
 
       if (batchAborted) {
         markRemainingFailed(
@@ -1269,6 +1326,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       }
       markRemainingFailed(state.value.error);
     } finally {
+      wakeRunners = null;
       state.value.isProcessing = false;
       queueRunning = false;
       flushPendingPoolRebuild();
