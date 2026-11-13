@@ -27,7 +27,11 @@ import { APP_NAME, APP_VERSION, GITHUB_URL, LICENSE, WEB_DOWNLOAD_URL } from '..
 import { RELATED_PROJECTS } from '../config/related';
 import { IS_DESKTOP } from '../lib/desktop';
 import { useUpdateCheck } from '../composables/useUpdateCheck';
-import { CONCURRENCY_OPTIONS, GPU_CONCURRENCY } from '../config/concurrency';
+import {
+  CONCURRENCY_OPTIONS,
+  GPU_CONCURRENCY,
+  getGpuConcurrencyOptions,
+} from '../config/concurrency';
 
 type SettingsTab = 'general' | 'performance' | 'about' | 'related';
 
@@ -82,6 +86,8 @@ function onExportModeChange(value: string) {
 function onConcurrencyChange(value: string) {
   settingsStore.setConcurrency(Number(value));
 }
+
+const GPU_CONCURRENCY_OPTIONS = getGpuConcurrencyOptions();
 
 const showResetConfirm = ref(false);
 
@@ -251,7 +257,20 @@ function confirmReset() {
               <span class="setting-label">{{ t('settings.gpuConcurrency') }}</span>
               <span class="setting-desc">{{ t('settings.gpuConcurrencyDesc') }}</span>
             </div>
-            <span class="setting-value">{{ GPU_CONCURRENCY }}</span>
+            <Select :model-value="String(GPU_CONCURRENCY)" disabled>
+              <SelectTrigger class="w-[160px]">
+                <SelectValue>{{ GPU_CONCURRENCY }}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="value in GPU_CONCURRENCY_OPTIONS"
+                  :key="value"
+                  :value="String(value)"
+                >
+                  {{ value }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </section>
