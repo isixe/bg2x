@@ -6,10 +6,15 @@ import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import { isModelCached } from '../composables/useModelCache';
 import { DEFAULT_BATCH_CONCURRENCY, clampBatchConcurrency } from '../config/concurrency';
 import {
-  putHistoryImages,
+  clearHistoryScope,
+  clearImageStore,
   deleteHistoryImages,
-  clearAllHistoryImages,
-} from '../composables/useHistoryCache';
+  getImageBlob,
+  historyImageKey,
+  persistImageBlob,
+  rekeyImage,
+} from '../utils/imageStore';
+import { createThumbnailBlob } from '../utils/thumbnail';
 
 export type LocaleCode = 'en' | 'zh' | 'ja';
 export type ThemeMode = 'light' | 'dark';
@@ -171,33 +176,20 @@ const conditionalHistoryStorage = {
   },
 };
 
-async function createThumbnail(dataUrl: string, maxSize = 120): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
-      canvas.width = img.width * ratio;
-      canvas.height = img.height * ratio;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/webp', 0.8));
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
+async function moveIntoHistoryScope(fromUrl: string, key: string): Promise<boolean> {
+  if (await rekeyImage(fromUrl, key, 'history')) return true;
+  try {
+    const blob = await getImageBlob(fromUrl);
+    return await persistImageBlob(key, blob, 'history');
+  } catch {
+    return false;
+  }
 }
 
-async function fileToThumbnail(file: File, maxSize = 120): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
-      resolve(await createThumbnail(dataUrl, maxSize));
-    };
-    reader.onerror = () => resolve('');
-    reader.readAsDataURL(file);
-  });
+async function persistHistoryThumbnail(recordId: string, source: Blob): Promise<boolean> {
+  const thumbnail = await createThumbnailBlob(source);
+  if (!thumbnail) return false;
+  return persistImageBlob(historyImageKey(recordId, 'thumb'), thumbnail, 'history');
 }
 
 export const useHistoryStore = defineStore(
@@ -207,15 +199,14 @@ export const useHistoryStore = defineStore(
 
     async function addRecord(params: {
       file: File;
+      sourceBlob: Blob;
+      originalUrl: string;
+      resultUrl: string;
       originalSize: { width: number; height: number };
       resultSize: { width: number; height: number };
       modelId: string;
       modelName: string;
-      resultUrl: string;
     }): Promise<HistoryRecord> {
-      const originalThumb = await fileToThumbnail(params.file);
-      const resultThumb = await createThumbnail(params.resultUrl);
-
       const record: HistoryRecord = {
         id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
@@ -224,18 +215,19 @@ export const useHistoryStore = defineStore(
         resultSize: params.resultSize,
         modelId: params.modelId,
         modelName: params.modelName,
-        originalDataUrl: originalThumb,
-        resultDataUrl: resultThumb,
       };
 
-      // Keep the full-resolution original/result in IndexedDB so the history
-      // compare view stays sharp; the thumbs above stay as the fast fallback.
-      try {
-        const resultBlob = await (await fetch(params.resultUrl)).blob();
-        await putHistoryImages(record.id, { original: params.file, result: resultBlob });
-        record.hasCache = true;
-      } catch {
-        record.hasCache = false;
+      if (useSettingsStore().historyPersist) {
+        const originalKey = historyImageKey(record.id, 'original');
+        const original =
+          (await moveIntoHistoryScope(params.originalUrl, originalKey)) ||
+          (await persistImageBlob(originalKey, params.sourceBlob, 'history'));
+        const result = await moveIntoHistoryScope(
+          params.resultUrl,
+          historyImageKey(record.id, 'result'),
+        );
+        record.hasCache = original && result;
+        record.hasThumbnail = await persistHistoryThumbnail(record.id, params.sourceBlob);
       }
 
       records.value.unshift(record);
@@ -255,7 +247,7 @@ export const useHistoryStore = defineStore(
 
     function clearHistory() {
       records.value = [];
-      void clearAllHistoryImages();
+      void clearHistoryScope();
     }
 
     function formatTimestamp(ts: number): string {
@@ -355,6 +347,6 @@ export function resetAllSettings(): void {
       // storage unavailable - nothing to clear
     }
   }
-  void clearAllHistoryImages();
+  void clearImageStore();
   if (typeof window !== 'undefined') window.location.reload();
 }

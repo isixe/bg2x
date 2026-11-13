@@ -21,11 +21,20 @@ import {
   isSharedMemoryAvailable,
 } from '../config/concurrency';
 import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?url';
+import {
+  createRememberedImageUrl,
+  persistImageBlob,
+  releaseImageUrl,
+  snapshotImageBlob,
+} from '../utils/imageStore';
+import { createThumbnailBlob } from '../utils/thumbnail';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
 export interface ResultReadyPayload {
   file: File;
+  sourceBlob: Blob;
+  originalUrl: string;
   originalSize: { width: number; height: number };
   resultSize: { width: number; height: number };
   resultUrl: string;
@@ -341,8 +350,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             item.resultUrl = payload.resultUrl;
             item.resultSize = payload.size;
             activeId.value = item.id;
+            void persistResultBlob(payload.resultUrl);
             options.onResultReady?.({
               file: item.file,
+              sourceBlob: item.sourceBlob ?? item.file,
+              originalUrl: item.originalUrl,
               originalSize: item.originalSize!,
               resultSize: payload.size,
               resultUrl: payload.resultUrl,
@@ -756,7 +768,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     document.body.style.overflow = '';
     resetCopied();
     teardownPool();
-    revokeAllOriginalUrls();
+    releaseAllItemUrls();
   });
 
   // The pool is shaped by GPU mode, the requested CPU concurrency, and the
@@ -830,8 +842,12 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     updateGlobalProgress();
   }
 
-  function revokeAllOriginalUrls() {
-    state.value.items.forEach((item) => URL.revokeObjectURL(item.originalUrl));
+  function releaseAllItemUrls() {
+    state.value.items.forEach((item) => {
+      releaseImageUrl(item.originalUrl);
+      releaseImageUrl(item.thumbnailUrl);
+      releaseImageUrl(item.resultUrl);
+    });
     state.value.items = [];
     selectedIds.value = [];
     activeId.value = null;
@@ -1089,6 +1105,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
     let img: HTMLImageElement;
     try {
+      await ensureItemSource(item);
       img = await loadImage(item.originalUrl);
       item.originalSize = { width: img.width, height: img.height };
     } catch (err) {
@@ -1258,6 +1275,51 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
   }
 
+  const itemSourceJobs = new WeakMap<BatchItem, Promise<Blob | null>>();
+
+  function ensureItemSource(item: BatchItem): Promise<Blob | null> {
+    if (item.sourceBlob) return Promise.resolve(item.sourceBlob);
+
+    const inflight = itemSourceJobs.get(item);
+    if (inflight) return inflight;
+
+    const job = snapshotImageBlob(item.file)
+      .then((snapshot) => {
+        item.sourceBlob = snapshot;
+        const previousUrl = item.originalUrl;
+        item.originalUrl = createRememberedImageUrl(snapshot);
+        releaseImageUrl(previousUrl);
+        return snapshot;
+      })
+      .catch(() => null)
+      .finally(() => {
+        itemSourceJobs.delete(item);
+      });
+
+    itemSourceJobs.set(item, job);
+    return job;
+  }
+
+  async function generateItemThumbnail(item: BatchItem): Promise<void> {
+    const source = await ensureItemSource(item);
+    if (!source || disposed) return;
+
+    const thumbnail = await createThumbnailBlob(source);
+    if (!thumbnail || disposed || !state.value.items.includes(item)) return;
+
+    item.thumbnailUrl = createRememberedImageUrl(thumbnail);
+  }
+
+  async function persistResultBlob(url: string): Promise<void> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return;
+      await persistImageBlob(url, await response.blob());
+    } catch {
+      return;
+    }
+  }
+
   function processBatch(inputs: BatchInput[]) {
     if (inputs.length === 0) return;
 
@@ -1274,6 +1336,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       relativePath: relativePath ?? null,
       status: 'pending' as const,
       originalUrl: URL.createObjectURL(file),
+      thumbnailUrl: null,
+      sourceBlob: null,
       resultUrl: null,
       originalSize: null,
       resultSize: null,
@@ -1284,6 +1348,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       attempts: 0,
     }));
     state.value.items.push(...newItems);
+    newItems.forEach((item) => void generateItemThumbnail(item));
 
     if (!state.value.isProcessing) {
       const pendingCount = state.value.items.filter((i) => i.status === 'pending').length;
@@ -1302,6 +1367,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       if (item.status === 'done' || item.status === 'error') {
         item.status = 'pending';
         item.error = null;
+        releaseImageUrl(item.resultUrl);
         item.resultUrl = null;
         item.resultSize = null;
         item.progress = 0;
@@ -1564,8 +1630,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     if (!item || item.status === 'processing') return false;
 
     state.value.items = state.value.items.filter((i) => i.id !== id);
-    URL.revokeObjectURL(item.originalUrl);
-    if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+    releaseImageUrl(item.originalUrl);
+    releaseImageUrl(item.thumbnailUrl);
+    releaseImageUrl(item.resultUrl);
 
     const selIdx = selectedIds.value.indexOf(id);
     if (selIdx >= 0) selectedIds.value.splice(selIdx, 1);
@@ -1577,7 +1644,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
   function clearQueue() {
     if (state.value.isProcessing) return;
-    revokeAllOriginalUrls();
+    releaseAllItemUrls();
     updateGlobalProgress();
     state.value.status = 'Ready';
     state.value.error = null;

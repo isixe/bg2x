@@ -21,11 +21,10 @@ export interface HistoryRecord {
   resultSize: { width: number; height: number };
   modelId: string;
   modelName: string;
-  originalDataUrl: string;
-  resultDataUrl: string;
-  resultBlobUrl?: string;
-  /** True when full-resolution blobs are available in the history IndexedDB cache. */
+  /** True when the full-resolution original and result blobs live in the image store. */
   hasCache?: boolean;
+  /** True when a preview thumbnail blob lives in the image store. */
+  hasThumbnail?: boolean;
 }
 
 export interface FetchModelBytesOptions {
@@ -74,6 +73,10 @@ export interface BatchItem {
   relativePath: string | null;
   status: ItemStatus;
   originalUrl: string;
+  /** 256px preview blob URL; null until the thumbnail has been generated. */
+  thumbnailUrl: string | null;
+  /** Byte snapshot taken at import so the item survives the source file being deleted. */
+  sourceBlob: Blob | null;
   resultUrl: string | null;
   originalSize: { width: number; height: number } | null;
   resultSize: { width: number; height: number } | null;

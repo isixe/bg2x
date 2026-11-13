@@ -99,6 +99,8 @@ const {
   onResultReady: async (payload) => {
     await historyStore.addRecord({
       file: payload.file,
+      sourceBlob: payload.sourceBlob,
+      originalUrl: payload.originalUrl,
       originalSize: payload.originalSize,
       resultSize: payload.resultSize,
       modelId: model.value.id,

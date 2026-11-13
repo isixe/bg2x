@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue';
+import { computed, ref, onUnmounted, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useI18n } from 'vue-i18n';
 import { Clock, Download, Trash2, X } from 'lucide-vue-next';
 import PreviewDialog from './PreviewDialog.vue';
 import { useHistoryStore } from '../store/stores';
-import { getHistoryImages } from '../composables/useHistoryCache';
+import { getImageBlob, historyImageKey, releaseImageUrl } from '../utils/imageStore';
 import type { HistoryRecord, PreviewItem } from '../type';
 
 const { t } = useI18n();
@@ -14,14 +14,46 @@ const { records: historyRecords } = storeToRefs(historyStore);
 const { removeRecord, clearHistory } = historyStore;
 
 const historyPreview = ref<PreviewItem | null>(null);
+const thumbUrls = ref<Record<string, string>>({});
 
 let createdUrls: string[] = [];
 let previewToken = 0;
 
 function revokeCreatedUrls() {
-  createdUrls.forEach((url) => URL.revokeObjectURL(url));
+  createdUrls.forEach((url) => releaseImageUrl(url));
   createdUrls = [];
 }
+
+function releaseThumbUrls() {
+  Object.values(thumbUrls.value).forEach((url) => releaseImageUrl(url));
+  thumbUrls.value = {};
+}
+
+async function loadThumbnail(record: HistoryRecord) {
+  if (thumbUrls.value[record.id]) return;
+  const blob = await getImageBlob(historyImageKey(record.id, 'thumb')).catch(() => null);
+  if (!blob) return;
+  if (!historyRecords.value.some((entry) => entry.id === record.id)) return;
+  thumbUrls.value[record.id] = URL.createObjectURL(blob);
+}
+
+const recordIdKey = computed(() => historyRecords.value.map((record) => record.id).join('|'));
+
+watch(
+  recordIdKey,
+  () => {
+    const alive = new Set(historyRecords.value.map((record) => record.id));
+    for (const [id, url] of Object.entries(thumbUrls.value)) {
+      if (alive.has(id)) continue;
+      releaseImageUrl(url);
+      delete thumbUrls.value[id];
+    }
+    historyRecords.value.forEach((record) => {
+      if (record.hasThumbnail) void loadThumbnail(record);
+    });
+  },
+  { immediate: true },
+);
 
 function closePreview() {
   previewToken += 1;
@@ -33,21 +65,22 @@ async function openHistoryPreview(record: HistoryRecord) {
   const token = (previewToken += 1);
   revokeCreatedUrls();
 
-  let originalUrl = record.originalDataUrl;
-  let resultUrl = record.resultDataUrl;
+  let originalUrl = thumbUrls.value[record.id] ?? '';
+  let resultUrl = '';
 
   if (record.hasCache) {
-    const images = await getHistoryImages(record.id);
+    const [original, result] = await Promise.all([
+      getImageBlob(historyImageKey(record.id, 'original')).catch(() => null),
+      getImageBlob(historyImageKey(record.id, 'result')).catch(() => null),
+    ]);
     if (token !== previewToken) return;
-    if (images?.original) {
-      const url = URL.createObjectURL(images.original);
-      createdUrls.push(url);
-      originalUrl = url;
+    if (original) {
+      originalUrl = URL.createObjectURL(original);
+      createdUrls.push(originalUrl);
     }
-    if (images?.result) {
-      const url = URL.createObjectURL(images.result);
-      createdUrls.push(url);
-      resultUrl = url;
+    if (result) {
+      resultUrl = URL.createObjectURL(result);
+      createdUrls.push(resultUrl);
     }
   }
 
@@ -64,17 +97,10 @@ async function openHistoryPreview(record: HistoryRecord) {
 }
 
 async function downloadRecord(record: HistoryRecord) {
-  let url = record.resultDataUrl;
-  let tempUrl: string | null = null;
+  const blob = await getImageBlob(historyImageKey(record.id, 'result')).catch(() => null);
+  if (!blob) return;
 
-  if (record.hasCache) {
-    const images = await getHistoryImages(record.id);
-    if (images?.result) {
-      tempUrl = URL.createObjectURL(images.result);
-      url = tempUrl;
-    }
-  }
-
+  const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = record.originalFileName.replace(/(\.\w+)$/, '-upscaled$1');
@@ -82,13 +108,13 @@ async function downloadRecord(record: HistoryRecord) {
   anchor.click();
   anchor.remove();
 
-  if (tempUrl) {
-    const toRevoke = tempUrl;
-    setTimeout(() => URL.revokeObjectURL(toRevoke), 30_000);
-  }
+  setTimeout(() => releaseImageUrl(url), 30_000);
 }
 
-onUnmounted(revokeCreatedUrls);
+onUnmounted(() => {
+  revokeCreatedUrls();
+  releaseThumbUrls();
+});
 </script>
 
 <template>
@@ -118,7 +144,13 @@ onUnmounted(revokeCreatedUrls);
           @keydown.enter.prevent="openHistoryPreview(record)"
           @keydown.space.prevent="openHistoryPreview(record)"
         >
-          <img :src="record.originalDataUrl" :alt="record.originalFileName" class="history-thumb" />
+          <img
+            v-if="thumbUrls[record.id]"
+            :src="thumbUrls[record.id]"
+            :alt="record.originalFileName"
+            class="history-thumb"
+          />
+          <div v-else class="history-thumb" />
           <div class="history-info">
             <span class="history-name">{{ record.originalFileName }}</span>
             <span class="history-meta">
@@ -128,7 +160,7 @@ onUnmounted(revokeCreatedUrls);
             <span class="history-meta">{{ record.modelName }}</span>
           </div>
           <button
-            v-if="record.resultDataUrl"
+            v-if="record.hasCache"
             type="button"
             class="history-download"
             :title="t('history.download')"

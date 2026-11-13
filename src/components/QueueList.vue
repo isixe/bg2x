@@ -181,7 +181,7 @@ function onRowClick(event: MouseEvent, item: BatchItem) {
         </span>
         <img
           class="queue-thumb"
-          :src="item.resultUrl ?? item.originalUrl"
+          :src="item.thumbnailUrl ?? item.resultUrl ?? item.originalUrl"
           :alt="item.name"
           role="button"
           tabindex="0"
