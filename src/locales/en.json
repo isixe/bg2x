@@ -171,7 +171,7 @@
     "concurrency": "CPU concurrency",
     "concurrencyDesc": "How many images are upscaled at the same time on CPU workers",
     "gpuConcurrency": "GPU concurrency",
-    "gpuConcurrencyDesc": "Fixed at 1 — WebGPU queues work on a single device, so extra workers only add latency without raising throughput",
+    "gpuConcurrencyDesc": "WebGPU queues work on a single device, so extra workers only add latency without raising throughput",
     "resetSection": "Reset",
     "resetAll": "Reset all settings",
     "resetAllDesc": "Clear all settings and restore the defaults",

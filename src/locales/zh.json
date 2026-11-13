@@ -171,7 +171,7 @@
     "concurrency": "CPU 并发数",
     "concurrencyDesc": "CPU 模式下同时放大的图片数量",
     "gpuConcurrency": "GPU 并发数",
-    "gpuConcurrencyDesc": "固定为 1 —— WebGPU 在单设备队列上排队执行，增加并发只会提高单图延迟，并不会提升吞吐",
+    "gpuConcurrencyDesc": "WebGPU 在单设备队列上排队执行，增加并发只会提高单图延迟，并不会提升吞吐",
     "resetSection": "重置",
     "resetAll": "重置所有设置",
     "resetAllDesc": "清除所有设置并恢复默认值",
