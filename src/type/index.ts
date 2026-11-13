@@ -84,11 +84,33 @@ export interface BatchItem {
   startedAt: number | null;
   /** Total processing time in ms, set once the item settles (done or error). */
   durationMs: number | null;
+  /** Fatal-failure retries consumed; drives the pool's retry budget. */
+  attempts: number;
 }
 
 export type LoadModelMessage = {
   type: 'load-model';
-  payload: { modelId: string; modelData: ArrayBuffer; gpu?: boolean; numThreads?: number };
+  /**
+   * `modelData` is omitted when the bytes were broadcast ahead of time via a
+   * `provide-model` SharedArrayBuffer; the worker then reads its shared copy.
+   */
+  payload: { modelId: string; modelData?: ArrayBuffer; gpu?: boolean; numThreads?: number };
+};
+
+/**
+ * Hand every worker one shared copy of a model's bytes instead of structured-
+ * cloning a private ArrayBuffer per worker. `SharedArrayBuffer` is passed by
+ * reference, so N workers share a single allocation.
+ */
+export type ProvideModelMessage = {
+  type: 'provide-model';
+  payload: { modelId: string; buffer: SharedArrayBuffer };
+};
+
+/** Share the ORT WASM binary across workers so it is fetched from the network once. */
+export type ProvideWasmMessage = {
+  type: 'provide-wasm';
+  payload: { buffer: SharedArrayBuffer };
 };
 
 export type ProcessMessage = {
@@ -126,7 +148,12 @@ export type ConfigureWorkerMessage = {
 };
 
 export type WorkerMessage =
-  LoadModelMessage | ProcessMessage | AbortMessage | ConfigureWorkerMessage;
+  | LoadModelMessage
+  | ProcessMessage
+  | AbortMessage
+  | ConfigureWorkerMessage
+  | ProvideModelMessage
+  | ProvideWasmMessage;
 
 /** Coarse model-load steps; `InferenceSession.create()` reports no real progress. */
 export type ModelLoadStage = 'session' | 'fallback';
@@ -157,4 +184,11 @@ export type WorkerResponse =
       };
     }
   | { type: 'aborted'; payload: { message: string; jobId?: number | null } }
-  | { type: 'error'; payload: { message: string; jobId?: number | null } };
+  | {
+      type: 'error';
+      payload: {
+        message: string;
+        jobId?: number | null;
+        /** Worker likely corrupted (OOM/abort) — the pool rebuilds it and retries. */ fatal?: boolean;
+      };
+    };

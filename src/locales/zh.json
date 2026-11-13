@@ -63,7 +63,8 @@
     "cancel": "取消",
     "cancelling": "正在取消...",
     "cancelled": "已取消",
-    "stalled": "处理停滞——工作线程已重启，请重试。"
+    "stalled": "处理停滞——工作线程已重启，请重试。",
+    "retrying": "工作线程崩溃——正在重试..."
   },
   "history": {
     "title": "历史记录",

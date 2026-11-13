@@ -14,6 +14,16 @@ export default defineConfig({
   },
   vite: {
     plugins: [tailwind()],
+    build: {
+      rollupOptions: {
+        output: {
+          // Match Vite's default pattern so the `?url`-imported ORT wasm asset
+          // collides with the one ORT emits via `new URL(..., import.meta.url)`,
+          // deduplicating the ~28 MB binary in `dist/_astro`.
+          assetFileNames: '_astro/[name]-[hash][extname]',
+        },
+      },
+    },
     optimizeDeps: {
       exclude: ['onnxruntime-web']
     },

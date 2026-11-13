@@ -48,11 +48,15 @@ class AbortError extends Error {
   }
 }
 
+/** A backend corruption we cannot recover from in place — the pool rebuilds the worker and retries. */
+const FATAL_PATTERN =
+  /memory access out of bounds|cannot enlarge memory|out of memory|allocation failed|RangeError|Aborted|RuntimeError|Assertion failed|OOM/i;
+
 let session: ort.InferenceSession | null = null;
 let currentModelId: string | null = null;
 let currentGpu = false;
 /** Source used to build the current session; kept so we can rebuild it on CPU if GPU inference fails. */
-let currentSource: string | ArrayBuffer | null = null;
+let currentSource: string | ArrayBuffer | Uint8Array | null = null;
 
 /** Thread count the current session was built with; ORT reads it only at build time. */
 let sessionThreads = isElectron ? 1 : getMaxSessionThreads();
@@ -79,32 +83,135 @@ let currentJobId: number | null = null;
 /** Serialises inference so a replacement job never runs while the cancelled one unwinds. */
 let jobChain: Promise<void> = Promise.resolve();
 
-self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
-  const message = e.data;
+/** ORT WASM binary shared by the pool (fetched once) instead of one fetch per worker. */
+let providedWasmBuffer: SharedArrayBuffer | null = null;
+let wasmBinaryApplied = false;
+/** Model bytes shared by the pool, keyed by model id — a view over the pool's SAB, not a copy. */
+const providedModelBuffers = new Map<string, Uint8Array>();
 
-  switch (message.type) {
-    case 'load-model':
-      await loadModel(
-        message.payload.modelId,
-        message.payload.modelData,
-        message.payload.gpu ?? false,
-        message.payload.numThreads,
-      );
-      break;
-    case 'process': {
-      const payload = message.payload;
-      jobChain = jobChain.then(() => processImage(payload));
-      await jobChain;
-      break;
+type GpuAdapterLike = { requestDevice(): Promise<{ lost: Promise<{ reason?: string }> }> };
+/** Memoised adapter probe; failures are not cached because they can be transient. */
+let adapterProbe: Promise<GpuAdapterLike | null> | null = null;
+let deviceMonitorStarted = false;
+/** GPU is skipped until reset when an adapter is missing or this model's GPU session failed. */
+let gpuFailed = false;
+let gpuFailedModelId: string | null = null;
+
+const workerScope = self as unknown as { name?: string };
+// ORT derives its wasm thread pool from this same module: each pthread worker
+// re-runs this file and must keep its own internal `onmessage` handshake, so only
+// the pool-facing instance (named anything but `em-pthread…`) installs the router.
+const isOrtPthreadWorker = workerScope.name?.startsWith('em-pthread') ?? false;
+
+if (!isOrtPthreadWorker) {
+  self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+    const message = e.data;
+
+    switch (message.type) {
+      case 'load-model':
+        await loadModel(
+          message.payload.modelId,
+          message.payload.modelData,
+          message.payload.gpu ?? false,
+          message.payload.numThreads,
+        );
+        break;
+      case 'process': {
+        const payload = message.payload;
+        jobChain = jobChain.then(() => processImage(payload));
+        await jobChain;
+        break;
+      }
+      case 'configure-worker':
+        configureWorker(message.payload.numThreads, message.payload.gpu);
+        break;
+      case 'abort':
+        abortRequested = true;
+        break;
+      case 'provide-wasm':
+        providedWasmBuffer = message.payload.buffer;
+        applyProvidedWasmBinary();
+        break;
+      case 'provide-model':
+        providedModelBuffers.set(message.payload.modelId, new Uint8Array(message.payload.buffer));
+        break;
     }
-    case 'configure-worker':
-      configureWorker(message.payload.numThreads, message.payload.gpu);
-      break;
-    case 'abort':
-      abortRequested = true;
-      break;
+  };
+}
+
+/** Copy the pool-shared WASM bytes into the regular ArrayBuffer ORT needs at compile time. */
+function applyProvidedWasmBinary() {
+  if (wasmBinaryApplied || !providedWasmBuffer) return;
+  wasmBinaryApplied = true;
+  const bytes = new Uint8Array(providedWasmBuffer.byteLength);
+  bytes.set(new Uint8Array(providedWasmBuffer));
+  (ort.env.wasm as unknown as { wasmBinary?: ArrayBuffer }).wasmBinary = bytes.buffer;
+}
+
+function resetAdapterProbe() {
+  adapterProbe = null;
+}
+
+async function probeWebGpuAdapter(): Promise<GpuAdapterLike | null> {
+  if (adapterProbe) return adapterProbe;
+  adapterProbe = (async () => {
+    try {
+      const gpu = (
+        navigator as unknown as { gpu?: { requestAdapter(): Promise<GpuAdapterLike | null> } }
+      ).gpu;
+      if (!gpu) return null;
+      const adapter = await gpu.requestAdapter();
+      if (!adapter) {
+        adapterProbe = null;
+        return null;
+      }
+      return adapter;
+    } catch {
+      adapterProbe = null;
+      return null;
+    }
+  })();
+  return adapterProbe;
+}
+
+/** Degrade to WASM the moment the GPU device is lost, so the pool leaves GPU mode. */
+function watchGpuDeviceLoss(adapter: GpuAdapterLike) {
+  if (deviceMonitorStarted) return;
+  deviceMonitorStarted = true;
+  adapter
+    .requestDevice()
+    .then((device) =>
+      device.lost.then((info) => {
+        deviceMonitorStarted = false;
+        if (gpuFailed) return;
+        gpuFailed = true;
+        postGpuStatus(false, `GPU device lost: ${info.reason ?? 'unknown'}`);
+        void releaseSession();
+      }),
+    )
+    .catch(() => {
+      deviceMonitorStarted = false;
+    });
+}
+
+function postGpuStatus(active: boolean, reason?: string) {
+  if (!active && reason) console.warn(`[worker] gpu inactive: ${reason}`);
+  self.postMessage({ type: 'gpu-status', payload: { active, reason } });
+}
+
+async function releaseSession() {
+  const previous = session;
+  session = null;
+  currentModelId = null;
+  currentSource = null;
+  currentGpu = false;
+  if (!previous) return;
+  try {
+    await previous.release();
+  } catch {
+    /* session already gone */
   }
-};
+}
 
 /**
  * Apply a new thread budget and/or GPU intent. ORT bakes `numThreads` into a
@@ -115,6 +222,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 function configureWorker(numThreads: number, gpu?: boolean) {
   if (gpu !== undefined && gpu !== wantsGpu) {
     wantsGpu = gpu;
+    // Re-enabling GPU is an explicit user intent: give the adapter another chance.
+    if (gpu) {
+      gpuFailed = false;
+      gpuFailedModelId = null;
+      resetAdapterProbe();
+    }
     if (session) sessionStale = true;
   }
   const clamped = Math.max(1, Math.min(getMaxSessionThreads(), Math.floor(numThreads)));
@@ -184,7 +297,7 @@ function postProgress(
   });
 }
 
-async function createSession(source: string | ArrayBuffer, gpu: boolean) {
+async function createSession(source: string | ArrayBuffer | Uint8Array, gpu: boolean) {
   const executionProviders = gpu ? ['webgpu'] : ['wasm'];
 
   if (typeof source === 'string') {
@@ -193,7 +306,9 @@ async function createSession(source: string | ArrayBuffer, gpu: boolean) {
       graphOptimizationLevel: 'all',
     });
   }
-  return ort.InferenceSession.create(new Uint8Array(source), {
+  // Pass a shared-backed view straight through: only a raw ArrayBuffer needs wrapping.
+  const model = source instanceof Uint8Array ? source : new Uint8Array(source);
+  return ort.InferenceSession.create(model, {
     executionProviders,
     graphOptimizationLevel: 'all',
   });
@@ -201,7 +316,7 @@ async function createSession(source: string | ArrayBuffer, gpu: boolean) {
 
 async function loadModel(
   modelId: string,
-  modelData: ArrayBuffer,
+  modelData?: ArrayBuffer,
   gpu = false,
   numThreads?: number,
 ) {
@@ -224,6 +339,12 @@ async function loadModel(
       }
     }
 
+    // A different model gets a fresh GPU verdict; only this model's failure sticks.
+    if (gpuFailedModelId && gpuFailedModelId !== modelId) {
+      gpuFailed = false;
+      gpuFailedModelId = null;
+    }
+
     if (session && currentModelId === modelId && currentGpu === gpu) {
       self.postMessage({ type: 'model-loaded', payload: { modelId, gpu } });
       return;
@@ -231,25 +352,45 @@ async function loadModel(
 
     postProgress(0, 'Loading model...', undefined, 'session');
 
-    const source = modelData;
+    const source = providedModelBuffers.get(modelId) ?? modelData;
+    if (!source) throw new Error('No model data available');
+
+    // Honour the GPU intent only when a WebGPU adapter is present and this model
+    // has not already failed on it; otherwise build straight on WASM.
     let effectiveGpu = gpu;
+    if (effectiveGpu) {
+      const adapter = await probeWebGpuAdapter();
+      if (!adapter || gpuFailed) {
+        effectiveGpu = false;
+        gpuFailed = true;
+        gpuFailedModelId = modelId;
+        postGpuStatus(
+          false,
+          adapter
+            ? 'WebGPU unavailable for this model'
+            : 'WebGPU needs a secure context (localhost or HTTPS)',
+        );
+      } else {
+        watchGpuDeviceLoss(adapter);
+      }
+    }
+
+    applyProvidedWasmBinary();
+
     const t0 = performance.now();
-    console.log(
-      `[worker] createSession start gpu=${gpu} bytes=${source instanceof ArrayBuffer ? source.byteLength : 'url'}`,
-    );
+    console.log(`[worker] createSession start gpu=${effectiveGpu} bytes=${source.byteLength}`);
 
     try {
-      session = await createSession(source, gpu);
+      session = await createSession(source, effectiveGpu);
     } catch (gpuError) {
       console.warn(`[worker] gpu session failed (${(performance.now() - t0) | 0}ms): ${gpuError}`);
-      if (!gpu) throw gpuError;
+      if (!effectiveGpu) throw gpuError;
       postProgress(0, 'Loading model...', undefined, 'fallback');
       session = await createSession(source, false);
       effectiveGpu = false;
-      self.postMessage({
-        type: 'gpu-status',
-        payload: { active: false, reason: String(gpuError) },
-      });
+      gpuFailed = true;
+      gpuFailedModelId = modelId;
+      postGpuStatus(false, String(gpuError));
     }
 
     currentSource = source;
@@ -267,7 +408,10 @@ async function loadModel(
     console.error(`[worker] model load failed: ${error}`);
     self.postMessage({
       type: 'error',
-      payload: { message: `Failed to load model: ${error}` },
+      payload: {
+        message: `Failed to load model: ${error}`,
+        fatal: FATAL_PATTERN.test(String(error)),
+      },
     });
   }
 }
@@ -454,7 +598,11 @@ async function processImage(payload: {
     } else {
       self.postMessage({
         type: 'error',
-        payload: { message: `Processing failed: ${error}`, jobId: currentJobId },
+        payload: {
+          message: `Processing failed: ${error}`,
+          jobId: currentJobId,
+          fatal: FATAL_PATTERN.test(String(error)),
+        },
       });
     }
   } finally {

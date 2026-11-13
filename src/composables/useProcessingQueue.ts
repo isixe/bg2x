@@ -1,7 +1,14 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import type { BatchInput, BatchItem, ModelEntry, ModelLoadStage, WorkerResponse } from '../type';
+import type {
+  BatchInput,
+  BatchItem,
+  ModelEntry,
+  ModelLoadStage,
+  WorkerMessage,
+  WorkerResponse,
+} from '../type';
 import { getCachedModel, isModelCached } from './useModelCache';
 import { getModelById } from './useModelRegistry';
 import { downloadModel } from './useModelDownloads';
@@ -11,7 +18,9 @@ import {
   clampBatchConcurrency,
   getMaxWorkersForModelBytes,
   getSessionThreads,
+  isSharedMemoryAvailable,
 } from '../config/concurrency';
+import ortWasmUrl from 'onnxruntime-web/ort-wasm-simd-threaded.jsep.wasm?url';
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp';
 
@@ -194,6 +203,19 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   let disposed = false;
   const STALL_TIMEOUT_MS = 10 * 60_000;
 
+  // A backend corruption (OOM, wasm abort) leaves the worker unusable; rebuild it
+  // and requeue the item, up to MAX_ATTEMPTS retries before failing it for good.
+  const FATAL_PATTERN =
+    /memory access out of bounds|cannot enlarge memory|out of memory|allocation failed|RangeError|Aborted|RuntimeError|Assertion failed|OOM/i;
+  const MAX_ATTEMPTS = 2;
+
+  // SharedArrayBuffer-backed model/WASM bytes, fetched once on the main thread and
+  // broadcast by reference so the pool holds one allocation instead of N copies.
+  const canShareMemory = isSharedMemoryAvailable();
+  let wasmBuffer: SharedArrayBuffer | null = null;
+  let wasmBufferRequest: Promise<void> | null = null;
+  const modelBuffers = new Map<string, SharedArrayBuffer>();
+
   // The worker only reports at tile boundaries, so a naive bar freezes during a
   // long tile run (notably the first, which pays one-time init cost). Ground the
   // display in real data only: snap to each report, and between reports advance
@@ -255,9 +277,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     applyThreadConfig(slots.length);
   }
 
+  function replaySharedBuffers(worker: Worker) {
+    if (wasmBuffer) worker.postMessage({ type: 'provide-wasm', payload: { buffer: wasmBuffer } });
+    for (const [modelId, buffer] of modelBuffers) {
+      worker.postMessage({ type: 'provide-model', payload: { modelId, buffer } });
+    }
+  }
+
   function createSlot(): WorkerSlot {
+    const worker = createWorker();
+    replaySharedBuffers(worker);
     const slot: WorkerSlot = {
-      worker: createWorker(),
+      worker,
       item: null,
       jobId: null,
       resolve: null,
@@ -330,9 +361,31 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           if (payload.jobId != null && payload.jobId !== slot.jobId) break;
           clearSlotWatchdog(slot);
           state.value.isLoadingModel = false;
+          const item = slot.item;
+          const fatal = payload.fatal === true || FATAL_PATTERN.test(payload.message);
+
+          // A fatal error means the worker itself is unusable: rebuild it and put
+          // the item back on the queue so it runs again on a fresh session.
+          if (fatal && item && item.attempts < MAX_ATTEMPTS) {
+            item.attempts += 1;
+            item.status = 'pending';
+            item.progress = 0;
+            item.startedAt = null;
+            item.durationMs = null;
+            item.error = null;
+            slot.item = null;
+            slot.jobId = null;
+            stopSlotSmoothing(slot);
+            slot.resolve?.();
+            slot.resolve = null;
+            restartSlot(slot);
+            updateGlobalProgress();
+            state.value.status = t('processing.retrying');
+            break;
+          }
+
           state.value.error = payload.message;
           state.value.status = 'Error';
-          const item = slot.item;
           if (item) {
             stopItemTimer(item);
             item.status = 'error';
@@ -432,6 +485,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     slot.jobId = null;
     slot.inflightLoad = null;
     slot.worker = createWorker();
+    replaySharedBuffers(slot.worker);
     attachSlotHandlers(slot);
     if (configuredThreads > 0) {
       slot.worker.postMessage({
@@ -646,7 +700,10 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       const resolve = slot.resolve;
       slot.resolve = null;
       resolve?.();
-      slot.worker.postMessage({ type: 'abort' });
+      // Terminate and rebuild the worker: a bare `abort` leaves the cancelled job
+      // unwinding in the old worker, so a requeued item would wait behind it and
+      // its late result could be mistaken for the new job's.
+      restartSlot(slot);
     }
     updateGlobalProgress();
   }
@@ -674,7 +731,8 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       const resolve = slot.resolve;
       slot.resolve = null;
       resolve?.();
-      if (hadItem) slot.worker.postMessage({ type: 'abort' });
+      // Rebuild any worker that had a job in flight so no stale job lingers in it.
+      if (hadItem) restartSlot(slot);
     }
     updateGlobalProgress();
   }
@@ -821,8 +879,51 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     );
   }
 
-  // The model bytes are fetched once and shared: every slot posts the same
-  // ArrayBuffer, which structured-clones into an independent copy per worker.
+  function postToWorkers(message: WorkerMessage) {
+    for (const slot of slots) slot.worker.postMessage(message);
+  }
+
+  /**
+   * Fetch the ORT WASM binary once and broadcast it as a SharedArrayBuffer so every
+   * worker compiles from one shared copy instead of fetching its own.
+   */
+  function ensureWasmBuffer(): Promise<void> {
+    if (wasmBufferRequest) return wasmBufferRequest;
+    wasmBufferRequest = (async () => {
+      try {
+        if (!canShareMemory || wasmBuffer) return;
+        const res = await fetch(ortWasmUrl);
+        if (!res.ok) return;
+        const bytes = await res.arrayBuffer();
+        if (disposed) return;
+        const sab = new SharedArrayBuffer(bytes.byteLength);
+        new Uint8Array(sab).set(new Uint8Array(bytes));
+        wasmBuffer = sab;
+        postToWorkers({ type: 'provide-wasm', payload: { buffer: sab } });
+      } catch (err) {
+        console.warn('[pool] WASM share failed:', err);
+      }
+    })();
+    return wasmBufferRequest;
+  }
+
+  /**
+   * Build (once per model) a shared copy of the model bytes and broadcast it, so the
+   * pool holds a single allocation instead of one structured-cloned copy per worker.
+   */
+  function getOrCreateModelSab(modelId: string, modelData: ArrayBuffer): SharedArrayBuffer | null {
+    if (!canShareMemory) return null;
+    const existing = modelBuffers.get(modelId);
+    if (existing) return existing;
+    const sab = new SharedArrayBuffer(modelData.byteLength);
+    new Uint8Array(sab).set(new Uint8Array(modelData));
+    modelBuffers.set(modelId, sab);
+    postToWorkers({ type: 'provide-model', payload: { modelId, buffer: sab } });
+    return sab;
+  }
+
+  // The model bytes are fetched once; with SharedArrayBuffer available they are
+  // broadcast shared, otherwise each slot gets its own structured-cloned copy.
   let inflightModelData: Promise<ArrayBuffer | null> | null = null;
 
   async function ensureModelData(): Promise<ArrayBuffer | null> {
@@ -893,10 +994,24 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       modelLoadStage.value = null;
       slot.pendingGpuWanted = options.gpu.value;
 
-      slot.worker.postMessage({
-        type: 'load-model',
-        payload: { modelId, modelData, gpu: options.gpu.value, numThreads: perWorkerThreads() },
-      });
+      await ensureWasmBuffer();
+      const sharedModel = getOrCreateModelSab(modelId, modelData);
+      if (sharedModel) {
+        // Provide the shared bytes first (FIFO), then load without re-cloning them.
+        slot.worker.postMessage({
+          type: 'provide-model',
+          payload: { modelId, buffer: sharedModel },
+        });
+        slot.worker.postMessage({
+          type: 'load-model',
+          payload: { modelId, gpu: options.gpu.value, numThreads: perWorkerThreads() },
+        });
+      } else {
+        slot.worker.postMessage({
+          type: 'load-model',
+          payload: { modelId, modelData, gpu: options.gpu.value, numThreads: perWorkerThreads() },
+        });
+      }
       await waitForSlotModelLoaded(slot);
       return true;
     } catch (err) {
@@ -1166,6 +1281,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       progress: 0,
       startedAt: null,
       durationMs: null,
+      attempts: 0,
     }));
     state.value.items.push(...newItems);
 
@@ -1191,6 +1307,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         item.progress = 0;
         item.startedAt = null;
         item.durationMs = null;
+        item.attempts = 0;
         reset.push(item);
       }
     }

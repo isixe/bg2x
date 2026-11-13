@@ -63,7 +63,8 @@
     "cancel": "Cancel",
     "cancelling": "Cancelling...",
     "cancelled": "Cancelled",
-    "stalled": "Processing stalled — the worker was restarted. Please try again."
+    "stalled": "Processing stalled — the worker was restarted. Please try again.",
+    "retrying": "Worker crashed — retrying..."
   },
   "history": {
     "title": "History",
