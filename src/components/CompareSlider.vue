@@ -2,8 +2,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { usePanZoom } from '../composables/usePanZoom';
+import { useSettingsStore } from '../store/stores';
 
 const { t } = useI18n();
+const settingsStore = useSettingsStore();
 
 defineProps<{
   originalUrl: string;
@@ -75,23 +77,103 @@ function stopDrag() {
   isDragging.value = false;
 }
 
-function onKeydown(e: KeyboardEvent) {
-  const step = e.shiftKey ? 10 : 2;
-  let next: number | null = null;
+const SLIDER_HOLD_SPEED = 50;
+const DOUBLE_PRESS_MS = 350;
 
-  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-    next = sliderPosition.value - step;
-  } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-    next = sliderPosition.value + step;
-  } else if (e.key === 'Home') {
-    next = 0;
-  } else if (e.key === 'End') {
-    next = 100;
+let slideDirection = 0;
+let slideFrame: number | null = null;
+let lastFrameAt = 0;
+let lastKey = '';
+let lastKeyAt = 0;
+
+function clampPosition(value: number) {
+  sliderPosition.value = Math.min(100, Math.max(0, value));
+}
+
+function stepSlide(timestamp: number) {
+  if (slideDirection === 0) {
+    slideFrame = null;
+    return;
+  }
+  if (lastFrameAt) {
+    const delta = ((timestamp - lastFrameAt) / 1000) * SLIDER_HOLD_SPEED * slideDirection;
+    clampPosition(sliderPosition.value + delta);
+  }
+  lastFrameAt = timestamp;
+  slideFrame = window.requestAnimationFrame(stepSlide);
+}
+
+function startSliding(direction: number) {
+  slideDirection = direction;
+  if (slideFrame !== null) return;
+  lastFrameAt = 0;
+  slideFrame = window.requestAnimationFrame(stepSlide);
+}
+
+function stopSliding() {
+  slideDirection = 0;
+  if (slideFrame !== null) {
+    window.cancelAnimationFrame(slideFrame);
+    slideFrame = null;
+  }
+  lastFrameAt = 0;
+}
+
+function isDoublePress(key: string) {
+  const now = window.performance.now();
+  const repeated = key === lastKey && now - lastKeyAt < DOUBLE_PRESS_MS;
+  lastKey = key;
+  lastKeyAt = now;
+  return repeated;
+}
+
+function isEditableTarget(target: unknown) {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
+}
+
+function sliderKeys() {
+  return settingsStore.keyboardMode === 'wasd'
+    ? { left: 'a', right: 'd' }
+    : { left: 'arrowleft', right: 'arrowright' };
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  if (isEditableTarget(e.target)) return;
+
+  const key = e.key.toLowerCase();
+  const { left, right } = sliderKeys();
+
+  if (key === left || key === right) {
+    e.preventDefault();
+    const direction = key === left ? -1 : 1;
+    if (e.repeat) {
+      startSliding(direction);
+      return;
+    }
+    if (isDoublePress(key)) {
+      stopSliding();
+      clampPosition(direction === -1 ? 0 : 100);
+      return;
+    }
+    startSliding(direction);
+    return;
   }
 
-  if (next !== null) {
+  if (key === 'home' || key === 'end') {
     e.preventDefault();
-    sliderPosition.value = Math.min(100, Math.max(0, next));
+    stopSliding();
+    clampPosition(key === 'home' ? 0 : 100);
+  }
+}
+
+function onKeyup(e: KeyboardEvent) {
+  const key = e.key.toLowerCase();
+  const { left, right } = sliderKeys();
+  if ((key === left && slideDirection === -1) || (key === right && slideDirection === 1)) {
+    stopSliding();
   }
 }
 
@@ -101,6 +183,9 @@ onMounted(() => {
   window.addEventListener('touchmove', onTouchMove, { passive: false });
   window.addEventListener('touchend', stopDrag);
   window.addEventListener('touchcancel', stopDrag);
+  window.addEventListener('keydown', onKeydown);
+  window.addEventListener('keyup', onKeyup);
+  window.addEventListener('blur', stopSliding);
 });
 
 onUnmounted(() => {
@@ -109,6 +194,10 @@ onUnmounted(() => {
   window.removeEventListener('touchmove', onTouchMove);
   window.removeEventListener('touchend', stopDrag);
   window.removeEventListener('touchcancel', stopDrag);
+  window.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('keyup', onKeyup);
+  window.removeEventListener('blur', stopSliding);
+  stopSliding();
 });
 </script>
 
@@ -145,7 +234,6 @@ onUnmounted(() => {
       @pointerdown="blockPropagation"
       @mousedown.stop="onMouseDown"
       @touchstart.stop="onTouchStart"
-      @keydown="onKeydown"
     >
       <span class="slider-line"></span>
       <span class="slider-knob">

@@ -59,6 +59,12 @@ export interface PreviewItem {
 
 export type ViewName = 'home' | 'upload' | 'history' | 'models';
 
+export type PreviewBackground = 'transparent' | 'black' | 'white' | 'custom' | 'image';
+
+export type PreviewBackgroundPosition = 'top' | 'bottom' | 'left' | 'right';
+
+export type KeyboardMode = 'arrows' | 'wasd';
+
 export type ItemStatus = 'pending' | 'processing' | 'done' | 'error';
 
 export interface BatchInput {

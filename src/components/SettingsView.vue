@@ -15,9 +15,11 @@ import {
   RefreshCw,
   Tag,
   Gauge,
+  Palette,
 } from 'lucide-vue-next';
 import { resetAllSettings, useLocaleStore, useSettingsStore } from '../store/stores';
 import type { ExportMode, LocaleCode } from '../store/stores';
+import type { KeyboardMode, PreviewBackgroundPosition } from '../type';
 import Select from './ui/select/Select.vue';
 import SelectContent from './ui/select/SelectContent.vue';
 import SelectItem from './ui/select/SelectItem.vue';
@@ -33,7 +35,7 @@ import {
   getGpuConcurrencyOptions,
 } from '../config/concurrency';
 
-type SettingsTab = 'general' | 'performance' | 'about' | 'related';
+type SettingsTab = 'general' | 'interface' | 'performance' | 'about' | 'related';
 
 interface SettingsTabItem {
   id: SettingsTab;
@@ -58,6 +60,7 @@ const activeTab = ref<SettingsTab>('general');
 
 const tabs: SettingsTabItem[] = [
   { id: 'general', icon: Settings, label: 'settings.tabGeneral' },
+  { id: 'interface', icon: Palette, label: 'settings.tabInterface' },
   { id: 'performance', icon: Gauge, label: 'settings.tabPerformance' },
   { id: 'related', icon: Layers, label: 'settings.tabRelated' },
   { id: 'about', icon: Info, label: 'settings.tabAbout' },
@@ -86,6 +89,30 @@ function onExportModeChange(value: string) {
 function onConcurrencyChange(value: string) {
   settingsStore.setConcurrency(Number(value));
 }
+
+function onKeyboardModeChange(value: string) {
+  settingsStore.setKeyboardMode(value as KeyboardMode);
+}
+
+function onBackgroundPositionChange(value: string) {
+  settingsStore.setPreviewBackgroundPosition(value as PreviewBackgroundPosition);
+}
+
+const KEYBOARD_MODE_OPTIONS: KeyboardMode[] = ['arrows', 'wasd'];
+
+const KEYBOARD_MODE_LABELS: Record<KeyboardMode, string> = {
+  arrows: 'settings.keyboardModeArrows',
+  wasd: 'settings.keyboardModeWasd',
+};
+
+const BACKGROUND_POSITION_OPTIONS: PreviewBackgroundPosition[] = ['top', 'bottom', 'left', 'right'];
+
+const BACKGROUND_POSITION_LABELS: Record<PreviewBackgroundPosition, string> = {
+  top: 'settings.backgroundPositionTop',
+  bottom: 'settings.backgroundPositionBottom',
+  left: 'settings.backgroundPositionLeft',
+  right: 'settings.backgroundPositionRight',
+};
 
 const GPU_CONCURRENCY_OPTIONS = getGpuConcurrencyOptions();
 
@@ -222,6 +249,56 @@ function confirmReset() {
             <button type="button" class="btn-reset" @click="showResetConfirm = true">
               {{ t('settings.resetAll') }}
             </button>
+          </div>
+        </div>
+      </section>
+
+      <section v-else-if="activeTab === 'interface'" class="settings-panel">
+        <div class="settings-section">
+          <h2 class="section-title">{{ t('settings.interfaceSection') }}</h2>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.keyboardMode') }}</span>
+              <span class="setting-desc">{{ t('settings.keyboardModeDesc') }}</span>
+            </div>
+            <Select
+              :model-value="settingsStore.keyboardMode"
+              @update:model-value="onKeyboardModeChange"
+            >
+              <SelectTrigger class="w-[160px]">
+                <SelectValue>{{ t(KEYBOARD_MODE_LABELS[settingsStore.keyboardMode]) }}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="mode in KEYBOARD_MODE_OPTIONS" :key="mode" :value="mode">
+                  {{ t(KEYBOARD_MODE_LABELS[mode]) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.backgroundPosition') }}</span>
+              <span class="setting-desc">{{ t('settings.backgroundPositionDesc') }}</span>
+            </div>
+            <Select
+              :model-value="settingsStore.previewBackgroundPosition"
+              @update:model-value="onBackgroundPositionChange"
+            >
+              <SelectTrigger class="w-[160px]">
+                <SelectValue>
+                  {{ t(BACKGROUND_POSITION_LABELS[settingsStore.previewBackgroundPosition]) }}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="position in BACKGROUND_POSITION_OPTIONS"
+                  :key="position"
+                  :value="position"
+                >
+                  {{ t(BACKGROUND_POSITION_LABELS[position]) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       </section>

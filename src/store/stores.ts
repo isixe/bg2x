@@ -1,7 +1,12 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { i18n } from '../locales/i18n';
-import type { HistoryRecord } from '../type';
+import type {
+  HistoryRecord,
+  KeyboardMode,
+  PreviewBackground,
+  PreviewBackgroundPosition,
+} from '../type';
 import { MODEL_REGISTRY } from '../composables/useModelRegistry';
 import { isModelCached } from '../composables/useModelCache';
 import { DEFAULT_BATCH_CONCURRENCY, clampBatchConcurrency } from '../config/concurrency';
@@ -95,6 +100,10 @@ export const useSettingsStore = defineStore(
     const filenameSuffix = ref('-upscaled');
     const concurrency = ref(DEFAULT_BATCH_CONCURRENCY);
     const preloadWarmup = ref(true);
+    const previewBackground = ref<PreviewBackground>('transparent');
+    const previewBackgroundColor = ref('#808080');
+    const previewBackgroundPosition = ref<PreviewBackgroundPosition>('left');
+    const keyboardMode = ref<KeyboardMode>('arrows');
     // Bumped when the persisted shape changes so we can migrate old values.
     const settingsVersion = ref(1);
 
@@ -112,6 +121,22 @@ export const useSettingsStore = defineStore(
 
     function setConcurrency(value: number) {
       concurrency.value = clampBatchConcurrency(value);
+    }
+
+    function setPreviewBackground(mode: PreviewBackground) {
+      previewBackground.value = mode;
+    }
+
+    function setPreviewBackgroundColor(color: string) {
+      previewBackgroundColor.value = color;
+    }
+
+    function setPreviewBackgroundPosition(position: PreviewBackgroundPosition) {
+      previewBackgroundPosition.value = position;
+    }
+
+    function setKeyboardMode(mode: KeyboardMode) {
+      keyboardMode.value = mode;
     }
 
     function dismissUpdate(version: string) {
@@ -133,6 +158,14 @@ export const useSettingsStore = defineStore(
       concurrency,
       setConcurrency,
       preloadWarmup,
+      previewBackground,
+      setPreviewBackground,
+      previewBackgroundColor,
+      setPreviewBackgroundColor,
+      previewBackgroundPosition,
+      setPreviewBackgroundPosition,
+      keyboardMode,
+      setKeyboardMode,
       settingsVersion,
     };
   },

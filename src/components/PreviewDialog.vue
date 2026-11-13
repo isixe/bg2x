@@ -3,9 +3,12 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Check, Copy, Download, X } from 'lucide-vue-next';
 import CompareSlider from './CompareSlider.vue';
+import PreviewBackgroundControl from './PreviewBackgroundControl.vue';
+import { usePreviewBackground } from '../composables/usePreviewBackground';
 import { copyImage } from '../composables/useCopyImage';
 
 const { t } = useI18n();
+const { style: previewBackgroundStyle } = usePreviewBackground();
 
 const props = defineProps<{
   item: {
@@ -118,7 +121,7 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="preview-body">
+        <div class="preview-body" :style="previewBackgroundStyle">
           <CompareSlider
             :key="item.id"
             :original-url="item.originalUrl"
@@ -126,6 +129,8 @@ onUnmounted(() => {
             height="100%"
           />
         </div>
+
+        <PreviewBackgroundControl />
       </div>
     </div>
   </Teleport>
