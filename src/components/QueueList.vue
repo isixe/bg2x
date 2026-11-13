@@ -77,6 +77,7 @@ const emit = defineEmits<{
   (e: 'copy', item: BatchItem): void;
   (e: 'batch', action: 'download' | 'copy' | 'reprocess'): void;
   (e: 'cancel-item', id: number): void;
+  (e: 'reprocess', item: BatchItem): void;
   (e: 'remove', id: number): void;
 }>();
 
@@ -247,14 +248,23 @@ function onRowClick(event: MouseEvent, item: BatchItem) {
         >
           <X :size="14" />
         </button>
-        <button
-          v-else
-          class="queue-remove"
-          :title="t('queue.remove')"
-          @click.stop="emit('remove', item.id)"
-        >
-          <Trash2 :size="14" />
-        </button>
+        <div v-else class="queue-item-actions">
+          <button
+            v-if="item.status === 'error'"
+            class="queue-reprocess"
+            :title="t('queue.reprocess')"
+            @click.stop="emit('reprocess', item)"
+          >
+            <RotateCcw :size="14" />
+          </button>
+          <button
+            class="queue-remove"
+            :title="t('queue.remove')"
+            @click.stop="emit('remove', item.id)"
+          >
+            <Trash2 :size="14" />
+          </button>
+        </div>
       </div>
     </div>
   </section>
@@ -541,6 +551,34 @@ function onRowClick(event: MouseEvent, item: BatchItem) {
 
 .queue-cancel:hover {
   background: #dc2626;
+  color: #fff;
+}
+
+.queue-item-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.queue-reprocess {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  background: var(--color-gray);
+  color: var(--color-gray-dark);
+  flex-shrink: 0;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.queue-reprocess:hover {
+  background: var(--color-primary);
   color: #fff;
 }
 

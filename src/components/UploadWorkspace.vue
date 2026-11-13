@@ -328,6 +328,7 @@ onUnmounted(() => {
         @copy="copyItem"
         @batch="onBatch"
         @cancel-item="cancelItem"
+        @reprocess="reprocess([$event])"
         @remove="removeItem"
       />
 
