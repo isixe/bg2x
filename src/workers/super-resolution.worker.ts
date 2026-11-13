@@ -114,6 +114,7 @@ if (!isOrtPthreadWorker) {
           message.payload.modelData,
           message.payload.gpu ?? false,
           message.payload.numThreads,
+          message.payload.warmup ?? false,
         );
         break;
       case 'process': {
@@ -314,11 +315,28 @@ async function createSession(source: string | ArrayBuffer | Uint8Array, gpu: boo
   });
 }
 
+/**
+ * A freshly created session has not compiled its kernels or materialised its
+ * memory arenas yet, so its first run pays that cost on top of a real tile.
+ * Burning one dummy tile while the pool is still idle makes the first real tile
+ * run at steady-state speed.
+ */
+async function warmupSession(target: Awaited<ReturnType<typeof createSession>>) {
+  const input = new ort.Tensor('float32', new Float32Array(3 * TILE_SIZE * TILE_SIZE), [
+    1,
+    3,
+    TILE_SIZE,
+    TILE_SIZE,
+  ]);
+  await target.run({ [target.inputNames[0]]: input });
+}
+
 async function loadModel(
   modelId: string,
   modelData?: ArrayBuffer,
   gpu = false,
   numThreads?: number,
+  warmup = false,
 ) {
   try {
     // Each worker in the pool gets its slice of the CPU so N concurrent
@@ -396,6 +414,14 @@ async function loadModel(
     currentSource = source;
     currentModelId = modelId;
     currentGpu = effectiveGpu;
+
+    if (warmup && session) {
+      try {
+        await warmupSession(session);
+      } catch (warmError) {
+        console.warn(`[worker] warmup failed: ${warmError}`);
+      }
+    }
 
     console.log(
       `[worker] model loaded in ${(performance.now() - t0).toFixed(0)}ms gpu=${effectiveGpu}`,

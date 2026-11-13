@@ -272,6 +272,16 @@ function confirmReset() {
               </SelectContent>
             </Select>
           </div>
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">{{ t('settings.preloadWarmup') }}</span>
+              <span class="setting-desc">{{ t('settings.preloadWarmupDesc') }}</span>
+            </div>
+            <label class="toggle-switch">
+              <input v-model="settingsStore.preloadWarmup" type="checkbox" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
         </div>
       </section>
 

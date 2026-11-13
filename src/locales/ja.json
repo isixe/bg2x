@@ -172,6 +172,8 @@
     "concurrencyDesc": "CPU モードで同時に拡大処理する画像の枚数",
     "gpuConcurrency": "GPU 同時処理数",
     "gpuConcurrencyDesc": "WebGPU は単一デバイスのキューで処理するため、並列数を増やしてもスループットは上がらず、1 枚あたりの遅延だけが増えます",
+    "preloadWarmup": "アイドル時にモデルを先読み",
+    "preloadWarmupDesc": "キューが空のうちに各ワーカーのセッションを構築し、ウォームアップ用タイルを 1 枚処理しておくことで、バッチ開始直後から最高速度で動きます",
     "resetSection": "リセット",
     "resetAll": "すべての設定をリセット",
     "resetAllDesc": "すべての設定を消去してデフォルトに戻します",

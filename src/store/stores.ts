@@ -94,6 +94,7 @@ export const useSettingsStore = defineStore(
     const filenameSuffixEnabled = ref(true);
     const filenameSuffix = ref('-upscaled');
     const concurrency = ref(DEFAULT_BATCH_CONCURRENCY);
+    const preloadWarmup = ref(true);
     // Bumped when the persisted shape changes so we can migrate old values.
     const settingsVersion = ref(1);
 
@@ -131,6 +132,7 @@ export const useSettingsStore = defineStore(
       filenameSuffix,
       concurrency,
       setConcurrency,
+      preloadWarmup,
       settingsVersion,
     };
   },

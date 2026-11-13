@@ -172,6 +172,8 @@
     "concurrencyDesc": "How many images are upscaled at the same time on CPU workers",
     "gpuConcurrency": "GPU concurrency",
     "gpuConcurrencyDesc": "WebGPU queues work on a single device, so extra workers only add latency without raising throughput",
+    "preloadWarmup": "Preload models when idle",
+    "preloadWarmupDesc": "Build every worker session and run one warm-up tile while the queue is empty, so a batch starts at full speed",
     "resetSection": "Reset",
     "resetAll": "Reset all settings",
     "resetAllDesc": "Clear all settings and restore the defaults",

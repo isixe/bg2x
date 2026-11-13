@@ -172,6 +172,8 @@
     "concurrencyDesc": "CPU 模式下同时放大的图片数量",
     "gpuConcurrency": "GPU 并发数",
     "gpuConcurrencyDesc": "WebGPU 在单设备队列上排队执行，增加并发只会提高单图延迟，并不会提升吞吐",
+    "preloadWarmup": "空闲时预加载模型",
+    "preloadWarmupDesc": "队列空闲时提前为每个工作线程建立会话并跑一块预热瓦片，批量开始即可满速",
     "resetSection": "重置",
     "resetAll": "重置所有设置",
     "resetAllDesc": "清除所有设置并恢复默认值",

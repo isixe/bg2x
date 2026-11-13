@@ -97,7 +97,14 @@ export type LoadModelMessage = {
    * `modelData` is omitted when the bytes were broadcast ahead of time via a
    * `provide-model` SharedArrayBuffer; the worker then reads its shared copy.
    */
-  payload: { modelId: string; modelData?: ArrayBuffer; gpu?: boolean; numThreads?: number };
+  payload: {
+    modelId: string;
+    modelData?: ArrayBuffer;
+    gpu?: boolean;
+    numThreads?: number;
+    /** Run one dummy tile so kernels and arenas are ready before real work. */
+    warmup?: boolean;
+  };
 };
 
 /**

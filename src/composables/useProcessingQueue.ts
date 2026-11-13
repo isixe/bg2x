@@ -823,6 +823,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
 
   watch(effectiveConcurrency, () => requestPoolRebuild());
 
+  watch(
+    () => settings.preloadWarmup,
+    (enabled) => {
+      if (enabled) void preloadCachedModel();
+    },
+  );
+
   function invalidateSlotModels() {
     if (state.value.isProcessing) return;
     state.value.isModelLoaded = false;
@@ -1012,11 +1019,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     return configuredThreads > 0 ? configuredThreads : workerThreads(effectiveConcurrency.value);
   }
 
-  async function ensureSlotModel(slot: WorkerSlot): Promise<boolean> {
+  async function ensureSlotModel(slot: WorkerSlot, warmup = false): Promise<boolean> {
     if (slotModelReady(slot)) return true;
     if (slot.inflightLoad) return slot.inflightLoad;
 
-    slot.inflightLoad = doEnsureSlotModel(slot);
+    slot.inflightLoad = doEnsureSlotModel(slot, warmup);
     try {
       return await slot.inflightLoad;
     } finally {
@@ -1024,7 +1031,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     }
   }
 
-  async function doEnsureSlotModel(slot: WorkerSlot): Promise<boolean> {
+  async function doEnsureSlotModel(slot: WorkerSlot, warmup = false): Promise<boolean> {
     try {
       const modelId = options.model.value.id;
       const modelData = await ensureModelData();
@@ -1048,12 +1055,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         });
         slot.worker.postMessage({
           type: 'load-model',
-          payload: { modelId, gpu: options.gpu.value, numThreads: perWorkerThreads() },
+          payload: { modelId, gpu: options.gpu.value, numThreads: perWorkerThreads(), warmup },
         });
       } else {
         slot.worker.postMessage({
           type: 'load-model',
-          payload: { modelId, modelData, gpu: options.gpu.value, numThreads: perWorkerThreads() },
+          payload: {
+            modelId,
+            modelData,
+            gpu: options.gpu.value,
+            numThreads: perWorkerThreads(),
+            warmup,
+          },
         });
       }
       await waitForSlotModelLoaded(slot);
@@ -1073,19 +1086,18 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   }
 
   /**
-   * Warm up the first slot with the currently selected model as soon as it is
-   * already cached, so processing does not have to wait for the session to load.
+   * Warm every idle worker with the selected model once its bytes are cached, so a
+   * batch starts on ready sessions instead of loading them one worker at a time.
    * Best-effort: a failure here is swallowed and retried on demand.
    */
   async function preloadCachedModel(): Promise<void> {
     if (disposed || state.value.isProcessing) return;
-    const slot = slots[0];
-    if (!slot) return;
-    if (slotModelReady(slot)) return;
+    if (slots.length === 0) return;
 
     try {
       if (await isModelCached(options.model.value.id)) {
-        await ensureSlotModel(slot);
+        const pending = slots.filter((slot) => !slot.inflightLoad && !slotModelReady(slot));
+        await Promise.all(pending.map((slot) => ensureSlotModel(slot, settings.preloadWarmup)));
       }
     } catch {
       /* best-effort preload */
