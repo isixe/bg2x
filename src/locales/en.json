@@ -142,7 +142,7 @@
   },
   "preview": {
     "background": "Preview background",
-    "backgroundTransparent": "Transparent",
+    "backgroundMask": "Mask",
     "backgroundBlack": "Black",
     "backgroundWhite": "White",
     "backgroundCustom": "Custom color",

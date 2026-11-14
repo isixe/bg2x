@@ -142,7 +142,7 @@
   },
   "preview": {
     "background": "プレビューの背景",
-    "backgroundTransparent": "透過",
+    "backgroundMask": "マスク",
     "backgroundBlack": "黒",
     "backgroundWhite": "白",
     "backgroundCustom": "カスタムカラー",

@@ -142,7 +142,7 @@
   },
   "preview": {
     "background": "预览背景",
-    "backgroundTransparent": "透明",
+    "backgroundMask": "蒙版",
     "backgroundBlack": "黑色",
     "backgroundWhite": "白色",
     "backgroundCustom": "自定义颜色",

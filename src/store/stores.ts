@@ -100,7 +100,7 @@ export const useSettingsStore = defineStore(
     const filenameSuffix = ref('-upscaled');
     const concurrency = ref(DEFAULT_BATCH_CONCURRENCY);
     const preloadWarmup = ref(true);
-    const previewBackground = ref<PreviewBackground>('transparent');
+    const previewBackground = ref<PreviewBackground>('mask');
     const previewBackgroundColor = ref('#808080');
     const previewBackgroundPosition = ref<PreviewBackgroundPosition>('left');
     const keyboardMode = ref<KeyboardMode>('arrows');
@@ -181,6 +181,9 @@ export const useSettingsStore = defineStore(
             store.filenameSuffix = `-${suffix}`;
           }
           store.settingsVersion = 2;
+        }
+        if ((store.previewBackground as string) === 'transparent') {
+          store.previewBackground = 'mask';
         }
         store.concurrency = clampBatchConcurrency(store.concurrency);
       },

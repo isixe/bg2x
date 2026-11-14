@@ -59,7 +59,7 @@ export interface PreviewItem {
 
 export type ViewName = 'home' | 'upload' | 'history' | 'models';
 
-export type PreviewBackground = 'transparent' | 'black' | 'white' | 'custom' | 'image';
+export type PreviewBackground = 'mask' | 'black' | 'white' | 'custom' | 'image';
 
 export type PreviewBackgroundPosition = 'top' | 'bottom' | 'left' | 'right';
 

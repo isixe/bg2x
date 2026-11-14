@@ -1,7 +1,5 @@
 import type { PreviewBackground } from '../type';
 
-const CHECKER_TILE_LIGHT = '#e5e7eb';
-const CHECKER_TILE_DARK = '#334155';
 const SURFACE_LIGHT = '#f3f4f6';
 const SURFACE_DARK = '#1e293b';
 const FALLBACK_CUSTOM_COLOR = '#808080';
@@ -46,15 +44,8 @@ export function getPreviewBackgroundStyle(
     };
   }
 
-  const tile = isDarkMode ? CHECKER_TILE_DARK : CHECKER_TILE_LIGHT;
-  const checker = `linear-gradient(45deg, ${tile} 25%, transparent 25%, transparent 75%, ${tile} 75%)`;
-  return {
-    backgroundColor: surfaceColor,
-    backgroundImage: `${checker}, ${checker}`,
-    backgroundSize: '20px 20px',
-    backgroundPosition: '0 0, 10px 10px',
-    backgroundRepeat: 'repeat',
-  };
+  // mask: transparent so the dialog's dark overlay shows through, not a checkerboard
+  return solid('transparent');
 }
 
 function parseHex(hex: string): [number, number, number] | null {
@@ -95,5 +86,7 @@ export function isLightPreviewBackground(
     const luminance = getRelativeLuminance(customColor);
     return luminance === null ? true : luminance > 0.35;
   }
-  return !isDarkMode;
+  if (mode === 'image') return !isDarkMode;
+  // mask is always dark, regardless of the app theme
+  return false;
 }

@@ -13,7 +13,7 @@ export function usePreviewBackground() {
 
   const activeBackground = computed<PreviewBackground>(() =>
     settingsStore.previewBackground === 'image' && !backgroundImageUrl.value
-      ? 'transparent'
+      ? 'mask'
       : settingsStore.previewBackground,
   );
 
@@ -49,7 +49,7 @@ export function usePreviewBackground() {
   function clearImage() {
     releaseImage();
     if (settingsStore.previewBackground === 'image') {
-      settingsStore.setPreviewBackground('transparent');
+      settingsStore.setPreviewBackground('mask');
     }
   }
 

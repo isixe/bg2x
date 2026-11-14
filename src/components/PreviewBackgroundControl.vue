@@ -13,7 +13,7 @@ const { activeBackground, hasImage, isLight, setImage, clearImage } = usePreview
 const fileInput = ref<HTMLInputElement | null>(null);
 
 const SWATCHES = [
-  { mode: 'transparent', label: 'preview.backgroundTransparent' },
+  { mode: 'mask', label: 'preview.backgroundMask' },
   { mode: 'black', label: 'preview.backgroundBlack' },
   { mode: 'white', label: 'preview.backgroundWhite' },
 ] as const;
@@ -335,20 +335,9 @@ function onImageChange(event: Event) {
   outline-offset: 1px;
 }
 
-.swatch-transparent {
-  background-color: #fff;
-  border-color: rgba(0, 0, 0, 0.15);
-  background-image:
-    linear-gradient(45deg, #cbd5e1 25%, transparent 25%),
-    linear-gradient(-45deg, #cbd5e1 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #cbd5e1 75%),
-    linear-gradient(-45deg, transparent 75%, #cbd5e1 75%);
-  background-size: 5px 5px;
-  background-position:
-    0 0,
-    0 2.5px,
-    2.5px -2.5px,
-    -2.5px 0;
+.swatch-mask {
+  background-color: rgba(0, 0, 0, 0.65);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .swatch-black {
