@@ -162,7 +162,7 @@
     "languageDesc": "选择您偏好的语言",
     "historySection": "历史记录",
     "persistHistory": "持久化历史记录",
-    "persistHistoryDesc": "在浏览器中保留生成的结果以便下次访问",
+    "persistHistoryDesc": "关闭时缓存只保留到本次会话结束；开启后永久保存，最多保留 50 条记录",
     "exportSection": "导出",
     "exportMode": "导出模式",
     "exportModeDesc": "批量下载时的打包方式",

@@ -162,7 +162,7 @@
     "languageDesc": "Select your preferred language",
     "historySection": "History",
     "persistHistory": "Persist history records",
-    "persistHistoryDesc": "Keep generated results in your browser between sessions",
+    "persistHistoryDesc": "Off: cached until this session ends. On: kept permanently, up to 50 records",
     "exportSection": "Export",
     "exportMode": "Export mode",
     "exportModeDesc": "How batch downloads are packaged",

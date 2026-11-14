@@ -21,10 +21,6 @@ export interface HistoryRecord {
   resultSize: { width: number; height: number };
   modelId: string;
   modelName: string;
-  /** True when the full-resolution original and result blobs live in the image store. */
-  hasCache?: boolean;
-  /** True when a preview thumbnail blob lives in the image store. */
-  hasThumbnail?: boolean;
 }
 
 export interface FetchModelBytesOptions {

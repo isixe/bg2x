@@ -162,7 +162,7 @@
     "languageDesc": "希望の言語を選択してください",
     "historySection": "履歴",
     "persistHistory": "履歴を保存",
-    "persistHistoryDesc": "生成した結果をブラウザに保存して次回も利用します",
+    "persistHistoryDesc": "オフ: このセッションの終了まで保持。オン: 最大 50 件まで永続保存",
     "exportSection": "エクスポート",
     "exportMode": "エクスポートモード",
     "exportModeDesc": "一括ダウンロード時のパッケージ方法",

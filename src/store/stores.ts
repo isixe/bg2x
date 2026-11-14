@@ -15,9 +15,13 @@ import {
   clearImageStore,
   deleteHistoryImages,
   getImageBlob,
+  hasImageKey,
   historyImageKey,
+  historyRecordIdFromKey,
   persistImageBlob,
   rekeyImage,
+  setHistoryImagesEvictedHandler,
+  snapshotImageBlob,
 } from '../utils/imageStore';
 import { createThumbnailBlob } from '../utils/thumbnail';
 
@@ -113,6 +117,20 @@ export const useSettingsStore = defineStore(
 
     function setHistoryPersist(enabled: boolean) {
       historyPersist.value = enabled;
+      if (typeof localStorage === 'undefined') return;
+      if (enabled) {
+        // 打开开关时立刻把本次会话已有的记录写一次，否则它们要等到下次变更才落盘。
+        const history = useHistoryStore();
+        history.records = [...history.records];
+        return;
+      }
+      // 关闭持久化后，已写进 localStorage 的元数据要删掉：否则重新开启时
+      // 会复活一批图片早已被清理的空记录。
+      try {
+        localStorage.removeItem('image-super-resolution-history');
+      } catch {
+        // storage unavailable - keep memory state only
+      }
     }
 
     function setExportMode(mode: ExportMode) {
@@ -214,20 +232,48 @@ const conditionalHistoryStorage = {
   },
 };
 
-async function moveIntoHistoryScope(fromUrl: string, key: string): Promise<boolean> {
-  if (await rekeyImage(fromUrl, key, 'history')) return true;
-  try {
-    const blob = await getImageBlob(fromUrl);
-    return await persistImageBlob(key, blob, 'history');
-  } catch {
-    return false;
-  }
-}
+async function persistHistoryImages(
+  recordId: string,
+  sourceBlob: Blob,
+  resultUrl: string,
+): Promise<boolean> {
+  const originalKey = historyImageKey(recordId, 'original');
+  const resultKey = historyImageKey(recordId, 'result');
+  const thumbKey = historyImageKey(recordId, 'thumb');
 
-async function persistHistoryThumbnail(recordId: string, source: Blob): Promise<boolean> {
+  // File 句柄可能已被用户移动或删除，先快照成 Blob；读不出来就放弃这条记录。
+  let source = sourceBlob;
+  if (source instanceof File) {
+    try {
+      source = await snapshotImageBlob(source);
+    } catch {
+      return false;
+    }
+  }
+
+  if (!(await persistImageBlob(originalKey, source, 'history'))) return false;
+
+  // 结果图已在会话缓存里，换 key 即可，避免把几十 MB 再写一遍。
+  const moved = await rekeyImage(resultUrl, resultKey, 'history');
+  if (!moved) {
+    try {
+      const resultBlob = await getImageBlob(resultUrl);
+      if (!(await persistImageBlob(resultKey, resultBlob, 'history'))) return false;
+    } catch {
+      return false;
+    }
+  }
+
   const thumbnail = await createThumbnailBlob(source);
   if (!thumbnail) return false;
-  return persistImageBlob(historyImageKey(recordId, 'thumb'), thumbnail, 'history');
+  if (!(await persistImageBlob(thumbKey, thumbnail, 'history'))) return false;
+
+  const stored = await Promise.all([
+    hasImageKey(originalKey),
+    hasImageKey(resultKey),
+    hasImageKey(thumbKey),
+  ]);
+  return stored.every(Boolean);
 }
 
 export const useHistoryStore = defineStore(
@@ -235,16 +281,29 @@ export const useHistoryStore = defineStore(
   () => {
     const records = ref<HistoryRecord[]>([]);
 
+    setHistoryImagesEvictedHandler((keys) => {
+      const evicted = new Set(keys.map(historyRecordIdFromKey));
+      if (evicted.size === 0) return;
+      records.value = records.value.filter((record) => !evicted.has(record.id));
+      evicted.forEach((id) => void deleteHistoryImages(id));
+    });
+
+    function trimRecords() {
+      if (records.value.length <= MAX_RECORDS) return;
+      const dropped = records.value.slice(MAX_RECORDS);
+      records.value = records.value.slice(0, MAX_RECORDS);
+      dropped.forEach((record) => void deleteHistoryImages(record.id));
+    }
+
     async function addRecord(params: {
       file: File;
       sourceBlob: Blob;
-      originalUrl: string;
-      resultUrl: string;
       originalSize: { width: number; height: number };
       resultSize: { width: number; height: number };
       modelId: string;
       modelName: string;
-    }): Promise<HistoryRecord> {
+      resultUrl: string;
+    }): Promise<HistoryRecord | null> {
       const record: HistoryRecord = {
         id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         timestamp: Date.now(),
@@ -255,37 +314,44 @@ export const useHistoryStore = defineStore(
         modelName: params.modelName,
       };
 
-      if (useSettingsStore().historyPersist) {
-        const originalKey = historyImageKey(record.id, 'original');
-        const original =
-          (await moveIntoHistoryScope(params.originalUrl, originalKey)) ||
-          (await persistImageBlob(originalKey, params.sourceBlob, 'history'));
-        const result = await moveIntoHistoryScope(
-          params.resultUrl,
-          historyImageKey(record.id, 'result'),
-        );
-        record.hasCache = original && result;
-        record.hasThumbnail = await persistHistoryThumbnail(record.id, params.sourceBlob);
+      if (!(await persistHistoryImages(record.id, params.sourceBlob, params.resultUrl))) {
+        await deleteHistoryImages(record.id);
+        return null;
       }
 
       records.value.unshift(record);
-      if (records.value.length > MAX_RECORDS) {
-        const dropped = records.value.slice(MAX_RECORDS);
-        records.value = records.value.slice(0, MAX_RECORDS);
-        dropped.forEach((r) => void deleteHistoryImages(r.id));
-      }
+      trimRecords();
 
       return record;
     }
 
     function removeRecord(id: string) {
-      records.value = records.value.filter((r) => r.id !== id);
+      records.value = records.value.filter((record) => record.id !== id);
       void deleteHistoryImages(id);
     }
 
     function clearHistory() {
       records.value = [];
       void clearHistoryScope();
+    }
+
+    // 记录只能在三份图片都还在库里时出现：配额淘汰或浏览器清理存储后，
+    // 残留的元数据要在这里对掉。
+    async function reconcileHistory(): Promise<void> {
+      const missing = new Set<string>();
+      await Promise.all(
+        records.value.map(async (record) => {
+          const parts = ['original', 'result', 'thumb'] as const;
+          const present = await Promise.all(
+            parts.map((part) => hasImageKey(historyImageKey(record.id, part))),
+          );
+          if (present.some((ok) => !ok)) missing.add(record.id);
+        }),
+      );
+
+      if (missing.size === 0) return;
+      records.value = records.value.filter((record) => !missing.has(record.id));
+      await Promise.all([...missing].map((id) => deleteHistoryImages(id)));
     }
 
     function formatTimestamp(ts: number): string {
@@ -299,7 +365,14 @@ export const useHistoryStore = defineStore(
       return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
     }
 
-    return { records, addRecord, removeRecord, clearHistory, formatTimestamp };
+    return {
+      records,
+      addRecord,
+      removeRecord,
+      clearHistory,
+      reconcileHistory,
+      formatTimestamp,
+    };
   },
   {
     persist: {

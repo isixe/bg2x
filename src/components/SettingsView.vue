@@ -86,6 +86,11 @@ function onExportModeChange(value: string) {
   settingsStore.setExportMode(value as ExportMode);
 }
 
+function onHistoryPersistChange(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  if (target) settingsStore.setHistoryPersist(target.checked);
+}
+
 function onConcurrencyChange(value: string) {
   settingsStore.setConcurrency(Number(value));
 }
@@ -153,7 +158,11 @@ function confirmReset() {
               <span class="setting-desc">{{ t('settings.persistHistoryDesc') }}</span>
             </div>
             <label class="toggle-switch">
-              <input v-model="settingsStore.historyPersist" type="checkbox" />
+              <input
+                :checked="settingsStore.historyPersist"
+                type="checkbox"
+                @change="onHistoryPersistChange"
+              />
               <span class="toggle-slider"></span>
             </label>
           </div>

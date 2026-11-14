@@ -3,7 +3,7 @@
 // 内存只留最近几张做 LRU，避免队列里图片很多时把堆撑爆。
 //
 // 同一份字节可能同时被队列和历史记录引用，因此记录带 scope：
-// session 会按时间与配额淘汰，history 一直保留到用户显式删除。
+// session 会按时间与配额淘汰；history 由调用方决定生命周期（关闭持久化时每次启动清空）。
 
 const DB_NAME = 'super-resolution-image-store';
 const DB_VERSION = 1;
@@ -175,15 +175,45 @@ interface EvictOptions {
   skipKey?: string;
 }
 
+let historyEvictionHandler: ((keys: string[]) => void) | null = null;
+
+// 历史图片被淘汰后，元数据必须同步消失，否则列表里会留下点不开的空记录。
+export function setHistoryImagesEvictedHandler(handler: ((keys: string[]) => void) | null): void {
+  historyEvictionHandler = handler;
+}
+
+export function historyRecordIdFromKey(key: string): string {
+  const separator = key.indexOf(':');
+  return separator === -1 ? key : key.slice(0, separator);
+}
+
+export async function hasImageKey(key: string): Promise<boolean> {
+  return (await readBlobFromDB(key)) !== null;
+}
+
 async function evictRecords(options: EvictOptions): Promise<number> {
   const db = await openDB();
   if (!db) return 0;
 
   const deadline = options.maxAgeMs === undefined ? null : Date.now() - options.maxAgeMs;
+  // 历史记录按三张图算一组：淘汰时不能只删掉同一组里的某一张。
+  const skipRecordId =
+    options.scope === 'history' && options.skipKey ? historyRecordIdFromKey(options.skipKey) : null;
 
   return new Promise<number>((resolve) => {
     const candidates: StoredImage[] = [];
-    let removed = 0;
+    const removedKeys: string[] = [];
+    let settled = false;
+
+    const finish = (count: number) => {
+      if (settled) return;
+      settled = true;
+      if (options.scope === 'history' && removedKeys.length > 0) {
+        historyEvictionHandler?.([...removedKeys]);
+      }
+      resolve(count);
+    };
+
     try {
       const transaction = db.transaction(STORE_NAME, 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
@@ -193,7 +223,11 @@ async function evictRecords(options: EvictOptions): Promise<number> {
         const cursor = request.result;
         if (!cursor) {
           const matched = candidates
-            .filter((record) => record.key !== options.skipKey)
+            .filter(
+              (record) =>
+                record.key !== options.skipKey &&
+                (skipRecordId === null || historyRecordIdFromKey(record.key) !== skipRecordId),
+            )
             .sort((a, b) => a.createdAt - b.createdAt);
           const dropCount =
             deadline === null
@@ -202,7 +236,7 @@ async function evictRecords(options: EvictOptions): Promise<number> {
           for (const record of matched.slice(0, dropCount)) {
             store.delete(record.key);
             dropKeyHandles(record.key);
-            removed += 1;
+            removedKeys.push(record.key);
           }
           return;
         }
@@ -212,11 +246,11 @@ async function evictRecords(options: EvictOptions): Promise<number> {
         }
         cursor.continue();
       };
-      transaction.oncomplete = () => resolve(removed);
-      transaction.onerror = () => resolve(removed);
-      transaction.onabort = () => resolve(removed);
+      transaction.oncomplete = () => finish(removedKeys.length);
+      transaction.onerror = () => finish(removedKeys.length);
+      transaction.onabort = () => finish(removedKeys.length);
     } catch {
-      resolve(removed);
+      finish(0);
     }
   });
 }

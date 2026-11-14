@@ -32,7 +32,11 @@ function releaseThumbUrls() {
 async function loadThumbnail(record: HistoryRecord) {
   if (thumbUrls.value[record.id]) return;
   const blob = await getImageBlob(historyImageKey(record.id, 'thumb')).catch(() => null);
-  if (!blob) return;
+  if (!blob) {
+    // 缩略图读不出来说明这条记录的缓存已经没了：元数据一并清掉，不留空条目。
+    removeRecord(record.id);
+    return;
+  }
   if (!historyRecords.value.some((entry) => entry.id === record.id)) return;
   thumbUrls.value[record.id] = URL.createObjectURL(blob);
 }
@@ -49,7 +53,7 @@ watch(
       delete thumbUrls.value[id];
     }
     historyRecords.value.forEach((record) => {
-      if (record.hasThumbnail) void loadThumbnail(record);
+      void loadThumbnail(record);
     });
   },
   { immediate: true },
@@ -65,26 +69,21 @@ async function openHistoryPreview(record: HistoryRecord) {
   const token = (previewToken += 1);
   revokeCreatedUrls();
 
-  let originalUrl = thumbUrls.value[record.id] ?? '';
-  let resultUrl = '';
+  const [original, result] = await Promise.all([
+    getImageBlob(historyImageKey(record.id, 'original')).catch(() => null),
+    getImageBlob(historyImageKey(record.id, 'result')).catch(() => null),
+  ]);
+  if (token !== previewToken) return;
 
-  if (record.hasCache) {
-    const [original, result] = await Promise.all([
-      getImageBlob(historyImageKey(record.id, 'original')).catch(() => null),
-      getImageBlob(historyImageKey(record.id, 'result')).catch(() => null),
-    ]);
-    if (token !== previewToken) return;
-    if (original) {
-      originalUrl = URL.createObjectURL(original);
-      createdUrls.push(originalUrl);
-    }
-    if (result) {
-      resultUrl = URL.createObjectURL(result);
-      createdUrls.push(resultUrl);
-    }
+  // 预览必须由 IndexedDB 里的原图与结果重建；缺任何一张就整条记录作废。
+  if (!original || !result) {
+    removeRecord(record.id);
+    return;
   }
 
-  if (token !== previewToken) return;
+  const originalUrl = URL.createObjectURL(original);
+  const resultUrl = URL.createObjectURL(result);
+  createdUrls.push(originalUrl, resultUrl);
 
   historyPreview.value = {
     id: record.id,
@@ -178,7 +177,6 @@ onUnmounted(() => {
             <span class="history-meta">{{ record.modelName }}</span>
           </div>
           <button
-            v-if="record.hasCache"
             type="button"
             class="history-download"
             :title="t('history.download')"
@@ -373,13 +371,21 @@ onUnmounted(() => {
   transition: opacity 0.15s ease;
 }
 
-.history-item:hover .history-delete {
+.history-item:hover .history-delete,
+.history-item:focus-within .history-delete {
   opacity: 1;
 }
 
 .history-delete:hover {
   background: rgba(220, 38, 38, 0.08);
   color: #dc2626;
+}
+
+/* touch devices have no hover, so the delete button must stay visible */
+@media (hover: none) {
+  .history-delete {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 768px) {
