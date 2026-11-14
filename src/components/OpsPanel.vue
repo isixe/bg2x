@@ -45,6 +45,11 @@ const FORMATS: DownloadFormat[] = ['png', 'jpeg', 'webp'];
 const format = ref<DownloadFormat>('png');
 const modelStore = useModelStore();
 const modelGroups = computed(() => groupModelsForDisplay(modelStore.favoriteModelIds));
+const collapsedGroups = ref<Record<string, boolean>>({});
+
+function toggleGroup(key: string) {
+  collapsedGroups.value[key] = !collapsedGroups.value[key];
+}
 
 function pickFormat(value: DownloadFormat) {
   format.value = value;
@@ -129,11 +134,19 @@ function pickFormat(value: DownloadFormat) {
         <SelectTrigger>
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent class="w-[max(400px,var(--reka-select-trigger-width))]">
           <SelectGroup v-for="group in modelGroups" :key="group.key">
-            <SelectLabel class="model-group-label">{{ t(group.key) }}</SelectLabel>
+            <SelectLabel class="model-group-label" @click.stop="toggleGroup(group.key)">
+              <ChevronDown
+                :size="13"
+                class="model-group-chevron"
+                :class="{ 'is-collapsed': collapsedGroups[group.key] }"
+              />
+              {{ t(group.key) }}
+            </SelectLabel>
             <SelectItem
               v-for="model in group.models"
+              v-show="!collapsedGroups[group.key]"
               :key="model.id"
               :value="model.id"
               raw
@@ -355,12 +368,30 @@ function pickFormat(value: DownloadFormat) {
 }
 
 .model-group-label {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   padding: 0.375rem 0.5rem 0.25rem;
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--color-gray-dark);
+  cursor: pointer;
+  user-select: none;
+}
+
+.model-group-label:hover {
+  color: var(--color-primary);
+}
+
+.model-group-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.model-group-chevron.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .model-fav {

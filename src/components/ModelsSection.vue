@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { groupModelsForDisplay } from '../composables/useModelRegistry';
 import type { ModelEntry } from '../type';
 import {
@@ -12,7 +12,7 @@ import {
 import { useModelStore } from '../store/stores';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { Check, ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
+import { Check, ChevronDown, ChevronRight, Download, Star, Trash2 } from 'lucide-vue-next';
 
 const props = withDefaults(
   defineProps<{
@@ -35,6 +35,11 @@ const defaultModelId = computed(() => modelStore.defaultModelId);
 const favoriteIds = computed(() => modelStore.favoriteModelIds);
 
 const groups = computed(() => groupModelsForDisplay(favoriteIds.value));
+const collapsedGroups = ref<Record<string, boolean>>({});
+
+function toggleGroup(key: string) {
+  collapsedGroups.value[key] = !collapsedGroups.value[key];
+}
 
 onMounted(async () => {
   await refreshModelDownloadStates();
@@ -91,11 +96,21 @@ function goToModels() {
     </div>
 
     <div v-for="group in groups" :key="group.key" class="model-group">
-      <div class="group-header">
+      <button
+        type="button"
+        class="group-header"
+        :aria-expanded="!collapsedGroups[group.key]"
+        @click="toggleGroup(group.key)"
+      >
+        <ChevronDown
+          :size="14"
+          class="group-chevron"
+          :class="{ 'is-collapsed': collapsedGroups[group.key] }"
+        />
         <span class="group-label">{{ t(group.key) }}</span>
         <span v-if="group.descKey" class="group-desc">{{ t(group.descKey) }}</span>
-      </div>
-      <div class="model-list">
+      </button>
+      <div v-show="!collapsedGroups[group.key]" class="model-list">
         <div
           v-for="model in group.models"
           :key="model.id"
@@ -243,18 +258,49 @@ function goToModels() {
   gap: 0.5rem;
 }
 
+.model-group + .model-group {
+  margin-top: 1rem;
+}
+
 .group-header {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.25rem 0.5rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-header:hover .group-label,
+.group-header:hover .group-chevron {
+  color: var(--color-primary);
+}
+
+.group-chevron {
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--color-gray-dark);
+  transition:
+    transform 0.15s ease,
+    color 0.15s ease;
+}
+
+.group-chevron.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .group-label {
-  font-size: 0.75rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   letter-spacing: 0.03em;
-  color: var(--color-gray-dark);
+  color: var(--color-dark);
 }
 
 .group-desc {
