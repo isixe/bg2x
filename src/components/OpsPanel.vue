@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { ChevronDown, Download, ImagePlus, RotateCcw, Star } from 'lucide-vue-next';
-import { SelectItemText } from 'reka-ui';
+import { SelectGroup, SelectItemText, SelectLabel } from 'reka-ui';
 import { useI18n } from 'vue-i18n';
-import { sortModelsByFavorites } from '../composables/useModelRegistry';
+import { groupModelsForDisplay } from '../composables/useModelRegistry';
 import { modelDownloadStates } from '../composables/useModelDownloads';
 import { useModelStore } from '../store/stores';
 import type { DownloadFormat } from '../composables/useProcessingQueue';
@@ -44,7 +44,7 @@ const FORMATS: DownloadFormat[] = ['png', 'jpeg', 'webp'];
 
 const format = ref<DownloadFormat>('png');
 const modelStore = useModelStore();
-const sortedModels = computed(() => sortModelsByFavorites(modelStore.favoriteModelIds));
+const modelGroups = computed(() => groupModelsForDisplay(modelStore.favoriteModelIds));
 
 function pickFormat(value: DownloadFormat) {
   format.value = value;
@@ -130,50 +130,56 @@ function pickFormat(value: DownloadFormat) {
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem
-            v-for="model in sortedModels"
-            :key="model.id"
-            :value="model.id"
-            raw
-            class="items-start gap-2 py-2 pr-8"
-          >
-            <button
-              type="button"
-              class="model-fav"
-              :class="{ 'is-active': modelStore.isFavorite(model.id) }"
-              :title="
-                modelStore.isFavorite(model.id)
-                  ? t('models.removeFavorite')
-                  : t('models.addFavorite')
-              "
-              @pointerdown.stop
-              @pointerup.stop
-              @click.stop="modelStore.toggleFavorite(model.id)"
+          <SelectGroup v-for="group in modelGroups" :key="group.key">
+            <SelectLabel class="model-group-label">{{ t(group.key) }}</SelectLabel>
+            <SelectItem
+              v-for="model in group.models"
+              :key="model.id"
+              :value="model.id"
+              raw
+              class="items-start gap-2 py-2 pr-8"
             >
-              <Star :size="15" :fill="modelStore.isFavorite(model.id) ? 'currentColor' : 'none'" />
-            </button>
-            <span class="model-item-body">
-              <SelectItemText class="model-item-title">
-                {{ model.name }}
-                <span class="model-item-size">{{
-                  t('models.sizeApprox', { size: model.sizeMB })
-                }}</span>
-              </SelectItemText>
-              <span class="model-item-desc">{{ t(model.descKey) }}</span>
-              <span class="model-item-output">
-                <span>{{ t('models.upscale', { scale: model.scale }) }}</span>
-                <span v-if="modelDownloadStates[model.id]?.cached" class="model-item-cached">
-                  {{ t('home.downloaded') }}
-                </span>
-                <span
-                  v-else-if="modelDownloadStates[model.id]?.downloading"
-                  class="model-item-downloading"
-                >
-                  {{ t('home.downloading') }}
+              <button
+                type="button"
+                class="model-fav"
+                :class="{ 'is-active': modelStore.isFavorite(model.id) }"
+                :title="
+                  modelStore.isFavorite(model.id)
+                    ? t('models.removeFavorite')
+                    : t('models.addFavorite')
+                "
+                @pointerdown.stop
+                @pointerup.stop
+                @click.stop="modelStore.toggleFavorite(model.id)"
+              >
+                <Star
+                  :size="15"
+                  :fill="modelStore.isFavorite(model.id) ? 'currentColor' : 'none'"
+                />
+              </button>
+              <span class="model-item-body">
+                <SelectItemText class="model-item-title">
+                  {{ model.name }}
+                  <span class="model-item-size">{{
+                    t('models.sizeApprox', { size: model.sizeMB })
+                  }}</span>
+                </SelectItemText>
+                <span class="model-item-desc">{{ t(model.descKey) }}</span>
+                <span class="model-item-output">
+                  <span>{{ t('models.upscale', { scale: model.scale }) }}</span>
+                  <span v-if="modelDownloadStates[model.id]?.cached" class="model-item-cached">
+                    {{ t('home.downloaded') }}
+                  </span>
+                  <span
+                    v-else-if="modelDownloadStates[model.id]?.downloading"
+                    class="model-item-downloading"
+                  >
+                    {{ t('home.downloading') }}
+                  </span>
                 </span>
               </span>
-            </span>
-          </SelectItem>
+            </SelectItem>
+          </SelectGroup>
         </SelectContent>
       </Select>
     </div>
@@ -346,6 +352,15 @@ function pickFormat(value: DownloadFormat) {
   font-size: 0.6875rem;
   color: var(--color-gray-dark);
   margin: 0;
+}
+
+.model-group-label {
+  padding: 0.375rem 0.5rem 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-gray-dark);
 }
 
 .model-fav {

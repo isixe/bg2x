@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { sortModelsByFavorites } from '../composables/useModelRegistry';
+import { groupModelsForDisplay } from '../composables/useModelRegistry';
 import type { ModelEntry } from '../type';
 import {
   cancelModelDownload,
@@ -34,15 +34,7 @@ const modelStates = modelDownloadStates;
 const defaultModelId = computed(() => modelStore.defaultModelId);
 const favoriteIds = computed(() => modelStore.favoriteModelIds);
 
-const groups = computed(() => {
-  const sorted = sortModelsByFavorites(favoriteIds.value);
-  const favorites = sorted.filter((m) => favoriteIds.value.includes(m.id));
-  if (favorites.length === 0) return [{ key: '', models: sorted }];
-  return [
-    { key: 'models.favorites', models: favorites },
-    { key: 'models.others', models: sorted.filter((m) => !favoriteIds.value.includes(m.id)) },
-  ];
-});
+const groups = computed(() => groupModelsForDisplay(favoriteIds.value));
 
 onMounted(async () => {
   await refreshModelDownloadStates();
@@ -99,7 +91,10 @@ function goToModels() {
     </div>
 
     <div v-for="group in groups" :key="group.key" class="model-group">
-      <span v-if="group.key" class="group-label">{{ t(group.key) }}</span>
+      <div class="group-header">
+        <span class="group-label">{{ t(group.key) }}</span>
+        <span v-if="group.descKey" class="group-desc">{{ t(group.descKey) }}</span>
+      </div>
       <div class="model-list">
         <div
           v-for="model in group.models"
@@ -248,11 +243,24 @@ function goToModels() {
   gap: 0.5rem;
 }
 
+.group-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+}
+
 .group-label {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   color: var(--color-gray-dark);
+}
+
+.group-desc {
+  font-size: 0.75rem;
+  color: var(--color-gray-dark);
+  opacity: 0.85;
 }
 
 .model-list {

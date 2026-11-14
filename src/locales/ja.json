@@ -80,11 +80,20 @@
     "upscale": "{scale}x 拡大",
     "more": "もっと見る",
     "favorites": "お気に入り",
-    "others": "その他のモデル",
     "addFavorite": "お気に入りに追加",
     "removeFavorite": "お気に入りから削除",
     "sizeApprox": "~{size}MB",
     "selected": "使用中"
+  },
+  "modelGroup": {
+    "realesrgan": "Real-ESRGAN 汎用シリーズ",
+    "realesrganDesc": "実写写真や日常的な画像向けの汎用4倍モデル。",
+    "realesrganAnime": "Real-ESRGAN アニメシリーズ",
+    "realesrganAnimeDesc": "アニメやイラスト向けに調整。クリーンな線と平坦な色を保ちます。",
+    "swin2sr": "Swin2SR シリーズ",
+    "swin2srDesc": "劣化の種類に合わせたTransformerベースの超解像モデル。",
+    "realcugan": "Real-CUGAN シリーズ",
+    "realcuganDesc": "アニメ向け超解像。線の保持とノイズ除去に優れます。"
   },
   "modelDesc": {
     "animevideov3": "軽量なアニメ/動画向け超解像。最速で、アニメのフレームや線のきれいなイラストに適し、細部の復元は弱め。",

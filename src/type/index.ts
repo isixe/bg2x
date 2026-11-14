@@ -1,3 +1,13 @@
+export type ModelGroupId = 'real-esrgan' | 'real-esrgan-anime' | 'swin2sr' | 'real-cugan';
+
+export interface ModelGroup {
+  id: ModelGroupId;
+  /** i18n key for the series name (e.g. `modelGroup.realesrgan`). */
+  nameKey: string;
+  /** i18n key for the one-line series description. */
+  descKey: string;
+}
+
 export interface ModelEntry {
   id: string;
   name: string;
@@ -11,6 +21,7 @@ export interface ModelEntry {
   scale: number;
   descKey: string;
   sizeMB: number;
+  group: ModelGroupId;
 }
 
 export interface HistoryRecord {

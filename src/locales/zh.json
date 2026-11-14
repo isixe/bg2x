@@ -80,11 +80,20 @@
     "upscale": "{scale}x 放大",
     "more": "更多",
     "favorites": "收藏",
-    "others": "其他模型",
     "addFavorite": "收藏",
     "removeFavorite": "取消收藏",
     "sizeApprox": "~{size}MB",
     "selected": "当前使用"
+  },
+  "modelGroup": {
+    "realesrgan": "Real-ESRGAN 通用系列",
+    "realesrganDesc": "通用 4x 超分模型，适合真实照片与日常图像。",
+    "realesrganAnime": "Real-ESRGAN 动漫系列",
+    "realesrganAnimeDesc": "针对动漫与插画优化，保留干净线条与纯色块。",
+    "swin2sr": "Swin2SR 系列",
+    "swin2srDesc": "基于 Transformer 的超分模型，针对不同退化类型。",
+    "realcugan": "Real-CUGAN 系列",
+    "realcuganDesc": "动漫专用超分模型，线条保留与降噪表现优秀。"
   },
   "modelDesc": {
     "animevideov3": "轻量级动漫/视频超分模型，速度最快，适合动画帧与线条干净的插画，细节恢复较弱。",

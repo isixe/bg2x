@@ -80,11 +80,20 @@
     "upscale": "{scale}x upscale",
     "more": "More",
     "favorites": "Favorites",
-    "others": "All models",
     "addFavorite": "Add to favorites",
     "removeFavorite": "Remove from favorites",
     "sizeApprox": "~{size}MB",
     "selected": "In use"
+  },
+  "modelGroup": {
+    "realesrgan": "Real-ESRGAN General",
+    "realesrganDesc": "General-purpose 4x models for real-world photos and everyday images.",
+    "realesrganAnime": "Real-ESRGAN Anime",
+    "realesrganAnimeDesc": "Tuned for anime and illustrations; keeps clean edges and flat colors.",
+    "swin2sr": "Swin2SR",
+    "swin2srDesc": "Transformer-based upscalers targeting different degradation types.",
+    "realcugan": "Real-CUGAN",
+    "realcuganDesc": "Anime-focused upscaler with strong line preservation and denoising."
   },
   "modelDesc": {
     "animevideov3": "Lightweight anime/video upscaler. Fastest option; good for animation frames and clean line art, weaker on fine detail.",
