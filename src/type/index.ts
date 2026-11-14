@@ -22,6 +22,13 @@ export interface ModelEntry {
   descKey: string;
   sizeMB: number;
   group: ModelGroupId;
+  /**
+   * Edge length of the square inference tile, in source pixels. Larger tiles cut
+   * the fraction of re-computed border pixels and let the network see more
+   * context per pass, at the cost of peak memory. Omit to use the default (256).
+   * Must be a multiple of 64 — Swin2SR's window granularity.
+   */
+  tileSize?: number;
 }
 
 export interface HistoryRecord {
@@ -117,6 +124,12 @@ export type LoadModelMessage = {
     numThreads?: number;
     /** Run one dummy tile so kernels and arenas are ready before real work. */
     warmup?: boolean;
+    /**
+     * Tile edge length for this model's warm-up and every following job. Passed
+     * here (not per job) so the warm-up uses the exact shape inference will use.
+     * Omit to keep the current size, defaulting to 256.
+     */
+    tileSize?: number;
   };
 };
 

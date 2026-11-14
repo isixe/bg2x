@@ -1073,7 +1073,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         });
         slot.worker.postMessage({
           type: 'load-model',
-          payload: { modelId, gpu: options.gpu.value, numThreads: perWorkerThreads(), warmup },
+          payload: {
+            modelId,
+            gpu: options.gpu.value,
+            numThreads: perWorkerThreads(),
+            warmup,
+            tileSize: options.model.value.tileSize,
+          },
         });
       } else {
         slot.worker.postMessage({
@@ -1084,6 +1090,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             gpu: options.gpu.value,
             numThreads: perWorkerThreads(),
             warmup,
+            tileSize: options.model.value.tileSize,
           },
         });
       }

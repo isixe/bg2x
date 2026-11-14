@@ -29,6 +29,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         scale: 4,
         descKey: 'modelDesc.generalX4v3',
         sizeMB: 4.9,
+        tileSize: 512,
       },
       {
         id: 'real-esrgan-x4plus',
@@ -57,6 +58,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         scale: 4,
         descKey: 'modelDesc.animevideov3',
         sizeMB: 2.5,
+        tileSize: 512,
       },
       {
         id: 'real-esrgan-x4plus-anime',
@@ -146,6 +148,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         scale: 2,
         descKey: 'modelDesc.realcugan2x',
         sizeMB: 5.2,
+        tileSize: 384,
       },
     ],
   },

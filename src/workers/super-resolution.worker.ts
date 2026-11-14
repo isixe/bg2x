@@ -20,15 +20,29 @@ console.log(
 // wasm32 int32 tensor limits (SafeIntOnOverflow in safeint.h) for anything
 // bigger than ~0.5MP and pins the GPU with a huge allocation. We now run the
 // network over overlapping tiles and blend them back, so each inference stays
-// small and safe regardless of input size. TILE_SIZE is a multiple of 64 (the
-// granularity Swin2SR needs) so tiles stay aligned; the overlap is feathered so
-// the seams are invisible.
-const TILE_SIZE = 256;
+// small and safe regardless of input size. Tile edges are kept on a multiple of
+// 64 (the granularity Swin2SR needs) so tiles stay aligned; the overlap is
+// feathered so the seams are invisible. Small networks override the default tile
+// size via their model entry — a larger tile shrinks the re-computed border.
+const DEFAULT_TILE_SIZE = 256;
+// Swin2SR only accepts sizes on this granularity; the tile edge must stay a multiple.
+const TILE_SIZE_GRANULARITY = 64;
+const MAX_TILE_SIZE = 1024;
 // 16px of source overlap is enough for the feathered blend to hide seams while
 // roughly halving the re-computed border pixels versus a 32px overlap
 // ((256/240)² ≈ 1.14 vs (256/224)² ≈ 1.31 → ~13% fewer pixels overall).
 const TILE_OVERLAP = 16;
-const TILE_STEP = TILE_SIZE - TILE_OVERLAP;
+
+/**
+ * Snap a requested tile edge to a size the networks accept. Anything missing or
+ * non-finite keeps the default; the result is always a multiple of
+ * TILE_SIZE_GRANULARITY and bounded so one tile's buffers cannot exhaust memory.
+ */
+function normalizeTileSize(size?: number): number {
+  if (size == null || !Number.isFinite(size)) return DEFAULT_TILE_SIZE;
+  const snapped = Math.round(size / TILE_SIZE_GRANULARITY) * TILE_SIZE_GRANULARITY;
+  return Math.min(MAX_TILE_SIZE, Math.max(TILE_SIZE_GRANULARITY, snapped));
+}
 
 // Rebuild the session on CPU if a single tile's inference does not settle in
 // this window — guards against a dead GPU kernel / lost device that would
@@ -60,6 +74,8 @@ let currentSource: string | ArrayBuffer | Uint8Array | null = null;
 
 /** Thread count the current session was built with; ORT reads it only at build time. */
 let sessionThreads = isElectron ? 1 : getMaxSessionThreads();
+/** Tile edge used by warm-up and every job until a `load-model` says otherwise. */
+let currentTileSize = DEFAULT_TILE_SIZE;
 /** User's GPU intent, independent of whether the live session actually runs on GPU. */
 let wantsGpu = true;
 /** A thread/EP change arrived while a session exists; rebuild it at the next task boundary. */
@@ -115,6 +131,7 @@ if (!isOrtPthreadWorker) {
           message.payload.gpu ?? false,
           message.payload.numThreads,
           message.payload.warmup ?? false,
+          message.payload.tileSize,
         );
         break;
       case 'process': {
@@ -321,12 +338,12 @@ async function createSession(source: string | ArrayBuffer | Uint8Array, gpu: boo
  * Burning one dummy tile while the pool is still idle makes the first real tile
  * run at steady-state speed.
  */
-async function warmupSession(target: Awaited<ReturnType<typeof createSession>>) {
-  const input = new ort.Tensor('float32', new Float32Array(3 * TILE_SIZE * TILE_SIZE), [
+async function warmupSession(target: Awaited<ReturnType<typeof createSession>>, tileSize: number) {
+  const input = new ort.Tensor('float32', new Float32Array(3 * tileSize * tileSize), [
     1,
     3,
-    TILE_SIZE,
-    TILE_SIZE,
+    tileSize,
+    tileSize,
   ]);
   await target.run({ [target.inputNames[0]]: input });
 }
@@ -337,12 +354,16 @@ async function loadModel(
   gpu = false,
   numThreads?: number,
   warmup = false,
+  tileSize?: number,
 ) {
   try {
     // Each worker in the pool gets its slice of the CPU so N concurrent
     // workers do not each grab every core and oversubscribe the machine.
     if (numThreads != null) configureWorker(numThreads, gpu);
     wantsGpu = gpu;
+    // A compiled session is bound to one input shape, so a tile-size change must
+    // rebuild instead of reusing a session sized for the old tile.
+    const desiredTileSize = tileSize != null ? normalizeTileSize(tileSize) : currentTileSize;
 
     if (sessionStale) {
       sessionStale = false;
@@ -363,10 +384,17 @@ async function loadModel(
       gpuFailedModelId = null;
     }
 
-    if (session && currentModelId === modelId && currentGpu === gpu) {
+    if (
+      session &&
+      currentModelId === modelId &&
+      currentGpu === gpu &&
+      currentTileSize === desiredTileSize
+    ) {
       self.postMessage({ type: 'model-loaded', payload: { modelId, gpu } });
       return;
     }
+
+    currentTileSize = desiredTileSize;
 
     postProgress(0, 'Loading model...', undefined, 'session');
 
@@ -417,7 +445,7 @@ async function loadModel(
 
     if (warmup && session) {
       try {
-        await warmupSession(session);
+        await warmupSession(session, currentTileSize);
       } catch (warmError) {
         console.warn(`[worker] warmup failed: ${warmError}`);
       }
@@ -499,8 +527,11 @@ async function processImage(payload: {
     const inputName = session.inputNames[0];
     const outputName = session.outputNames[0];
 
-    const tilesX = Math.max(1, Math.ceil((width - TILE_OVERLAP) / TILE_STEP));
-    const tilesY = Math.max(1, Math.ceil((height - TILE_OVERLAP) / TILE_STEP));
+    const tileSize = currentTileSize;
+    const tileStep = tileSize - TILE_OVERLAP;
+
+    const tilesX = Math.max(1, Math.ceil((width - TILE_OVERLAP) / tileStep));
+    const tilesY = Math.max(1, Math.ceil((height - TILE_OVERLAP) / tileStep));
 
     // Row-major tile order. The feathered blend is order-dependent (earlier tiles
     // carry full weight, later ones ramp in), so this list is the single source of
@@ -508,7 +539,7 @@ async function processImage(payload: {
     const tiles: Array<{ x0: number; y0: number; tx: number; ty: number }> = [];
     for (let ty = 0; ty < tilesY; ty++) {
       for (let tx = 0; tx < tilesX; tx++) {
-        tiles.push({ x0: tx * TILE_STEP, y0: ty * TILE_STEP, tx, ty });
+        tiles.push({ x0: tx * tileStep, y0: ty * tileStep, tx, ty });
       }
     }
     const totalTiles = tiles.length;
@@ -518,12 +549,12 @@ async function processImage(payload: {
     // onnxruntime-web forbids concurrent run() on a single session (the run stack
     // is not re-entrant), so exactly one run is ever in flight.
     const buffers = [
-      new Float32Array(3 * TILE_SIZE * TILE_SIZE),
-      new Float32Array(3 * TILE_SIZE * TILE_SIZE),
+      new Float32Array(3 * tileSize * tileSize),
+      new Float32Array(3 * tileSize * tileSize),
     ];
     // Per-axis blend weights: tile 0 is full-weight, later tiles ramp in. Built
     // once per job and shared by every tile instead of reallocated per tile.
-    const weights = buildBlendWeights(blendScale);
+    const weights = buildBlendWeights(blendScale, tileSize);
 
     let done = 0;
     let inferMs = 0;
@@ -533,9 +564,9 @@ async function processImage(payload: {
     const startTile = (index: number, alreadyPacked = false): Promise<Float32Array> => {
       const buffer = buffers[index % 2];
       const { x0, y0 } = tiles[index];
-      const refill = () => extractTile(imageData, x0, y0, buffer);
+      const refill = () => extractTile(imageData, x0, y0, buffer, tileSize);
       if (!alreadyPacked) refill();
-      const tensor = new ort.Tensor('float32', buffer, [1, 3, TILE_SIZE, TILE_SIZE]);
+      const tensor = new ort.Tensor('float32', buffer, [1, 3, tileSize, tileSize]);
       return runWithFallback(inputName, outputName, tensor, refill, (ms) => {
         inferMs += ms;
       });
@@ -556,7 +587,7 @@ async function processImage(payload: {
       const packStart = performance.now();
       if (i + 1 < totalTiles) {
         // Packed one run ahead so this CPU work hides behind the in-flight GPU pass.
-        extractTile(imageData, tiles[i + 1].x0, tiles[i + 1].y0, buffers[(i + 1) % 2]);
+        extractTile(imageData, tiles[i + 1].x0, tiles[i + 1].y0, buffers[(i + 1) % 2], tileSize);
       }
       cpuMs += performance.now() - packStart;
 
@@ -564,10 +595,22 @@ async function processImage(payload: {
       if (abortRequested) throw new AbortError();
 
       const blendStart = performance.now();
-      const tileData = downsample ? downsampleTile(tileOut, TILE_SIZE * scale, rawFactor) : tileOut;
+      const tileData = downsample ? downsampleTile(tileOut, tileSize * scale, rawFactor) : tileOut;
       const ax = tx === 0 ? weights.full : weights.ramp;
       const ay = ty === 0 ? weights.full : weights.ramp;
-      blendTile(outData, tileData, x0, y0, blendW, blendH, blendScale, ax, ay, alphaPlane);
+      blendTile(
+        outData,
+        tileData,
+        x0,
+        y0,
+        blendW,
+        blendH,
+        blendScale,
+        ax,
+        ay,
+        alphaPlane,
+        tileSize,
+      );
       cpuMs += performance.now() - blendStart;
 
       done++;
@@ -699,18 +742,24 @@ async function timedRun(inputName: string, tensor: ort.Tensor, onRun?: (ms: numb
   }
 }
 
-/** Copy the TILE_SIZE×TILE_SIZE window at (x0, y0) into `out`, replicating edge pixels. */
-function extractTile(imageData: ImageData, x0: number, y0: number, out: Float32Array) {
+/** Copy the tileSize² window at (x0, y0) into `out`, replicating edge pixels. */
+function extractTile(
+  imageData: ImageData,
+  x0: number,
+  y0: number,
+  out: Float32Array,
+  tileSize: number,
+) {
   const { data, width, height } = imageData;
-  const plane = TILE_SIZE * TILE_SIZE;
+  const plane = tileSize * tileSize;
   const inv = 1 / 255;
 
   // Interior tiles never read outside the image, so skip the per-pixel clamp.
-  if (x0 + TILE_SIZE <= width && y0 + TILE_SIZE <= height) {
-    for (let ly = 0; ly < TILE_SIZE; ly++) {
+  if (x0 + tileSize <= width && y0 + tileSize <= height) {
+    for (let ly = 0; ly < tileSize; ly++) {
       let si = ((y0 + ly) * width + x0) * 4;
-      let di = ly * TILE_SIZE;
-      const diEnd = di + TILE_SIZE;
+      let di = ly * tileSize;
+      const diEnd = di + tileSize;
       for (; di < diEnd; di++, si += 4) {
         out[di] = data[si] * inv;
         out[plane + di] = data[si + 1] * inv;
@@ -720,11 +769,11 @@ function extractTile(imageData: ImageData, x0: number, y0: number, out: Float32A
     return;
   }
 
-  for (let ly = 0; ly < TILE_SIZE; ly++) {
+  for (let ly = 0; ly < tileSize; ly++) {
     const sy = Math.min(height - 1, Math.max(0, y0 + ly));
     const rowBase = sy * width;
-    const outRow = ly * TILE_SIZE;
-    for (let lx = 0; lx < TILE_SIZE; lx++) {
+    const outRow = ly * tileSize;
+    for (let lx = 0; lx < tileSize; lx++) {
       const sx = Math.min(width - 1, Math.max(0, x0 + lx));
       const si = (rowBase + sx) * 4;
       const di = outRow + lx;
@@ -740,8 +789,8 @@ function extractTile(imageData: ImageData, x0: number, y0: number, out: Float32A
  * the first tile on an axis contributes fully (`full`), every later tile ramps
  * linearly across the overlap (`ramp`). Both axes share the same profile.
  */
-function buildBlendWeights(blendScale: number) {
-  const ow = TILE_SIZE * blendScale;
+function buildBlendWeights(blendScale: number, tileSize: number) {
+  const ow = tileSize * blendScale;
   const overlap = TILE_OVERLAP * blendScale;
   const full = new Float32Array(ow).fill(1);
   const ramp = new Float32Array(ow);
@@ -840,8 +889,9 @@ function blendTile(
   ax: Float32Array,
   ay: Float32Array,
   alphaPlane: Uint8ClampedArray | null,
+  tileSize: number,
 ) {
-  const ow = TILE_SIZE * blendScale;
+  const ow = tileSize * blendScale;
   const plane = ow * ow;
   const baseX = x0 * blendScale;
   const baseY = y0 * blendScale;
