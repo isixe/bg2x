@@ -153,6 +153,11 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const modelPhase = ref<'downloading' | 'loading' | null>(null);
   const modelLoadStage = ref<ModelLoadStage | null>(null);
 
+  // Guards the visible load banner: once the current (model, gpu) has loaded,
+  // later reloads — e.g. a worker restarted while retrying a failed item — stay
+  // silent so the banner only reports the first load.
+  const modelLoadedOnce = ref(false);
+
   function resetModelLoad() {
     modelLoadStage.value = null;
   }
@@ -465,6 +470,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
         case 'model-loaded':
           state.value.isModelLoaded = true;
           state.value.isLoadingModel = false;
+          modelLoadedOnce.value = true;
           modelPhase.value = null;
           resetModelLoad();
           state.value.status = 'Model loaded';
@@ -503,6 +509,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     slots = Array.from({ length: count }, () => createSlot());
     state.value.isModelLoaded = false;
     state.value.isLoadingModel = false;
+    modelLoadedOnce.value = false;
     modelPhase.value = null;
     resetModelLoad();
   }
@@ -841,6 +848,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   );
 
   function invalidateSlotModels() {
+    modelLoadedOnce.value = false;
     if (state.value.isProcessing) return;
     state.value.isModelLoaded = false;
     for (const slot of slots) {
@@ -1051,7 +1059,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.isModelLoaded = false;
       state.value.status = 'Loading model...';
       state.value.error = null;
-      modelPhase.value = 'loading';
+      modelPhase.value = modelLoadedOnce.value ? null : 'loading';
       modelLoadStage.value = null;
       slot.pendingGpuWanted = options.gpu.value;
 
