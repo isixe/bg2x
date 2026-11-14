@@ -104,6 +104,16 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
   const previewItem = computed<BatchItem | null>(
     () => state.value.items.find((item) => item.id === previewId.value) ?? null,
   );
+  const previewableItems = computed(() =>
+    state.value.items.filter((item) => item.status === 'done' && item.resultUrl),
+  );
+  const previewIndex = computed(() =>
+    previewableItems.value.findIndex((item) => item.id === previewId.value),
+  );
+  const canPreviewPrev = computed(() => previewIndex.value > 0);
+  const canPreviewNext = computed(
+    () => previewIndex.value >= 0 && previewIndex.value < previewableItems.value.length - 1,
+  );
 
   const selectedIds = ref<number[]>([]);
   const rangeAnchorId = ref<number | null>(null);
@@ -1532,6 +1542,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     resetCopied();
   }
 
+  function previewStep(delta: 1 | -1) {
+    const index = previewableItems.value.findIndex((item) => item.id === previewId.value);
+    if (index < 0) return;
+    const next = previewableItems.value[index + delta];
+    if (next) selectItem(next);
+  }
+
   function downloadItem(item: BatchItem) {
     if (!item.resultUrl) return;
     const link = document.createElement('a');
@@ -1725,6 +1742,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     activeId,
     previewId,
     previewItem,
+    canPreviewPrev,
+    canPreviewNext,
+    previewStep,
     copiedId,
     batchCopied,
     selectedIds,

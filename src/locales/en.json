@@ -147,7 +147,9 @@
     "backgroundWhite": "White",
     "backgroundCustom": "Custom color",
     "backgroundImage": "Use an image",
-    "backgroundImageClear": "Remove background image"
+    "backgroundImageClear": "Remove background image",
+    "previous": "Previous image",
+    "next": "Next image"
   },
   "settings": {
     "title": "Settings",

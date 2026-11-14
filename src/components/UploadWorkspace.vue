@@ -87,6 +87,9 @@ const {
   selectRange,
   selectItem,
   closePreview,
+  canPreviewPrev,
+  canPreviewNext,
+  previewStep,
   downloadItem,
   downloadBatch,
   copyItem,
@@ -366,7 +369,15 @@ onUnmounted(() => {
       />
     </aside>
 
-    <PreviewDialog v-if="previewItem" :item="previewItem" @close="closePreview" />
+    <PreviewDialog
+      v-if="previewItem"
+      :item="previewItem"
+      :has-prev="canPreviewPrev"
+      :has-next="canPreviewNext"
+      @close="closePreview"
+      @prev="previewStep(-1)"
+      @next="previewStep(1)"
+    />
   </div>
 </template>
 

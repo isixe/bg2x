@@ -147,7 +147,9 @@
     "backgroundWhite": "白色",
     "backgroundCustom": "自定义颜色",
     "backgroundImage": "使用图片",
-    "backgroundImageClear": "移除背景图片"
+    "backgroundImageClear": "移除背景图片",
+    "previous": "上一张",
+    "next": "下一张"
   },
   "settings": {
     "title": "设置",

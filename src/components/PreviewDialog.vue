@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { Check, Copy, Download, X } from 'lucide-vue-next';
+import { Check, ChevronDown, ChevronUp, Copy, Download, X } from 'lucide-vue-next';
 import CompareSlider from './CompareSlider.vue';
 import PreviewBackgroundControl from './PreviewBackgroundControl.vue';
 import { usePreviewBackground } from '../composables/usePreviewBackground';
@@ -19,9 +19,15 @@ const props = defineProps<{
     originalSize?: { width: number; height: number } | null;
     resultSize?: { width: number; height: number } | null;
   };
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }>();
 
-const emit = defineEmits<{ (e: 'close'): void }>();
+const emit = defineEmits<{
+  (e: 'close'): void;
+  (e: 'prev'): void;
+  (e: 'next'): void;
+}>();
 
 const COPIED_DURATION = 2000;
 const copied = ref(false);
@@ -57,8 +63,29 @@ function copy() {
   void copyImage(props.item.resultUrl);
 }
 
+function isTextEntry(target: unknown): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.isContentEditable
+  );
+}
+
 function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close');
+  if (e.key === 'Escape') {
+    emit('close');
+    return;
+  }
+  if (isTextEntry(e.target)) return;
+  if (e.key === 'ArrowUp' && props.hasPrev) {
+    e.preventDefault();
+    emit('prev');
+  } else if (e.key === 'ArrowDown' && props.hasNext) {
+    e.preventDefault();
+    emit('next');
+  }
 }
 
 onMounted(() => {
@@ -119,6 +146,27 @@ onUnmounted(() => {
               <X />
             </button>
           </div>
+        </div>
+
+        <div v-if="hasPrev || hasNext" class="preview-nav">
+          <button
+            v-if="hasPrev"
+            class="preview-icon-btn"
+            :title="t('preview.previous')"
+            :aria-label="t('preview.previous')"
+            @click="emit('prev')"
+          >
+            <ChevronUp />
+          </button>
+          <button
+            v-if="hasNext"
+            class="preview-icon-btn"
+            :title="t('preview.next')"
+            :aria-label="t('preview.next')"
+            @click="emit('next')"
+          >
+            <ChevronDown />
+          </button>
         </div>
 
         <div class="preview-body" :style="previewBackgroundStyle">
@@ -266,6 +314,17 @@ onUnmounted(() => {
 .preview-icon-btn svg {
   width: 16px;
   height: 16px;
+}
+
+.preview-nav {
+  position: absolute;
+  top: 50%;
+  right: 1rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transform: translateY(-50%);
 }
 
 .preview-body {

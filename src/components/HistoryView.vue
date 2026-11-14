@@ -96,6 +96,24 @@ async function openHistoryPreview(record: HistoryRecord) {
   };
 }
 
+const historyPreviewIndex = computed(() =>
+  historyPreview.value
+    ? historyRecords.value.findIndex((record) => record.id === historyPreview.value?.id)
+    : -1,
+);
+const canPreviewPrev = computed(() => historyPreviewIndex.value > 0);
+const canPreviewNext = computed(
+  () =>
+    historyPreviewIndex.value >= 0 && historyPreviewIndex.value < historyRecords.value.length - 1,
+);
+
+function previewStep(delta: 1 | -1) {
+  const index = historyPreviewIndex.value;
+  if (index < 0) return;
+  const next = historyRecords.value[index + delta];
+  if (next) void openHistoryPreview(next);
+}
+
 async function downloadRecord(record: HistoryRecord) {
   const blob = await getImageBlob(historyImageKey(record.id, 'result')).catch(() => null);
   if (!blob) return;
@@ -179,7 +197,15 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <PreviewDialog v-if="historyPreview" :item="historyPreview" @close="closePreview" />
+    <PreviewDialog
+      v-if="historyPreview"
+      :item="historyPreview"
+      :has-prev="canPreviewPrev"
+      :has-next="canPreviewNext"
+      @close="closePreview"
+      @prev="previewStep(-1)"
+      @next="previewStep(1)"
+    />
   </div>
 </template>
 

@@ -147,7 +147,9 @@
     "backgroundWhite": "白",
     "backgroundCustom": "カスタムカラー",
     "backgroundImage": "画像を使用",
-    "backgroundImageClear": "背景画像を削除"
+    "backgroundImageClear": "背景画像を削除",
+    "previous": "前の画像",
+    "next": "次の画像"
   },
   "settings": {
     "title": "設定",
