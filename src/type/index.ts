@@ -33,6 +33,12 @@ export interface ModelEntry {
    * Force WASM when the WebGPU EP stalls on this graph instead of failing fast.
    */
   gpuUnsupported?: boolean;
+  /**
+   * Channels-last layout for the WebGPU EP. Measured as a large win on the
+   * convolutional Real-ESRGAN graphs and a loss on the Swin2SR ones, so each
+   * model opts in on its own evidence. Omit to keep ORT's NCHW default.
+   */
+  webgpuLayout?: 'NCHW' | 'NHWC';
 }
 
 export interface HistoryRecord {
@@ -134,6 +140,8 @@ export type LoadModelMessage = {
      * Omit to keep the current size, defaulting to 256.
      */
     tileSize?: number;
+    /** `ModelEntry.webgpuLayout`; ignored when `gpu` is false. */
+    preferredLayout?: 'NCHW' | 'NHWC';
   };
 };
 

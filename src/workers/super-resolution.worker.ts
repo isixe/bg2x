@@ -78,6 +78,8 @@ let sessionThreads = isElectron ? 1 : getMaxSessionThreads();
 let currentTileSize = DEFAULT_TILE_SIZE;
 /** User's GPU intent, independent of whether the live session actually runs on GPU. */
 let wantsGpu = true;
+/** Channels-last is only a win on some graphs, so the model registry opts in. */
+let gpuPreferredLayout: 'NCHW' | 'NHWC' | undefined;
 /** A thread/EP change arrived while a session exists; rebuild it at the next task boundary. */
 let sessionStale = false;
 
@@ -135,6 +137,7 @@ if (!isOrtPthreadWorker) {
           message.payload.numThreads,
           message.payload.warmup ?? false,
           message.payload.tileSize,
+          message.payload.preferredLayout,
         );
         break;
       case 'process': {
@@ -188,8 +191,11 @@ async function probeWebGpuAdapter(): Promise<GpuAdapterLike | null> {
         }
       ).gpu;
       if (!gpu) return null;
-      // Picking the adapter ourselves is the supported way to steer power
-      // preference; the deprecated env flag would otherwise be the only knob.
+      // ORT picks its own adapter, so this env flag — not an injected device — is
+      // the only way to keep it off the low-power GPU.
+      (
+        ort.env.webgpu as unknown as { powerPreference?: 'low-power' | 'high-performance' }
+      ).powerPreference = 'high-performance';
       const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
       if (!adapter) {
         adapterProbe = null;
@@ -197,7 +203,6 @@ async function probeWebGpuAdapter(): Promise<GpuAdapterLike | null> {
       }
       if (!gpuDevice) {
         gpuDevice = await adapter.requestDevice();
-        (ort.env.webgpu as unknown as { device?: GpuDeviceLike }).device = gpuDevice;
       }
       return adapter;
     } catch {
@@ -333,9 +338,12 @@ function postProgress(
 }
 
 async function createSession(source: string | ArrayBuffer | Uint8Array, gpu: boolean) {
-  const executionProviders: ort.InferenceSession.SessionOptions['executionProviders'] = gpu
-    ? ['webgpu']
-    : ['wasm'];
+  const executionProviders: ort.InferenceSession.SessionOptions['executionProviders'] =
+    gpu && gpuPreferredLayout
+      ? [{ name: 'webgpu', preferredLayout: gpuPreferredLayout }]
+      : gpu
+        ? ['webgpu']
+        : ['wasm'];
   const options: ort.InferenceSession.SessionOptions = {
     executionProviders,
     graphOptimizationLevel: 'all',
@@ -373,12 +381,14 @@ async function loadModel(
   numThreads?: number,
   warmup = false,
   tileSize?: number,
+  preferredLayout?: 'NCHW' | 'NHWC',
 ) {
   try {
     // Each worker in the pool gets its slice of the CPU so N concurrent
     // workers do not each grab every core and oversubscribe the machine.
     if (numThreads != null) configureWorker(numThreads, gpu);
     wantsGpu = gpu;
+    gpuPreferredLayout = preferredLayout;
     // A compiled session is bound to one input shape, so a tile-size change must
     // rebuild instead of reusing a session sized for the old tile.
     const desiredTileSize = tileSize != null ? normalizeTileSize(tileSize) : currentTileSize;

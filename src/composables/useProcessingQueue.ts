@@ -1083,6 +1083,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             numThreads: perWorkerThreads(),
             warmup,
             tileSize: options.model.value.tileSize,
+            preferredLayout: options.model.value.webgpuLayout,
           },
         });
       } else {
@@ -1095,6 +1096,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             numThreads: perWorkerThreads(),
             warmup,
             tileSize: options.model.value.tileSize,
+            preferredLayout: options.model.value.webgpuLayout,
           },
         });
       }
