@@ -80,6 +80,7 @@ let currentTileSize = DEFAULT_TILE_SIZE;
 let wantsGpu = true;
 /** Channels-last is only a win on some graphs, so the model registry opts in. */
 let gpuPreferredLayout: 'NCHW' | 'NHWC' | undefined;
+let wasmExecutionMode: 'sequential' | 'parallel' | undefined;
 let gpuInferTimeoutMs: number | null = null;
 /** A thread/EP change arrived while a session exists; rebuild it at the next task boundary. */
 let sessionStale = false;
@@ -140,6 +141,7 @@ if (!isOrtPthreadWorker) {
           message.payload.tileSize,
           message.payload.preferredLayout,
           message.payload.gpuProbeTimeoutMs,
+          message.payload.wasmExecutionMode,
         );
         break;
       case 'process': {
@@ -350,6 +352,7 @@ async function createSession(source: string | ArrayBuffer | Uint8Array, gpu: boo
     executionProviders,
     graphOptimizationLevel: 'all',
     preferredOutputLocation: 'cpu',
+    executionMode: gpu ? 'sequential' : wasmExecutionMode,
   };
 
   if (typeof source === 'string') {
@@ -385,6 +388,7 @@ async function loadModel(
   tileSize?: number,
   preferredLayout?: 'NCHW' | 'NHWC',
   gpuProbeTimeoutMs?: number,
+  executionMode?: 'sequential' | 'parallel',
 ) {
   try {
     // Each worker in the pool gets its slice of the CPU so N concurrent
@@ -393,6 +397,7 @@ async function loadModel(
     wantsGpu = gpu;
     gpuPreferredLayout = preferredLayout;
     gpuInferTimeoutMs = gpuProbeTimeoutMs ?? null;
+    wasmExecutionMode = executionMode;
     // A compiled session is bound to one input shape, so a tile-size change must
     // rebuild instead of reusing a session sized for the old tile.
     const desiredTileSize = tileSize != null ? normalizeTileSize(tileSize) : currentTileSize;

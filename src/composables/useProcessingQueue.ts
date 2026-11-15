@@ -1081,6 +1081,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             tileSize: options.model.value.tileSize,
             preferredLayout: options.model.value.webgpuLayout,
             gpuProbeTimeoutMs: options.model.value.gpuProbeTimeoutMs,
+            wasmExecutionMode: options.model.value.wasmExecutionMode,
           },
         });
       } else {
@@ -1095,6 +1096,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
             tileSize: options.model.value.tileSize,
             preferredLayout: options.model.value.webgpuLayout,
             gpuProbeTimeoutMs: options.model.value.gpuProbeTimeoutMs,
+            wasmExecutionMode: options.model.value.wasmExecutionMode,
           },
         });
       }

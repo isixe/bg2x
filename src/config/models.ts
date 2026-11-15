@@ -30,6 +30,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         descKey: 'modelDesc.generalX4v3',
         sizeMB: 4.9,
         tileSize: 512,
+        wasmExecutionMode: 'parallel',
         // The WebGPU EP stalls on this graph's final Clip node instead of throwing.
         gpuProbeTimeoutMs: 20_000,
       },
@@ -63,6 +64,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         sizeMB: 2.5,
         tileSize: 512,
         webgpuLayout: 'NHWC',
+        wasmExecutionMode: 'parallel',
       },
       {
         id: 'real-esrgan-x4plus-anime',
@@ -158,6 +160,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         sizeMB: 5.2,
         tileSize: 512,
         webgpuLayout: 'NHWC',
+        wasmExecutionMode: 'parallel',
       },
     ],
   },

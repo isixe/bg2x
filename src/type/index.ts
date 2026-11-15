@@ -40,6 +40,14 @@ export interface ModelEntry {
    * model opts in on its own evidence. Omit to keep ORT's NCHW default.
    */
   webgpuLayout?: 'NCHW' | 'NHWC';
+  /**
+   * ORT wasm scheduling for this graph. `parallel` lets one session run an
+   * operator's internal work across the wasm thread pool, which measured faster
+   * on the three smallest graphs and slower on every larger one (more
+   * concurrent arenas, more memory pressure), so each model opts in on its own
+   * evidence. Omit to keep ORT's default (`sequential`). Ignored on WebGPU.
+   */
+  wasmExecutionMode?: 'sequential' | 'parallel';
 }
 
 export interface HistoryRecord {
@@ -145,6 +153,8 @@ export type LoadModelMessage = {
     preferredLayout?: 'NCHW' | 'NHWC';
     /** `ModelEntry.gpuProbeTimeoutMs`; ignored when `gpu` is false. */
     gpuProbeTimeoutMs?: number;
+    /** `ModelEntry.wasmExecutionMode`; ignored when `gpu` is true. */
+    wasmExecutionMode?: 'sequential' | 'parallel';
   };
 };
 
