@@ -129,6 +129,7 @@
     "model": "モデル",
     "gpu": "GPU アクセラレーション",
     "gpuUnsupported": "WebGPU がサポートされていません",
+    "gpuModelLocked": "このモデルは CPU でのみ実行されます",
     "gpuFallbackHint": "GPU アクセラレーションに失敗し CPU で実行中。GPU を再度有効にすると再試行します。"
   },
   "download": {

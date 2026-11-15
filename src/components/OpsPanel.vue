@@ -26,6 +26,7 @@ defineProps<{
   isProcessing: boolean;
   gpuSupported: boolean;
   gpuFallback: boolean;
+  gpuLocked: boolean;
   hasReprocessable: boolean;
   hasDownloadable: boolean;
 }>();
@@ -198,18 +199,21 @@ function pickFormat(value: DownloadFormat) {
     </div>
 
     <div class="ops-gpu">
-      <span class="ops-label" :class="{ disabled: !gpuSupported }">{{ t('ops.gpu') }}</span>
-      <label class="gpu-switch" :class="{ disabled: !gpuSupported || isProcessing }">
+      <span class="ops-label" :class="{ disabled: !gpuSupported || gpuLocked }">
+        {{ t('ops.gpu') }}
+      </span>
+      <label class="gpu-switch" :class="{ disabled: !gpuSupported || isProcessing || gpuLocked }">
         <input
           type="checkbox"
-          :checked="gpu"
-          :disabled="!gpuSupported || isProcessing"
+          :checked="gpu && !gpuLocked"
+          :disabled="!gpuSupported || isProcessing || gpuLocked"
           @change="emit('update:gpu', ($event.target as HTMLInputElement).checked)"
         />
         <span class="gpu-slider" />
       </label>
     </div>
     <p v-if="!gpuSupported" class="gpu-hint">{{ t('ops.gpuUnsupported') }}</p>
+    <p v-else-if="gpuLocked" class="gpu-hint">{{ t('ops.gpuModelLocked') }}</p>
     <p v-else-if="gpuFallback" class="gpu-hint">{{ t('ops.gpuFallbackHint') }}</p>
   </aside>
 </template>

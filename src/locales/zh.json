@@ -129,6 +129,7 @@
     "model": "模型",
     "gpu": "GPU 加速",
     "gpuUnsupported": "浏览器不支持 WebGPU",
+    "gpuModelLocked": "该模型只支持使用 CPU 运行",
     "gpuFallbackHint": "GPU 加速失败，正在使用 CPU。可重新开启 GPU 以重试。"
   },
   "download": {

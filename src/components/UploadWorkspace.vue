@@ -42,6 +42,7 @@ const initialModel = getModelById(modelStore.defaultModelId) ?? MODEL_REGISTRY[0
 const selectedModelId = ref(initialModel.id);
 
 const model = computed(() => getModelById(selectedModelId.value) ?? MODEL_REGISTRY[0]);
+const gpuLocked = computed(() => model.value.gpuUnsupported === true);
 const targetScale = ref(2);
 const gpu = ref(typeof navigator !== 'undefined' && 'gpu' in navigator);
 const activeDownload = computed(() => modelDownloadStates[model.value.id]);
@@ -357,6 +358,7 @@ onUnmounted(() => {
         :is-processing="state.isProcessing"
         :gpu-supported="gpuSupported"
         :gpu-fallback="gpuFallback"
+        :gpu-locked="gpuLocked"
         :has-reprocessable="hasReprocessable"
         :has-downloadable="hasDownloadable"
         @update:target-scale="targetScale = $event"

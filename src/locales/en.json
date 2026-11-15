@@ -129,6 +129,7 @@
     "model": "Model",
     "gpu": "GPU acceleration",
     "gpuUnsupported": "WebGPU not supported",
+    "gpuModelLocked": "This model only runs on CPU",
     "gpuFallbackHint": "GPU acceleration failed — running on CPU. Toggle GPU to retry."
   },
   "download": {
