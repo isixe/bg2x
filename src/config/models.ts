@@ -30,6 +30,8 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         descKey: 'modelDesc.generalX4v3',
         sizeMB: 4.9,
         tileSize: 512,
+        // The WebGPU EP stalls on this graph's final Clip node instead of throwing.
+        gpuUnsupported: true,
       },
       {
         id: 'real-esrgan-x4plus',

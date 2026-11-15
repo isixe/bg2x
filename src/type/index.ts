@@ -29,6 +29,10 @@ export interface ModelEntry {
    * Must be a multiple of 64 — Swin2SR's window granularity.
    */
   tileSize?: number;
+  /**
+   * Force WASM when the WebGPU EP stalls on this graph instead of failing fast.
+   */
+  gpuUnsupported?: boolean;
 }
 
 export interface HistoryRecord {

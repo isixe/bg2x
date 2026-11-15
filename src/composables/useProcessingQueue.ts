@@ -942,9 +942,13 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
   }
 
+  function modelWantsGpu(): boolean {
+    return options.gpu.value && !options.model.value.gpuUnsupported;
+  }
+
   function slotModelReady(slot: WorkerSlot): boolean {
     return (
-      slot.loadedModelId === options.model.value.id && slot.loadedGpuWanted === options.gpu.value
+      slot.loadedModelId === options.model.value.id && slot.loadedGpuWanted === modelWantsGpu()
     );
   }
 
@@ -1061,7 +1065,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.error = null;
       modelPhase.value = modelLoadedOnce.value ? null : 'loading';
       modelLoadStage.value = null;
-      slot.pendingGpuWanted = options.gpu.value;
+      slot.pendingGpuWanted = modelWantsGpu();
 
       await ensureWasmBuffer();
       const sharedModel = getOrCreateModelSab(modelId, modelData);
@@ -1075,7 +1079,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           type: 'load-model',
           payload: {
             modelId,
-            gpu: options.gpu.value,
+            gpu: modelWantsGpu(),
             numThreads: perWorkerThreads(),
             warmup,
             tileSize: options.model.value.tileSize,
@@ -1087,7 +1091,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           payload: {
             modelId,
             modelData,
-            gpu: options.gpu.value,
+            gpu: modelWantsGpu(),
             numThreads: perWorkerThreads(),
             warmup,
             tileSize: options.model.value.tileSize,
