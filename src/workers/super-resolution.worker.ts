@@ -80,6 +80,7 @@ let currentTileSize = DEFAULT_TILE_SIZE;
 let wantsGpu = true;
 /** Channels-last is only a win on some graphs, so the model registry opts in. */
 let gpuPreferredLayout: 'NCHW' | 'NHWC' | undefined;
+let gpuInferTimeoutMs: number | null = null;
 /** A thread/EP change arrived while a session exists; rebuild it at the next task boundary. */
 let sessionStale = false;
 
@@ -138,6 +139,7 @@ if (!isOrtPthreadWorker) {
           message.payload.warmup ?? false,
           message.payload.tileSize,
           message.payload.preferredLayout,
+          message.payload.gpuProbeTimeoutMs,
         );
         break;
       case 'process': {
@@ -382,6 +384,7 @@ async function loadModel(
   warmup = false,
   tileSize?: number,
   preferredLayout?: 'NCHW' | 'NHWC',
+  gpuProbeTimeoutMs?: number,
 ) {
   try {
     // Each worker in the pool gets its slice of the CPU so N concurrent
@@ -389,6 +392,7 @@ async function loadModel(
     if (numThreads != null) configureWorker(numThreads, gpu);
     wantsGpu = gpu;
     gpuPreferredLayout = preferredLayout;
+    gpuInferTimeoutMs = gpuProbeTimeoutMs ?? null;
     // A compiled session is bound to one input shape, so a tile-size change must
     // rebuild instead of reusing a session sized for the old tile.
     const desiredTileSize = tileSize != null ? normalizeTileSize(tileSize) : currentTileSize;
@@ -753,6 +757,8 @@ async function runWithFallback(
 
     session = await createSession(currentSource, false);
     currentGpu = false;
+    gpuFailed = true;
+    gpuFailedModelId = currentModelId;
 
     // The aborted GPU run may have partially written to the shared buffer.
     refill();
@@ -763,8 +769,9 @@ async function runWithFallback(
 
 async function timedRun(inputName: string, tensor: ort.Tensor, onRun?: (ms: number) => void) {
   const start = performance.now();
+  const timeoutMs = currentGpu ? (gpuInferTimeoutMs ?? INFER_TIMEOUT_MS) : INFER_TIMEOUT_MS;
   try {
-    return await withTimeout(session!.run({ [inputName]: tensor }), INFER_TIMEOUT_MS, 'Inference');
+    return await withTimeout(session!.run({ [inputName]: tensor }), timeoutMs, 'Inference');
   } finally {
     onRun?.(performance.now() - start);
   }

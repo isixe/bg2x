@@ -31,7 +31,7 @@ const MODEL_SERIES: Record<ModelGroupId, ModelSeries> = {
         sizeMB: 4.9,
         tileSize: 512,
         // The WebGPU EP stalls on this graph's final Clip node instead of throwing.
-        gpuUnsupported: true,
+        gpuProbeTimeoutMs: 20_000,
       },
       {
         id: 'real-esrgan-x4plus',

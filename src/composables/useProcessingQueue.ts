@@ -942,13 +942,9 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
     });
   }
 
-  function modelWantsGpu(): boolean {
-    return options.gpu.value && !options.model.value.gpuUnsupported;
-  }
-
   function slotModelReady(slot: WorkerSlot): boolean {
     return (
-      slot.loadedModelId === options.model.value.id && slot.loadedGpuWanted === modelWantsGpu()
+      slot.loadedModelId === options.model.value.id && slot.loadedGpuWanted === options.gpu.value
     );
   }
 
@@ -1065,7 +1061,7 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
       state.value.error = null;
       modelPhase.value = modelLoadedOnce.value ? null : 'loading';
       modelLoadStage.value = null;
-      slot.pendingGpuWanted = modelWantsGpu();
+      slot.pendingGpuWanted = options.gpu.value;
 
       await ensureWasmBuffer();
       const sharedModel = getOrCreateModelSab(modelId, modelData);
@@ -1079,11 +1075,12 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           type: 'load-model',
           payload: {
             modelId,
-            gpu: modelWantsGpu(),
+            gpu: options.gpu.value,
             numThreads: perWorkerThreads(),
             warmup,
             tileSize: options.model.value.tileSize,
             preferredLayout: options.model.value.webgpuLayout,
+            gpuProbeTimeoutMs: options.model.value.gpuProbeTimeoutMs,
           },
         });
       } else {
@@ -1092,11 +1089,12 @@ export function useProcessingQueue(options: UseProcessingQueueOptions) {
           payload: {
             modelId,
             modelData,
-            gpu: modelWantsGpu(),
+            gpu: options.gpu.value,
             numThreads: perWorkerThreads(),
             warmup,
             tileSize: options.model.value.tileSize,
             preferredLayout: options.model.value.webgpuLayout,
+            gpuProbeTimeoutMs: options.model.value.gpuProbeTimeoutMs,
           },
         });
       }

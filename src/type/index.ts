@@ -30,9 +30,10 @@ export interface ModelEntry {
    */
   tileSize?: number;
   /**
-   * Force WASM when the WebGPU EP stalls on this graph instead of failing fast.
+   * Cap on this graph's GPU inference, in ms. Some graphs stall instead of
+   * throwing, so a short cap keeps the cost bounded before falling back.
    */
-  gpuUnsupported?: boolean;
+  gpuProbeTimeoutMs?: number;
   /**
    * Channels-last layout for the WebGPU EP. Measured as a large win on the
    * convolutional Real-ESRGAN graphs and a loss on the Swin2SR ones, so each
@@ -142,6 +143,8 @@ export type LoadModelMessage = {
     tileSize?: number;
     /** `ModelEntry.webgpuLayout`; ignored when `gpu` is false. */
     preferredLayout?: 'NCHW' | 'NHWC';
+    /** `ModelEntry.gpuProbeTimeoutMs`; ignored when `gpu` is false. */
+    gpuProbeTimeoutMs?: number;
   };
 };
 
