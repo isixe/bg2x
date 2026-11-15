@@ -105,9 +105,12 @@ let wasmBinaryApplied = false;
 /** Model bytes shared by the pool, keyed by model id — a view over the pool's SAB, not a copy. */
 const providedModelBuffers = new Map<string, Uint8Array>();
 
-type GpuAdapterLike = { requestDevice(): Promise<{ lost: Promise<{ reason?: string }> }> };
+type GpuDeviceLike = { lost: Promise<{ reason?: string }> };
+type GpuAdapterLike = { requestDevice(): Promise<GpuDeviceLike> };
 /** Memoised adapter probe; failures are not cached because they can be transient. */
 let adapterProbe: Promise<GpuAdapterLike | null> | null = null;
+/** The GPU device handed to ORT; kept so device-loss watching sees the same one. */
+let gpuDevice: GpuDeviceLike | null = null;
 let deviceMonitorStarted = false;
 /** GPU is skipped until reset when an adapter is missing or this model's GPU session failed. */
 let gpuFailed = false;
@@ -168,6 +171,7 @@ function applyProvidedWasmBinary() {
 
 function resetAdapterProbe() {
   adapterProbe = null;
+  gpuDevice = null;
 }
 
 async function probeWebGpuAdapter(): Promise<GpuAdapterLike | null> {
@@ -175,13 +179,25 @@ async function probeWebGpuAdapter(): Promise<GpuAdapterLike | null> {
   adapterProbe = (async () => {
     try {
       const gpu = (
-        navigator as unknown as { gpu?: { requestAdapter(): Promise<GpuAdapterLike | null> } }
+        navigator as unknown as {
+          gpu?: {
+            requestAdapter(options?: {
+              powerPreference?: 'low-power' | 'high-performance';
+            }): Promise<GpuAdapterLike | null>;
+          };
+        }
       ).gpu;
       if (!gpu) return null;
-      const adapter = await gpu.requestAdapter();
+      // Picking the adapter ourselves is the supported way to steer power
+      // preference; the deprecated env flag would otherwise be the only knob.
+      const adapter = await gpu.requestAdapter({ powerPreference: 'high-performance' });
       if (!adapter) {
         adapterProbe = null;
         return null;
+      }
+      if (!gpuDevice) {
+        gpuDevice = await adapter.requestDevice();
+        (ort.env.webgpu as unknown as { device?: GpuDeviceLike }).device = gpuDevice;
       }
       return adapter;
     } catch {
@@ -196,11 +212,12 @@ async function probeWebGpuAdapter(): Promise<GpuAdapterLike | null> {
 function watchGpuDeviceLoss(adapter: GpuAdapterLike) {
   if (deviceMonitorStarted) return;
   deviceMonitorStarted = true;
-  adapter
-    .requestDevice()
+  const devicePromise = gpuDevice ? Promise.resolve(gpuDevice) : adapter.requestDevice();
+  devicePromise
     .then((device) =>
       device.lost.then((info) => {
         deviceMonitorStarted = false;
+        gpuDevice = null;
         if (gpuFailed) return;
         gpuFailed = true;
         postGpuStatus(false, `GPU device lost: ${info.reason ?? 'unknown'}`);
@@ -316,20 +333,21 @@ function postProgress(
 }
 
 async function createSession(source: string | ArrayBuffer | Uint8Array, gpu: boolean) {
-  const executionProviders = gpu ? ['webgpu'] : ['wasm'];
+  const executionProviders: ort.InferenceSession.SessionOptions['executionProviders'] = gpu
+    ? ['webgpu']
+    : ['wasm'];
+  const options: ort.InferenceSession.SessionOptions = {
+    executionProviders,
+    graphOptimizationLevel: 'all',
+    preferredOutputLocation: 'cpu',
+  };
 
   if (typeof source === 'string') {
-    return ort.InferenceSession.create(source, {
-      executionProviders,
-      graphOptimizationLevel: 'all',
-    });
+    return ort.InferenceSession.create(source, options);
   }
   // Pass a shared-backed view straight through: only a raw ArrayBuffer needs wrapping.
   const model = source instanceof Uint8Array ? source : new Uint8Array(source);
-  return ort.InferenceSession.create(model, {
-    executionProviders,
-    graphOptimizationLevel: 'all',
-  });
+  return ort.InferenceSession.create(model, options);
 }
 
 /**
