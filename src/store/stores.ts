@@ -25,7 +25,7 @@ import {
 } from '../utils/imageStore';
 import { createThumbnailBlob } from '../utils/thumbnail';
 
-export type LocaleCode = 'en' | 'zh' | 'ja';
+export type LocaleCode = 'en' | 'zh' | 'ja' | 'ru';
 export type ThemeMode = 'light' | 'dark';
 export type ExportMode = 'aggregate' | 'source';
 
@@ -38,6 +38,7 @@ function detectLocale(): LocaleCode {
     const lower = lang.toLowerCase();
     if (lower.startsWith('zh')) return 'zh';
     if (lower.startsWith('ja')) return 'ja';
+    if (lower.startsWith('ru')) return 'ru';
   }
   return 'en';
 }
@@ -53,7 +54,12 @@ export const useLocaleStore = defineStore(
     }
 
     const localeLabel = computed(() => {
-      const labels: Record<string, string> = { en: 'English', zh: '中文', ja: '日本語' };
+      const labels: Record<string, string> = {
+        en: 'English',
+        zh: '中文',
+        ja: '日本語',
+        ru: 'Русский',
+      };
       return labels[locale.value] ?? locale.value;
     });
 

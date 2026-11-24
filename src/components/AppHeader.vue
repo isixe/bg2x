@@ -27,6 +27,7 @@ const LOCALE_OPTIONS: { value: LocaleCode; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'zh', label: '中文' },
   { value: 'ja', label: '日本語' },
+  { value: 'ru', label: 'Русский' },
 ];
 
 const { t } = useI18n();

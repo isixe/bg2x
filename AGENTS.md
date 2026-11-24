@@ -34,7 +34,7 @@
 ## State & i18n
 - Pinia persist keys are fixed strings: `super-resolution-locale`, `super-resolution-theme`, `super-resolution-settings`, `super-resolution-default-model`, `image-super-resolution-history`. History only persists while the `historyPersist` setting is enabled.
 - Locale is rehydrated into vue-i18n in `src/pages/_app.ts`.
-- i18n: `src/locales/{en,zh,ja}.json`, default and fallback `en`. Every new key must be added to all three files. User-facing strings go through `t()` — no hardcoded UI text.
+- i18n: `src/locales/{en,zh,ja,ru}.json`, default and fallback `en`. Every new key must be added to all four files. User-facing strings go through `t()` — no hardcoded UI text.
 
 ## Conventions
 - Prettier: single quotes, trailing commas, `printWidth: 100`, LF. Run `pnpm run format` before finishing.

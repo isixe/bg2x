@@ -243,6 +243,7 @@ function confirmReset() {
                 <SelectItem value="zh">中文</SelectItem>
                 <SelectItem value="en">English</SelectItem>
                 <SelectItem value="ja">日本語</SelectItem>
+                <SelectItem value="ru">Русский</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -527,6 +528,7 @@ function confirmReset() {
   border-radius: var(--radius-md);
   cursor: pointer;
   text-align: left;
+  word-break: break-all;
   transition:
     background 0.15s ease,
     color 0.15s ease;

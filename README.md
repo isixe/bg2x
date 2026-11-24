@@ -27,7 +27,7 @@
 - **Drag & Drop Support** — Add images through drag-and-drop or the file picker.
 - **Batch Processing** — Queue multiple images and process them one after another.
 - **Offline-Friendly Model Cache** — Models are cached in IndexedDB after the first download.
-- **Trilingual Interface** — English, Chinese, and Japanese, with light and dark themes.
+- **Multilingual Interface** — English, Chinese, Japanese, and Russian, with light and dark themes.
 - **Desktop App** — Native Electron builds for Windows, macOS, and Linux.
 
 ## Tech Stack
@@ -128,7 +128,7 @@ bg2x/
 │   ├── composables/         # Model registry, cache, downloads, processing queue
 │   ├── config/              # App metadata, models, related projects
 │   ├── layouts/             # Astro layout
-│   ├── locales/             # i18n messages (en, zh, ja) and setup
+│   ├── locales/             # i18n messages (en, zh, ja, ru) and setup
 │   ├── pages/               # Astro entry points
 │   ├── router/              # Vue Router configuration
 │   ├── store/               # Pinia stores
