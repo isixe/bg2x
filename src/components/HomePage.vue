@@ -3,11 +3,19 @@ import ModelsSection from './ModelsSection.vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { Upload } from 'lucide-vue-next';
+import { useModelRequiredToast } from '../composables/useModelRequiredToast';
+import { useModelCacheStore } from '../store/stores';
 
 const router = useRouter();
 const { t } = useI18n();
+const modelCacheStore = useModelCacheStore();
+const { showModelRequired } = useModelRequiredToast();
 
 function goToUpload() {
+  if (!modelCacheStore.hasCachedModels) {
+    showModelRequired();
+    return;
+  }
   router.push({ name: 'upload' });
 }
 </script>

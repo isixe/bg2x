@@ -14,8 +14,10 @@ import {
   MonitorDown,
   Github,
   Menu,
+  TriangleAlert,
   X,
 } from 'lucide-vue-next';
+import { useModelRequiredToast } from '../composables/useModelRequiredToast';
 import { useLocaleStore, useModelCacheStore, useThemeStore } from '../store/stores';
 import type { LocaleCode } from '../store/stores';
 import DropdownMenu from './ui/dropdown-menu/DropdownMenu.vue';
@@ -35,6 +37,8 @@ const route = useRoute();
 const localeStore = useLocaleStore();
 const themeStore = useThemeStore();
 const modelCacheStore = useModelCacheStore();
+const { modelRequiredVisible, showModelRequired, disposeModelRequiredToast } =
+  useModelRequiredToast();
 
 const isElectron = typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron');
 
@@ -48,15 +52,6 @@ const navItems = computed(() => {
   ] as const;
   return items.filter((item) => item.name !== 'home' || !modelCacheStore.hasCachedModels);
 });
-
-const modelRequiredVisible = ref(false);
-let modelRequiredTimer: ReturnType<typeof setTimeout> | undefined;
-
-function showModelRequired() {
-  modelRequiredVisible.value = true;
-  if (modelRequiredTimer) clearTimeout(modelRequiredTimer);
-  modelRequiredTimer = setTimeout(() => (modelRequiredVisible.value = false), 3000);
-}
 
 // On phones the primary nav collapses into a hamburger + right-side drawer.
 // Only the nav uses the drawer; the utility actions stay in the header.
@@ -115,7 +110,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (modelRequiredTimer) clearTimeout(modelRequiredTimer);
+  disposeModelRequiredToast();
   mobileMq?.removeEventListener('change', handleMobileChange);
   if (typeof window !== 'undefined') {
     window.removeEventListener('keydown', onKeydown);
@@ -245,7 +240,8 @@ watch(
 
     <Transition name="header-toast">
       <div v-if="modelRequiredVisible" class="header-toast" role="status">
-        {{ t('models.downloadRequired') }}
+        <span class="header-toast-icon"><TriangleAlert :size="15" aria-hidden="true" /></span>
+        <span class="header-toast-text">{{ t('models.downloadRequired') }}</span>
       </div>
     </Transition>
 
@@ -546,14 +542,33 @@ html.dark .theme-btn :global(.icon-moon) {
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
-  padding: 0.5rem 0.875rem;
-  background: var(--color-dark);
-  color: #fff;
-  font-size: 0.8125rem;
-  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.5rem 0.75rem;
+  background: var(--color-card);
+  color: var(--color-dark);
+  border: var(--border-thin);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
   pointer-events: none;
+}
+
+.header-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--color-primary);
+}
+
+.header-toast-text {
+  line-height: 1.4;
 }
 
 .header-toast-enter-active,
